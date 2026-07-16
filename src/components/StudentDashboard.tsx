@@ -30,6 +30,7 @@ interface StudentDashboardProps {
   onSendMessage: (classId: string, text: string) => void;
   onAddXp: (xpAmount: number) => void;
   onSubmitTask: (submission: Omit<TaskSubmission, "id" | "submittedAt">) => void;
+  onLeaveClass: (classId: string) => void;
   language: Language;
   setLanguage: (lang: Language) => void;
   theme: Theme;
@@ -50,6 +51,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   onSendMessage,
   onAddXp,
   onSubmitTask,
+  onLeaveClass,
   language,
   setLanguage,
   theme,
@@ -75,6 +77,24 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     setTimeout(() => {
       setNotification(null);
     }, 4000);
+  };
+
+  // Leave-class confirmation state
+  const [leaveConfirm, setLeaveConfirm] = useState<ClassCommunity | null>(null);
+
+  const confirmLeaveClass = () => {
+    if (!leaveConfirm) return;
+    const leaving = leaveConfirm;
+    const remaining = studentClasses.filter(c => c.id !== leaving.id);
+    // If we're leaving the active class, switch to another enrolled class (or none)
+    if (activeClass?.id === leaving.id) {
+      setActiveClass(remaining[0] || null);
+      setSelectedLesson(null);
+      setSelectedTask(null);
+    }
+    onLeaveClass(leaving.id);
+    setLeaveConfirm(null);
+    showNotification(`${t.leftClass} ${getGradeAndSubject(leaving.name).subject}`, "info");
   };
 
   // Navigation & View States
@@ -129,9 +149,9 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
 
   // AI Tutor state
   const [aiChat, setAiChat] = useState<Array<{ role: "user" | "assistant"; text: string }>>([
-    { 
-      role: "assistant", 
-      text: `Hi **${currentStudent.name}**! I am your **Insyte AI Tutor**. Ask me anything about your lessons, pending assignments, or studying strategies. I'm connected to your class progress!` 
+    {
+      role: "assistant",
+      text: `${t.aiGreetingHi} **${currentStudent.name}**! ${t.aiGreetingBody}`
     }
   ]);
   const [aiInput, setAiInput] = useState("");
@@ -191,7 +211,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     if (allCorrect) {
       setDragDropFeedback({
         success: true,
-        text: `Awesome! You paired all components perfectly and earned +${selectedTask.rewardXp} XP!`
+        text: `${t.dragMatchSuccess} +${selectedTask.rewardXp} XP!`
       });
       
       // Submit submission
@@ -209,7 +229,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     } else {
       setDragDropFeedback({
         success: false,
-        text: "Hmm, that's not quite right. Match carefully and try again!"
+        text: t.dragMatchFail
       });
     }
   };
@@ -236,7 +256,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
       setSubmittingTask(false);
       setSelectedTask(null);
       // Let student know they submitted
-      showNotification("Homework submitted successfully! Prof. Hamza will review and award up to " + selectedTask.rewardXp + " XP.");
+      showNotification(`${t.homeworkSubmitted} ${selectedTask.rewardXp} XP.`);
     }, 800);
   };
 
@@ -300,15 +320,15 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
       if (response.ok) {
         setAiChat(prev => [...prev, { role: "assistant", text: data.text }]);
       } else {
-        setAiChat(prev => [...prev, { 
-          role: "assistant", 
-          text: `⚠️ **Error**: ${data.error || "Failed to contact study assistant."}` 
+        setAiChat(prev => [...prev, {
+          role: "assistant",
+          text: `⚠️ **${t.errorLabel}**: ${data.error || t.failedContactAssistant}`
         }]);
       }
     } catch (err: any) {
-      setAiChat(prev => [...prev, { 
-        role: "assistant", 
-        text: `⚠️ **Connection Error**: Please make sure your dev server and internet are working properly.` 
+      setAiChat(prev => [...prev, {
+        role: "assistant",
+        text: `⚠️ **${t.connectionError}**: ${t.connectionErrorDesc}`
       }]);
     } finally {
       setAiLoading(false);
@@ -583,9 +603,16 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                   <div className="absolute top-[-30%] right-[-10%] w-60 h-60 bg-indigo-500/10 rounded-full blur-[80px]" />
                   <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div>
-                      <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest font-mono">Enrolled Classroom</span>
+                      <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest font-mono">{t.enrolledClassroom}</span>
                       <h2 className="text-2xl font-extrabold font-display mt-1">{activeClass.name}</h2>
                       <p className="text-slate-400 text-xs mt-2 max-w-xl leading-relaxed">{activeClass.description}</p>
+                      <button
+                        onClick={() => setLeaveConfirm(activeClass)}
+                        className="mt-4 inline-flex items-center gap-1.5 text-[11px] font-bold text-red-300 hover:text-red-200 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 px-3 py-1.5 rounded-lg transition-all cursor-pointer"
+                      >
+                        <LogOut className="h-3.5 w-3.5" />
+                        {t.leaveClass}
+                      </button>
                     </div>
 
                     {/* XP Progress Circular Metric */}
@@ -606,12 +633,12 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                           />
                         </svg>
                         <div className="absolute font-mono font-bold text-xs text-indigo-400">
-                          Lvl{currentStudent.level}
+                          {t.lvlPrefix}{currentStudent.level}
                         </div>
                       </div>
                       <div>
-                        <div className="text-xs font-bold text-slate-200">Alex's Standing</div>
-                        <div className="text-[11px] text-amber-400 font-semibold mt-0.5">{currentStudent.xp} Total XP</div>
+                        <div className="text-xs font-bold text-slate-200">{t.yourStanding}</div>
+                        <div className="text-[11px] text-amber-400 font-semibold mt-0.5">{currentStudent.xp} {t.totalXpLabel}</div>
                       </div>
                     </div>
                   </div>
@@ -627,7 +654,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                     <div className="bg-white dark:bg-[#18142c] border border-slate-200 dark:border-[#2b244c] rounded-2xl p-5 shadow-xs">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                         <h3 className="text-sm font-bold font-display text-slate-800 dark:text-indigo-100 flex items-center gap-2">
-                          <Bell className="h-4.5 w-4.5 text-indigo-500" /> Prof's Announcements
+                          <Bell className="h-4.5 w-4.5 text-indigo-500" /> {t.profsAnnouncements}
                         </h3>
                         
                         {/* Announcement Search Bar */}
@@ -635,7 +662,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                           <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
                           <input
                             type="text"
-                            placeholder="Search announcements..."
+                            placeholder={t.searchAnnouncements}
                             value={announcementSearch}
                             onChange={(e) => setAnnouncementSearch(e.target.value)}
                             className="w-full pl-8 pr-7 py-1.5 bg-slate-50 dark:bg-[#1c1836] border border-slate-100 dark:border-[#2b244c] focus:border-indigo-500 rounded-lg text-xs text-slate-700 dark:text-slate-200 focus:outline-hidden"
@@ -666,14 +693,14 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                                 </h4>
                                 <p className="text-slate-600 dark:text-slate-300 text-xs mt-1.5 leading-relaxed">{ann.content}</p>
                                 <div className="text-[9px] text-slate-400 dark:text-slate-500 font-mono mt-3 text-right">
-                                  Posted by {ann.authorName} • {new Date(ann.publishedAt).toLocaleDateString()}
+                                  {t.postedBy} {ann.authorName} • {new Date(ann.publishedAt).toLocaleDateString()}
                                 </div>
                               </div>
                             ))}
                           </div>
                         ) : (
                           <p className="text-slate-400 text-xs text-center py-4">
-                            {announcementSearch ? "No announcements match your search." : "No recent announcements in this class."}
+                            {announcementSearch ? t.noAnnouncementsMatch : t.noRecentAnnouncements}
                           </p>
                         );
                       })()}
@@ -682,7 +709,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                     {/* Class Schedule Calendar */}
                     <div className="bg-white dark:bg-[#18142c] border border-slate-200 dark:border-[#2b244c] rounded-2xl p-5 shadow-xs">
                       <h3 className="text-sm font-bold font-display text-slate-800 dark:text-indigo-100 flex items-center gap-2 mb-4">
-                        <Calendar className="h-4.5 w-4.5 text-indigo-500" /> Classroom Calendar
+                        <Calendar className="h-4.5 w-4.5 text-indigo-500" /> {t.classroomCalendar}
                       </h3>
                       {classEvents.length > 0 ? (
                         <div className="space-y-3">
@@ -704,7 +731,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                           ))}
                         </div>
                       ) : (
-                        <p className="text-slate-400 text-xs text-center py-4">No scheduled events found.</p>
+                        <p className="text-slate-400 text-xs text-center py-4">{t.noEvents}</p>
                       )}
                     </div>
 
@@ -714,7 +741,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                   <div className="space-y-6">
                     <div className="bg-white dark:bg-[#18142c] border border-slate-200 dark:border-[#2b244c] rounded-2xl p-5 shadow-xs">
                       <h3 className="text-sm font-bold font-display text-slate-800 dark:text-indigo-100 flex items-center gap-2 mb-4">
-                        <Trophy className="h-4.5 w-4.5 text-amber-500" /> Classroom Leaderboard
+                        <Trophy className="h-4.5 w-4.5 text-amber-500" /> {t.leaderboard}
                       </h3>
 
                       <div className="space-y-2.5">
@@ -741,7 +768,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                                 />
                                 <div className="text-left">
                                   <div className={`text-xs font-bold ${isSelf ? "text-indigo-600 dark:text-indigo-400" : "text-slate-800 dark:text-slate-200"}`}>
-                                    {stud.name} {isSelf && "(You)"}
+                                    {stud.name} {isSelf && t.youLabel}
                                   </div>
                                   <div className="text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-wide font-mono mt-0.5">
                                     {stud.rank}
@@ -776,11 +803,11 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                     <div className="space-y-4">
                       <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between">
                         <div>
-                          <h2 className="text-lg font-bold font-display text-slate-800 dark:text-indigo-100 mb-0.5">Lessons & Reading Guides</h2>
-                          <p className="text-slate-400 text-xs">Review digital lecture materials and complete interactive embeds to earn XP.</p>
+                          <h2 className="text-lg font-bold font-display text-slate-800 dark:text-indigo-100 mb-0.5">{t.lessonsReadingGuides}</h2>
+                          <p className="text-slate-400 text-xs">{t.lessonsSubtitle}</p>
                         </div>
                         <span className="bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 px-3 py-1 rounded-full text-xs font-mono font-semibold self-start md:self-center">
-                          {filteredLessons.length} available
+                          {filteredLessons.length} {t.available}
                         </span>
                       </div>
 
@@ -789,7 +816,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                         <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                         <input
                           type="text"
-                          placeholder="Search lessons by title or content..."
+                          placeholder={t.searchLessonsPlaceholder}
                           value={lessonSearch}
                           onChange={(e) => setLessonSearch(e.target.value)}
                           className="w-full pl-9 pr-4 py-2 bg-white dark:bg-[#18142c] border border-slate-200 dark:border-[#2b244c] focus:border-indigo-500 rounded-xl text-xs text-slate-700 dark:text-slate-200 focus:outline-hidden"
@@ -799,7 +826,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                             onClick={() => setLessonSearch("")}
                             className="absolute right-3 top-2.5 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
                           >
-                            Clear
+                            {t.clear}
                           </button>
                         )}
                       </div>
@@ -807,7 +834,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                       {filteredLessons.length === 0 ? (
                         <div className="py-12 text-center bg-white dark:bg-[#18142c] border border-slate-200 dark:border-[#2b244c] rounded-2xl">
                           <BookOpen className="h-8 w-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-                          <p className="text-xs text-slate-400 font-semibold">No lessons match your search criteria.</p>
+                          <p className="text-xs text-slate-400 font-semibold">{t.noLessonsMatch}</p>
                         </div>
                       ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -820,21 +847,21 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                           <div>
                             <div className="flex items-center justify-between gap-2">
                               <span className="bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-300 px-2.5 py-1 rounded-md text-[9px] font-mono font-bold uppercase tracking-wide">
-                                Module Reading
+                                {t.moduleReading}
                               </span>
                               <div className="flex gap-1.5">
                                 {les.videoUrl && (
-                                  <span className="p-1 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 rounded" title="Includes Video Lecture">
+                                  <span className="p-1 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 rounded" title={t.includesVideoLecture}>
                                     <Video className="h-3 w-3" />
                                   </span>
                                 )}
                                 {les.pptUrl && (
-                                  <span className="p-1 bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 rounded" title="Includes Lecture Slides">
+                                  <span className="p-1 bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 rounded" title={t.includesLectureSlides}>
                                     <Presentation className="h-3 w-3" />
                                   </span>
                                 )}
                                 {les.webUrl && (
-                                  <span className="p-1 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 rounded" title="Includes External Website">
+                                  <span className="p-1 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 rounded" title={t.includesExternalWebsite}>
                                     <Globe className="h-3 w-3" />
                                   </span>
                                 )}
@@ -846,7 +873,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                             </p>
                           </div>
                           <div className="mt-4 pt-3 border-t border-slate-100 dark:border-[#251e40] flex items-center justify-between text-[11px] font-bold text-indigo-600 dark:text-indigo-400">
-                            <span>Open Lesson Guide</span>
+                            <span>{t.openLessonGuide}</span>
                             <ChevronRight className="h-4 w-4 transform group-hover:translate-x-1 transition-transform" />
                           </div>
                         </div>
@@ -864,7 +891,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                       onClick={() => setSelectedLesson(null)}
                       className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors font-semibold"
                     >
-                      <ArrowLeft className="h-4 w-4" /> Back to Lessons list
+                      <ArrowLeft className="h-4 w-4" /> {t.backToLessons}
                     </button>
 
                     <div>
@@ -872,7 +899,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                         {selectedLesson.title}
                       </h2>
                       <span className="text-[10px] text-slate-400 font-semibold font-mono">
-                        PUBLISHED {new Date(selectedLesson.publishedAt).toLocaleDateString()} BY {activeClass?.teacherName || "Class Instructor"}
+                        {t.publishedCaps} {new Date(selectedLesson.publishedAt).toLocaleDateString()} {t.byCaps} {activeClass?.teacherName || t.classInstructor}
                       </span>
                     </div>
 
@@ -884,7 +911,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                     {(selectedLesson.videoUrl || selectedLesson.pptUrl || selectedLesson.webUrl) && (
                       <div className="border-t border-slate-200/50 dark:border-[#2c2452]/40 pt-6 space-y-4">
                         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                          Interactive Lesson Media
+                          {t.interactiveLessonMedia}
                         </h3>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -893,12 +920,12 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                             <div className="bg-slate-50 dark:bg-[#110d26] border border-slate-200 dark:border-[#2b244c] rounded-2xl p-4 shadow-inner flex flex-col justify-between">
                               <div>
                                 <span className="flex items-center gap-1.5 text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-2">
-                                  <Video className="h-3.5 w-3.5 animate-pulse" /> Video Lecture Demonstration
+                                  <Video className="h-3.5 w-3.5 animate-pulse" /> {t.videoLectureDemo}
                                 </span>
                                 <div className="relative aspect-video rounded-xl overflow-hidden border border-slate-200 dark:border-[#2b244c]">
                                   <iframe
                                     src={getYoutubeEmbedUrl(selectedLesson.videoUrl)}
-                                    title="Video Lecture"
+                                    title={t.videoLecture}
                                     className="absolute inset-0 w-full h-full"
                                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                     allowFullScreen
@@ -913,18 +940,18 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                             <div className="bg-slate-50 dark:bg-[#110d26] border border-slate-200 dark:border-[#2b244c] rounded-2xl p-4 shadow-inner flex flex-col justify-between">
                               <div>
                                 <span className="flex items-center gap-1.5 text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-2">
-                                  <Presentation className="h-3.5 w-3.5" /> Embedded PowerPoint Slides
+                                  <Presentation className="h-3.5 w-3.5" /> {t.embeddedPowerpointSlides}
                                 </span>
                                 <div className="relative aspect-video rounded-xl overflow-hidden border border-slate-200 dark:border-[#2b244c] bg-[#1c1836]">
                                   <iframe
                                     src={selectedLesson.pptUrl}
-                                    title="Lesson Slides Presentation"
+                                    title={t.lessonSlidesPresentation}
                                     className="absolute inset-0 w-full h-full"
                                     allowFullScreen
                                   />
                                 </div>
                               </div>
-                              <p className="text-[9px] text-slate-400 mt-2 font-mono text-center">Use slide controls to navigate the presentation deck.</p>
+                              <p className="text-[9px] text-slate-400 mt-2 font-mono text-center">{t.useSlideControls}</p>
                             </div>
                           )}
 
@@ -932,7 +959,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                           {selectedLesson.webUrl && (
                             <div className="bg-slate-50 dark:bg-[#110d26] border border-slate-200 dark:border-[#2b244c] rounded-2xl p-4 shadow-inner col-span-1 md:col-span-2">
                               <span className="flex items-center gap-1.5 text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-2">
-                                <Globe className="h-3.5 w-3.5" /> Lesson Sandbox & Web Resource
+                                <Globe className="h-3.5 w-3.5" /> {t.lessonSandboxWebResource}
                               </span>
                               
                               <div className="flex flex-col sm:flex-row items-center gap-4 p-4 bg-white dark:bg-[#1c1836] rounded-xl border border-slate-200 dark:border-[#2b244c]">
@@ -941,7 +968,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                                 </div>
                                 <div className="flex-1 text-center sm:text-left min-w-0">
                                   <h4 className="font-bold text-xs text-slate-800 dark:text-slate-100">
-                                    {selectedLesson.webUrlTitle || "Interactive Study Lab Resource"}
+                                    {selectedLesson.webUrlTitle || t.interactiveStudyLab}
                                   </h4>
                                   <p className="text-[10px] text-slate-400 dark:text-slate-450 font-semibold truncate mt-0.5">
                                     {selectedLesson.webUrl}
@@ -953,7 +980,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                                   rel="noreferrer"
                                   className="w-full sm:w-auto px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer shrink-0"
                                 >
-                                  Launch Interactive Sandbox <ExternalLink className="h-3.5 w-3.5" />
+                                  {t.launchInteractiveSandbox} <ExternalLink className="h-3.5 w-3.5" />
                                 </a>
                               </div>
                             </div>
@@ -964,17 +991,17 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
 
                     <div className="mt-8 pt-6 border-t border-slate-100 dark:border-[#251e40] flex justify-between items-center bg-slate-50 dark:bg-[#201b3a] -mx-6 -mb-6 p-6 rounded-b-3xl">
                       <span className="text-xs text-slate-400">
-                        Published by {activeClass?.teacherName || "Class Instructor"}
+                        {t.publishedBy} {activeClass?.teacherName || t.classInstructor}
                       </span>
                       <button
                         onClick={() => {
                           onAddXp(25);
-                          showNotification("Awesome job reading! Earned +25 Study XP!");
+                          showNotification(t.markReadNotify);
                           setSelectedLesson(null);
                         }}
                         className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-md shadow-indigo-100 flex items-center gap-1.5 transition-all"
                       >
-                        <CheckCircle2 className="h-4 w-4" /> Mark as Read (+25 XP)
+                        <CheckCircle2 className="h-4 w-4" /> {t.markAsRead} (+25 XP)
                       </button>
                     </div>
                   </motion.div>
@@ -994,9 +1021,9 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                   {!selectedTask ? (
                     <div className="space-y-4">
                       <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between">
-                        <h2 className="text-lg font-bold font-display text-slate-800 dark:text-indigo-100 mb-2">Pending Assignments</h2>
+                        <h2 className="text-lg font-bold font-display text-slate-800 dark:text-indigo-100 mb-2">{t.pendingAssignments}</h2>
                         <span className="bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 px-3 py-1 rounded-full text-xs font-mono font-semibold self-start md:self-center">
-                          {filteredTasks.length} available
+                          {filteredTasks.length} {t.available}
                         </span>
                       </div>
 
@@ -1005,7 +1032,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                         <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                         <input
                           type="text"
-                          placeholder="Search assignments by title or instructions..."
+                          placeholder={t.searchAssignmentsPlaceholder}
                           value={taskSearch}
                           onChange={(e) => setTaskSearch(e.target.value)}
                           className="w-full pl-9 pr-4 py-2 bg-white dark:bg-[#18142c] border border-slate-200 dark:border-[#2b244c] focus:border-indigo-500 rounded-xl text-xs text-slate-700 dark:text-slate-200 focus:outline-hidden"
@@ -1015,7 +1042,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                             onClick={() => setTaskSearch("")}
                             className="absolute right-3 top-2.5 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
                           >
-                            Clear
+                            {t.clear}
                           </button>
                         )}
                       </div>
@@ -1023,7 +1050,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                       {filteredTasks.length === 0 ? (
                         <div className="py-12 text-center bg-white dark:bg-[#18142c] border border-slate-200 dark:border-[#2b244c] rounded-2xl">
                           <Award className="h-8 w-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-                          <p className="text-xs text-slate-400 font-semibold">No assignments match your search criteria.</p>
+                          <p className="text-xs text-slate-400 font-semibold">{t.noAssignmentsMatch}</p>
                         </div>
                       ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1044,7 +1071,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                               <span className={`px-2 py-0.5 rounded-md text-[9px] font-mono font-bold uppercase ${
                                 task.type === 'dragdrop' ? "bg-violet-50 dark:bg-violet-950/40 text-violet-600 dark:text-violet-300" : "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-300"
                               }`}>
-                                {task.type === 'dragdrop' ? 'Matching Game' : 'Written Essay'}
+                                {task.type === 'dragdrop' ? t.matchingGame : t.writtenEssay}
                               </span>
                               <span className="text-amber-500 font-bold text-xs font-mono flex items-center gap-0.5">
                                 <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500" /> +{task.rewardXp} XP
@@ -1056,19 +1083,19 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                             
                             <div className="mt-4 pt-3 border-t border-slate-100 dark:border-[#251e40] flex items-center justify-between text-xs">
                               <span className="text-slate-400 dark:text-slate-500 font-mono font-semibold">
-                                Due: {task.dueDate}
+                                {t.due}: {task.dueDate}
                               </span>
                               
                               {submission ? (
                                 <div className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1 bg-emerald-50 dark:bg-emerald-950/20 px-2.5 py-1 rounded-lg border border-emerald-100 dark:border-emerald-900/30">
-                                  <CheckCircle2 className="h-3.5 w-3.5" /> Handed In
+                                  <CheckCircle2 className="h-3.5 w-3.5" /> {t.handedIn}
                                 </div>
                               ) : (
                                 <button
                                   onClick={() => setSelectedTask(task)}
                                   className="text-indigo-600 dark:text-indigo-400 font-bold hover:underline"
                                 >
-                                  Complete Homework →
+                                  {t.completeHomework} →
                                 </button>
                               )}
                             </div>
@@ -1088,23 +1115,23 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                       onClick={() => { setSelectedTask(null); handleResetDragDrop(); }}
                       className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors mb-6 font-semibold"
                     >
-                      <ArrowLeft className="h-4 w-4" /> Back to Homework list
+                      <ArrowLeft className="h-4 w-4" /> {t.backToHomework}
                     </button>
 
                     <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 dark:border-[#251e40] pb-4 mb-6">
                       <div>
                         <span className="bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 px-2.5 py-1 rounded-md text-[9px] font-mono font-bold uppercase">
-                          Active Assignment
+                          {t.activeAssignment}
                         </span>
                         <h2 className="text-xl font-bold font-display text-slate-800 dark:text-slate-100 mt-2">{selectedTask.title}</h2>
                       </div>
                       <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 text-amber-600 dark:text-amber-400 font-mono font-bold text-xs px-3 py-1.5 rounded-xl flex items-center gap-1">
-                        <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500" /> Reward: {selectedTask.rewardXp} XP
+                        <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500" /> {t.rewardLabel} {selectedTask.rewardXp} XP
                       </div>
                     </div>
 
                     <p className="text-slate-600 dark:text-slate-300 text-xs leading-relaxed mb-6 bg-slate-50 dark:bg-[#201b3a] p-4 border border-slate-100 dark:border-[#2d2553]/50 rounded-xl">
-                      <strong>Assignment Prompt:</strong> {selectedTask.description}
+                      <strong>{t.assignmentPrompt}</strong> {selectedTask.description}
                     </p>
 
                     {/* DRAG AND DROP MATCHING CHALLENGE TYPE */}
@@ -1113,13 +1140,13 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                         <div className="p-4 bg-violet-50 dark:bg-violet-950/20 border border-violet-100 dark:border-violet-900/40 rounded-2xl flex items-center gap-3">
                           <Info className="h-5 w-5 text-violet-500 shrink-0" />
                           <p className="text-[11px] text-violet-700 dark:text-violet-300 leading-relaxed">
-                            <strong>Interactive Mode:</strong> Drag each technology block from the list and drop them into their matching target role category underneath. Check pairings when complete.
+                            <strong>{t.interactiveMode}</strong> {t.dragDropInstructions}
                           </p>
                         </div>
 
                         {/* Drag Items source blocks */}
                         <div className="space-y-2">
-                          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Technology Elements</span>
+                          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">{t.technologyElements}</span>
                           <div className="flex flex-wrap gap-3">
                             {(selectedTask.dragItems || []).map((dragVal) => {
                               // If already matched, we hide or styled as disabled
@@ -1144,7 +1171,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
 
                         {/* Drop Zones container targets */}
                         <div className="space-y-3">
-                          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Target Role Categories</span>
+                          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">{t.targetRoleCategories}</span>
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             {(selectedTask.dropZones || []).map((zoneVal) => {
                               const pairedVal = matchedPairings[zoneVal];
@@ -1168,7 +1195,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                                     </div>
                                   ) : (
                                     <span className="text-[9px] text-slate-400 dark:text-slate-500 font-mono font-bold tracking-wider uppercase">
-                                      Drop element here
+                                      {t.dropElementHere}
                                     </span>
                                   )}
                                 </div>
@@ -1194,13 +1221,13 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                             disabled={Object.keys(matchedPairings).length < (selectedTask.dropZones || []).length || dragDropFeedback?.success}
                             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-200 text-white font-bold text-xs rounded-xl shadow-md disabled:shadow-none transition-all cursor-pointer"
                           >
-                            Check Match Answers
+                            {t.checkMatch}
                           </button>
                           <button
                             onClick={handleResetDragDrop}
                             className="px-4 py-2 bg-white dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] hover:bg-slate-50 dark:hover:bg-[#282154] text-slate-600 dark:text-slate-300 font-bold text-xs rounded-xl transition-all"
                           >
-                            Reset Matching Board
+                            {t.resetBoard}
                           </button>
                         </div>
                       </div>
@@ -1211,12 +1238,12 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                       <form onSubmit={handleTextHomeworkSubmit} className="space-y-4">
                         <div>
                           <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                            Your Homework Answer
+                            {t.feedback}
                           </label>
                           <textarea
                             required
                             rows={6}
-                            placeholder="Type or paste your complete assignment solution here..."
+                            placeholder={t.homeworkPlaceholder}
                             value={homeworkText}
                             onChange={(e) => setHomeworkText(e.target.value)}
                             className="w-full p-4 bg-slate-50 dark:bg-[#201b3a] border border-slate-200 dark:border-[#2d2553]/50 focus:border-indigo-500 rounded-2xl focus:outline-hidden text-slate-700 dark:text-slate-200 text-sm leading-relaxed"
@@ -1230,11 +1257,11 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                         >
                           {submittingTask ? (
                             <>
-                              <RefreshCw className="h-4 w-4 animate-spin" /> Handing in...
+                              <RefreshCw className="h-4 w-4 animate-spin" /> {t.handingIn}
                             </>
                           ) : (
                             <>
-                              <CheckCircle2 className="h-4 w-4" /> Hand In Assignment (+{selectedTask.rewardXp} XP max)
+                              <CheckCircle2 className="h-4 w-4" /> {t.handInAssignment} (+{selectedTask.rewardXp} {t.xpMaxSuffix})
                             </>
                           )}
                         </button>
@@ -1256,10 +1283,10 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                     <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
                     <div>
                       <h3 className="font-bold text-xs text-slate-800 dark:text-slate-200">#{activeClass.code}-community-chat</h3>
-                      <p className="text-[10px] text-slate-400 mt-0.5">Discussions, peer support, and classroom greetings</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">{t.chatChannelDesc}</p>
                     </div>
                   </div>
-                  <span className="text-[9px] font-bold text-slate-400 font-mono">{classStudents.length} Active Peers</span>
+                  <span className="text-[9px] font-bold text-slate-400 font-mono">{classStudents.length} {t.activePeers}</span>
                 </div>
 
                 {/* Message display thread */}
@@ -1282,7 +1309,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                             <span className="font-bold">{msg.senderName}</span>
                             {isTeacher && (
                               <span className="bg-violet-100 text-violet-700 px-1.5 py-0.2 rounded-md font-bold text-[8px] uppercase">
-                                Teacher
+                                {t.teacherRole}
                               </span>
                             )}
                             <span className="font-mono text-[8px]">
@@ -1311,7 +1338,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                   <input
                     type="text"
                     required
-                    placeholder={`Message #${activeClass.code}-community-chat...`}
+                    placeholder={`${t.messageChannelPrefix} #${activeClass.code}-community-chat...`}
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     className="flex-1 px-4 py-2.5 bg-white dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-indigo-500 rounded-xl focus:outline-hidden text-xs text-slate-700 dark:text-slate-200"
@@ -1338,8 +1365,8 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                       <Sparkles className="h-4 w-4" />
                     </div>
                     <div>
-                      <h3 className="font-bold text-xs text-indigo-900 dark:text-indigo-100">Insyte AI Tutor</h3>
-                      <p className="text-[10px] text-indigo-700 dark:text-indigo-300 mt-0.5">Personalized study feedback, homework coaching, and math check-ups</p>
+                      <h3 className="font-bold text-xs text-indigo-900 dark:text-indigo-100">{t.insyteAiTutor}</h3>
+                      <p className="text-[10px] text-indigo-700 dark:text-indigo-300 mt-0.5">{t.aiTutorDesc}</p>
                     </div>
                   </div>
                   <span className="bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/40 text-[8px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider font-mono">
@@ -1365,7 +1392,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                         </div>
                         <div>
                           <div className={`text-[9px] text-slate-400 flex items-center gap-1.5 font-mono mb-1 ${isAi ? "justify-start" : "justify-end"}`}>
-                            <span>{isAi ? "INSYTE AI TUTOR" : currentStudent.name.toUpperCase()}</span>
+                            <span>{isAi ? t.insyteAiTutorCaps : currentStudent.name.toUpperCase()}</span>
                           </div>
 
                           <div className={`p-4 rounded-2xl text-xs leading-relaxed inline-block ${
@@ -1387,7 +1414,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                         <Sparkles className="h-4.5 w-4.5 animate-spin" />
                       </div>
                       <div>
-                        <div className="text-[9px] text-slate-400 font-mono mb-1">INSYTE AI TUTOR</div>
+                        <div className="text-[9px] text-slate-400 font-mono mb-1">{t.insyteAiTutorCaps}</div>
                         <div className="p-4 bg-white dark:bg-[#201b3a] text-slate-800 dark:text-slate-200 border border-slate-100 dark:border-[#2d2553]/50 rounded-2xl rounded-tl-none shadow-xs flex items-center gap-2">
                           <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" />
                           <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:0.2s]" />
@@ -1406,7 +1433,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                     type="text"
                     required
                     disabled={aiLoading}
-                    placeholder="Ask study buddy: 'How does HTML structure work?' or 'Review my open homework'"
+                    placeholder={t.aiInputPlaceholder}
                     value={aiInput}
                     onChange={(e) => setAiInput(e.target.value)}
                     className="flex-1 px-4 py-2.5 bg-white dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-indigo-500 rounded-xl focus:outline-hidden text-xs text-slate-700 dark:text-slate-200 disabled:bg-slate-100 dark:disabled:bg-[#1c1836]/40"
@@ -1417,7 +1444,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                     className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 disabled:bg-slate-200 text-white rounded-xl shadow-md transition-all flex items-center justify-center gap-1 cursor-pointer font-bold text-xs"
                   >
                     <Send className="h-4 w-4" />
-                    <span>Ask AI</span>
+                    <span>{t.askAiBtn}</span>
                   </button>
                 </form>
 
@@ -1454,11 +1481,56 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
         <div className="flex-1 flex items-center justify-center text-center p-6">
           <div>
             <ShieldAlert className="h-10 w-10 text-slate-400 mx-auto" />
-            <h3 className="font-bold text-slate-700 mt-3 text-sm">Not Enrolled</h3>
-            <p className="text-slate-400 text-xs mt-1">You are not enrolled in any classes yet.</p>
+            <h3 className="font-bold text-slate-700 mt-3 text-sm">{t.notEnrolled}</h3>
+            <p className="text-slate-400 text-xs mt-1">{t.notEnrolledDesc}</p>
           </div>
         </div>
       )}
+
+      {/* Leave Class Confirmation Modal */}
+      <AnimatePresence>
+        {leaveConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setLeaveConfirm(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49] rounded-2xl p-6 w-full max-w-sm shadow-2xl"
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2.5 bg-red-50 dark:bg-red-950/40 text-red-500 rounded-xl">
+                  <LogOut className="h-5 w-5" />
+                </div>
+                <h3 className="font-bold text-base text-slate-800 dark:text-slate-100">{t.leaveClass}</h3>
+              </div>
+              <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                {t.leaveClassConfirm} <span className="font-bold text-slate-700 dark:text-slate-200">{leaveConfirm.name}</span>?
+              </p>
+              <div className="flex items-center gap-3 mt-6">
+                <button
+                  onClick={() => setLeaveConfirm(null)}
+                  className="flex-1 px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-[#1c1836] text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#282154] transition-all cursor-pointer"
+                >
+                  {t.cancel}
+                </button>
+                <button
+                  onClick={confirmLeaveClass}
+                  className="flex-1 px-4 py-2.5 rounded-xl text-xs font-bold bg-red-500 text-white hover:bg-red-600 transition-all cursor-pointer"
+                >
+                  {t.leaveClass}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

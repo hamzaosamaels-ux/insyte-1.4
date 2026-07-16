@@ -2,12 +2,14 @@ import React, { useState } from "react";
 import { motion } from "motion/react";
 import { GraduationCap, Award, BookOpen, Sparkles, UserCheck, ShieldAlert } from "lucide-react";
 import { UserProfile } from "../types";
+import { getTranslation, Language } from "../translations";
 
 interface WelcomeScreenProps {
   students: UserProfile[];
   teacher: UserProfile;
   onSelectProfile: (profile: UserProfile) => void;
   onCreateStudent: (name: string, email: string) => void;
+  language: Language;
 }
 
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
@@ -15,7 +17,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   teacher,
   onSelectProfile,
   onCreateStudent,
+  language,
 }) => {
+  const t = getTranslation(language);
   const [roleMode, setRoleMode] = useState<"choose" | "student" | "teacher" | "register">("choose");
   const [registerName, setRegisterName] = useState("");
   const [registerEmail, setRegisterEmail] = useState("");
@@ -58,7 +62,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             transition={{ delay: 0.2, duration: 0.5 }}
             className="text-slate-400 mt-2 text-sm max-w-md mx-auto"
           >
-            The gamified, collaborative educational hub with built-in AI study tutoring.
+            {t.welcomeTagline}
           </motion.p>
         </div>
 
@@ -76,9 +80,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-xl w-fit group-hover:bg-indigo-500/20 group-hover:text-indigo-300 transition-colors">
                 <BookOpen className="h-6 w-6" />
               </div>
-              <h3 className="font-semibold text-lg text-slate-100 mt-4 group-hover:text-indigo-200 transition-colors">Student Entry</h3>
+              <h3 className="font-semibold text-lg text-slate-100 mt-4 group-hover:text-indigo-200 transition-colors">{t.studentEntry}</h3>
               <p className="text-slate-400 text-xs mt-1 leading-relaxed">
-                Study lessons, finish tasks, level up your standing, chat with friends, and query the AI tutor.
+                {t.studentEntryDesc}
               </p>
             </button>
 
@@ -89,9 +93,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               <div className="p-3 bg-violet-500/10 text-violet-400 rounded-xl w-fit group-hover:bg-violet-500/20 group-hover:text-violet-300 transition-colors">
                 <Award className="h-6 w-6" />
               </div>
-              <h3 className="font-semibold text-lg text-slate-100 mt-4 group-hover:text-violet-200 transition-colors">Teacher Portal</h3>
+              <h3 className="font-semibold text-lg text-slate-100 mt-4 group-hover:text-violet-200 transition-colors">{t.teacherPortal}</h3>
               <p className="text-slate-400 text-xs mt-1 leading-relaxed">
-                Organize classrooms, write text lessons, issue homework assignments, award XP grades, and configure announcements.
+                {t.teacherPortalDesc}
               </p>
             </button>
           </motion.div>
@@ -105,13 +109,13 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           >
             <div className="flex justify-between items-center mb-2 border-b border-slate-800 pb-2">
               <h3 className="text-lg font-medium text-indigo-400 flex items-center gap-2">
-                <UserCheck className="h-5 w-5" /> Select Student Profile
+                <UserCheck className="h-5 w-5" /> {t.selectStudentProfile}
               </h3>
               <button
                 onClick={() => setRoleMode("choose")}
                 className="text-xs text-slate-400 hover:text-indigo-400 transition-colors"
               >
-                ← Back
+                ← {t.back}
               </button>
             </div>
 
@@ -133,7 +137,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                     </div>
                     <div className="text-[10px] text-slate-400 flex items-center gap-1.5 mt-0.5">
                       <span className="bg-indigo-500/10 text-indigo-300 px-1.5 py-0.5 rounded-md font-mono">
-                        Lvl {student.level}
+                        {t.lvl} {student.level}
                       </span>
                       <span>•</span>
                       <span className="text-amber-400 font-medium font-mono">{student.xp} XP</span>
@@ -144,12 +148,12 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             </div>
 
             <div className="pt-4 border-t border-slate-800/60 flex items-center justify-between text-xs">
-              <span className="text-slate-400">Not on the roster yet?</span>
+              <span className="text-slate-400">{t.notOnRoster}</span>
               <button
                 onClick={() => setRoleMode("register")}
                 className="text-indigo-400 font-medium hover:underline flex items-center gap-1"
               >
-                <Sparkles className="h-3 w-3" /> Enroll as a new student
+                <Sparkles className="h-3 w-3" /> {t.enrollNewStudent}
               </button>
             </div>
           </motion.div>
@@ -163,18 +167,18 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           >
             <div className="flex justify-between items-center mb-2 border-b border-slate-800 pb-2">
               <h3 className="text-lg font-medium text-violet-400 flex items-center gap-2">
-                <UserCheck className="h-5 w-5" /> Enter as Teacher
+                <UserCheck className="h-5 w-5" /> {t.enterAsTeacher}
               </h3>
               <button
                 onClick={() => setRoleMode("choose")}
                 className="text-xs text-slate-400 hover:text-indigo-400 transition-colors"
               >
-                ← Back
+                ← {t.back}
               </button>
             </div>
 
             <p className="text-slate-300 text-sm leading-relaxed">
-              You are entering the dashboard of <strong>{teacher.name}</strong>, who oversees classes, designs tasks, sends notices, and grades student performance.
+              {t.teacherEntryPre} <strong>{teacher.name}</strong>{t.teacherEntryPost}
             </p>
 
             <button
@@ -193,7 +197,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                 </div>
               </div>
               <span className="text-xs text-white bg-white/10 px-3 py-1 rounded-full border border-white/15">
-                Launch Portal →
+                {t.launchPortal} →
               </span>
             </button>
           </motion.div>
@@ -207,23 +211,23 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           >
             <div className="flex justify-between items-center mb-2 border-b border-slate-800 pb-2">
               <h3 className="text-lg font-medium text-indigo-400 flex items-center gap-2">
-                <Sparkles className="h-5 w-5" /> Enroll Student Account
+                <Sparkles className="h-5 w-5" /> {t.enrollStudentAccount}
               </h3>
               <button
                 onClick={() => setRoleMode("student")}
                 className="text-xs text-slate-400 hover:text-indigo-400 transition-colors"
               >
-                ← Back
+                ← {t.back}
               </button>
             </div>
 
             <form onSubmit={handleRegister} className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Full Name</label>
+                <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">{t.name}</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. John Doe"
+                  placeholder={t.namePlaceholder}
                   value={registerName}
                   onChange={(e) => setRegisterName(e.target.value)}
                   className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 focus:border-indigo-500 rounded-xl focus:outline-hidden text-sm"
@@ -231,11 +235,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Email Address</label>
+                <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">{t.email}</label>
                 <input
                   type="email"
                   required
-                  placeholder="john@example.edu"
+                  placeholder={t.emailPlaceholder}
                   value={registerEmail}
                   onChange={(e) => setRegisterEmail(e.target.value)}
                   className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 focus:border-indigo-500 rounded-xl focus:outline-hidden text-sm"
@@ -246,7 +250,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                 type="submit"
                 className="w-full py-3 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 font-medium rounded-xl text-sm transition-all text-white shadow-lg shadow-indigo-950/40"
               >
-                Enroll & Join Classroom →
+                {t.enrollJoin} →
               </button>
             </form>
           </motion.div>

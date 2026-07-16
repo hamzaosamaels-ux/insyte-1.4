@@ -495,6 +495,42 @@ async function startServer() {
     res.json({ student: updatedStudent, allStudents: db.students });
   });
 
+  // Leave a class (unenroll a student from a classroom)
+  app.post("/api/students/leave-class", (req, res) => {
+    const { studentId, classId } = req.body;
+    if (!studentId || !classId) {
+      return res.status(400).json({ error: "studentId and classId are required." });
+    }
+
+    const db = readDb();
+    let updatedStudent: UserProfile | null = null;
+
+    db.students = db.students.map(stud => {
+      if (stud.id === studentId) {
+        updatedStudent = {
+          ...stud,
+          joinedClasses: stud.joinedClasses.filter(cId => cId !== classId)
+        };
+        return updatedStudent;
+      }
+      return stud;
+    });
+
+    if (!updatedStudent) {
+      return res.status(404).json({ error: "Student not found." });
+    }
+
+    // Remove the student from the classroom roster too
+    db.classes = db.classes.map(cl =>
+      cl.id === classId
+        ? { ...cl, studentIds: cl.studentIds.filter(id => id !== studentId) }
+        : cl
+    );
+
+    writeDb(db);
+    res.json({ student: updatedStudent, allStudents: db.students, allClasses: db.classes });
+  });
+
   // Create a brand new Class Community
   app.post("/api/classes", (req, res) => {
     const { name, code, description, teacherId, teacherName, color } = req.body;

@@ -3,7 +3,7 @@ import { UserProfile, ClassCommunity, Lesson, TaskItem, TaskSubmission, Announce
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { StudentDashboard } from "./components/StudentDashboard";
 import { TeacherDashboard } from "./components/TeacherDashboard";
-import { Language, Theme } from "./translations";
+import { Language, Theme, getTranslation } from "./translations";
 
 export default function App() {
   const [students, setStudents] = useState<UserProfile[]>([]);
@@ -173,6 +173,24 @@ export default function App() {
       .catch((err) => console.error("Error rewarding study XP:", err));
   };
 
+  // Leave a class (unenroll the current student)
+  const handleLeaveClass = (classId: string) => {
+    if (!currentUser || currentUser.role !== "student") return;
+
+    fetch("/api/students/leave-class", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ studentId: currentUser.id, classId })
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setStudents(data.allStudents);
+        setClasses(data.allClasses);
+        setCurrentUser(data.student);
+      })
+      .catch((err) => console.error("Error leaving class:", err));
+  };
+
   // Submit student homework task
   const handleSubmitTask = (sub: Omit<TaskSubmission, "id" | "submittedAt">) => {
     fetch("/api/submissions", {
@@ -319,9 +337,9 @@ export default function App() {
           <div className="w-16 h-16 rounded-2xl border-4 border-violet-500/20 border-t-violet-500 animate-spin"></div>
           <div className="absolute font-display font-extrabold text-violet-400 text-sm">IN</div>
         </div>
-        <h2 className="text-white font-bold font-display text-base tracking-tight">Syncing Insyte Academy...</h2>
+        <h2 className="text-white font-bold font-display text-base tracking-tight">{getTranslation(language).syncing}</h2>
         <p className="text-slate-400 text-xs max-w-xs mt-2 leading-relaxed">
-          Hydrating your educational portal communities, interactive matchers, peer channels, and AI tutors directly from the full Express backend.
+          {getTranslation(language).syncingDesc}
         </p>
       </div>
     );
@@ -345,6 +363,7 @@ export default function App() {
         }}
         onSelectProfile={handleSelectProfile}
         onCreateStudent={handleCreateStudent}
+        language={language}
       />
     );
   }
@@ -366,6 +385,7 @@ export default function App() {
         onSendMessage={handleSendMessage}
         onAddXp={handleAddXp}
         onSubmitTask={handleSubmitTask}
+        onLeaveClass={handleLeaveClass}
         language={language}
         setLanguage={setLanguage}
         theme={theme}

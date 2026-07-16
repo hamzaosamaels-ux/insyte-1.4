@@ -178,10 +178,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
     if (editingLessonId) {
       onUpdateLesson(editingLessonId, lessonData);
-      showNotification("Lesson updated successfully!");
+      showNotification(t.lessonUpdated);
     } else {
       onCreateLesson(lessonData);
-      showNotification("New lesson published successfully!");
+      showNotification(t.lessonPublished);
     }
 
     setLessonTitle("");
@@ -249,7 +249,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     setTaskTitle("");
     setTaskDesc("");
     setTaskXp(100);
-    showNotification("New homework assignment published!");
+    showNotification(t.assignmentPublished);
   };
 
   const handleAddAnnouncement = (e: React.FormEvent) => {
@@ -263,7 +263,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     });
     setAnnTitle("");
     setAnnContent("");
-    showNotification("Announcement posted to the class board!");
+    showNotification(t.announcementPosted);
   };
 
   const handleAddEvent = (e: React.FormEvent) => {
@@ -278,7 +278,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     });
     setEvtTitle("");
     setEvtDesc("");
-    showNotification("Event scheduled successfully!");
+    showNotification(t.eventScheduled);
   };
 
   const handleGradeSubmit = (e: React.FormEvent) => {
@@ -287,7 +287,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     onGradeSubmission(selectedSub.id, gradeXp, gradeFeedback.trim());
     setSelectedSub(null);
     setGradeFeedback("");
-    showNotification("Submission graded and study XP rewarded to student!");
+    showNotification(t.submissionGraded);
   };
 
   // Filter lists based on selected class
@@ -364,7 +364,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           <button
             onClick={() => setShowCreateClass(true)}
             className="p-2 bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-400 border border-violet-100 dark:border-violet-900 rounded-xl hover:bg-violet-100 dark:hover:bg-violet-900/50 transition-all cursor-pointer"
-            title="Create Class"
+            title={t.createClass}
           >
             <Plus className="h-4.5 w-4.5" />
           </button>
@@ -520,8 +520,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
             {activeSection === "lobby" && (
               <div className="space-y-6">
                 <div className="p-5 bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49]/80 rounded-2xl">
-                  <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 font-display">Student Roster — {activeClass.name}</h2>
-                  <p className="text-slate-400 text-xs mt-1">Review enrolled student ranks, current levels, and overall XP points standings.</p>
+                  <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 font-display">{t.roster} — {activeClass.name}</h2>
+                  <p className="text-slate-400 text-xs mt-1">{t.rosterSubtitle}</p>
                   
                   <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {classStudents.map((stud) => (
@@ -536,7 +536,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                           <p className="text-[10px] text-slate-400 font-semibold">{stud.email}</p>
                           <div className="flex items-center gap-1.5 mt-1">
                             <span className="bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-350 px-1.5 py-0.5 rounded-md font-mono text-[9px] font-bold">
-                              Level {stud.level}
+                              {t.level} {stud.level}
                             </span>
                             <span className="text-amber-500 font-bold font-mono text-[10px]">{stud.xp} XP</span>
                           </div>
@@ -555,8 +555,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                 {activeGradeClasses.length > 0 && (
                   <div className="bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49]/80 p-4 rounded-2xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="text-left">
-                      <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">Select Subject</h3>
-                      <p className="text-[10px] text-slate-400 font-semibold">Filter lessons by subject</p>
+                      <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">{t.selectSubject}</h3>
+                      <p className="text-[10px] text-slate-400 font-semibold">{t.filterLessonsBySubject}</p>
                     </div>
                     <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-[#1a1532]/60 p-1.5 rounded-xl border border-slate-200 dark:border-[#2d2553]/50 overflow-x-auto">
                       {activeGradeClasses.map((cl) => {
@@ -590,19 +590,19 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                 <div className="lg:col-span-7 bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49]/80 p-6 rounded-2xl shadow-xs h-fit">
                   <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 font-display mb-1 flex items-center gap-2">
                     <BookOpen className="h-5 w-5 text-violet-600 dark:text-violet-450" /> 
-                    {editingLessonId ? "Edit Lesson Guide" : "Publish Class Lesson"}
+                    {editingLessonId ? t.editLessonGuide : t.publishClassLesson}
                   </h2>
                   <p className="text-slate-400 text-xs mb-6">
-                    {editingLessonId ? "Modify lesson details, markdown, and embedded materials." : "Write comprehensive lecture guides. Markdown formatting is supported."}
+                    {editingLessonId ? t.editLessonSubtitle : t.publishLessonSubtitle}
                   </p>
 
                   <form onSubmit={handleCreateLesson} className="space-y-4">
                     <div>
-                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Lesson Title</label>
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">{t.lessonTitle}</label>
                       <input
                         type="text"
                         required
-                        placeholder="e.g., 3. Advanced DOM Selectors"
+                        placeholder={t.lessonTitlePlaceholder}
                         value={lessonTitle}
                         onChange={(e) => setLessonTitle(e.target.value)}
                         className="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-xl focus:outline-hidden text-xs text-slate-700 dark:text-slate-200"
@@ -610,11 +610,11 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Lesson Content</label>
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">{t.lessonContent}</label>
                       <textarea
                         required
                         rows={8}
-                        placeholder="Enter the lesson guide text here..."
+                        placeholder={t.lessonContentPlaceholder}
                         value={lessonContent}
                         onChange={(e) => setLessonContent(e.target.value)}
                         className="w-full p-4 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-xl focus:outline-hidden text-xs text-slate-700 dark:text-slate-200 leading-relaxed font-mono"
@@ -624,12 +624,12 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                     {/* MULTIMEDIA UPLOAD OPTIONS */}
                     <div className="p-4 bg-slate-50 dark:bg-[#181432] rounded-xl border border-slate-200 dark:border-[#251e44] space-y-3">
                       <span className="text-[10px] font-bold text-violet-600 dark:text-violet-450 uppercase tracking-wider block">
-                        Interactive Media & Web Link Embeds
+                        {t.interactiveMediaEmbeds}
                       </span>
                       
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-[10px] font-semibold text-slate-400 mb-1">YouTube Video Embed URL</label>
+                          <label className="block text-[10px] font-semibold text-slate-400 mb-1">{t.youtubeVideoUrl}</label>
                           <input
                             type="url"
                             placeholder="e.g., https://www.youtube.com/embed/..."
@@ -640,7 +640,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                         </div>
 
                         <div>
-                          <label className="block text-[10px] font-semibold text-slate-400 mb-1">PowerPoint/Slides Embed URL</label>
+                          <label className="block text-[10px] font-semibold text-slate-400 mb-1">{t.powerpointUrl}</label>
                           <input
                             type="url"
                             placeholder="e.g., https://docs.google.com/presentation/..."
@@ -653,7 +653,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-[10px] font-semibold text-slate-400 mb-1">External Web Link URL</label>
+                          <label className="block text-[10px] font-semibold text-slate-400 mb-1">{t.externalWebUrl}</label>
                           <input
                             type="url"
                             placeholder="e.g., https://eyes.nasa.gov"
@@ -664,10 +664,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                         </div>
 
                         <div>
-                          <label className="block text-[10px] font-semibold text-slate-400 mb-1">Web Link Friendly Label</label>
+                          <label className="block text-[10px] font-semibold text-slate-400 mb-1">{t.webLinkLabel}</label>
                           <input
                             type="text"
-                            placeholder="e.g., NASA Interactive Map"
+                            placeholder={t.webLinkLabelPlaceholder}
                             value={lessonWebUrlTitle}
                             onChange={(e) => setLessonWebUrlTitle(e.target.value)}
                             className="w-full px-3 py-1.5 bg-white dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-lg focus:outline-hidden text-[11px] text-slate-700 dark:text-slate-200"
@@ -682,7 +682,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                         className="px-5 py-2.5 bg-violet-600 hover:bg-violet-500 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-1.5"
                       >
                         {editingLessonId ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-                        {editingLessonId ? "Save Changes" : "Publish Lesson"}
+                        {editingLessonId ? t.saveChanges : t.publishLesson}
                       </button>
 
                       {editingLessonId && (
@@ -691,7 +691,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                           onClick={handleCancelEditLesson}
                           className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-[#201b44] dark:hover:bg-[#2c265c] text-slate-600 dark:text-slate-300 font-bold text-xs rounded-xl transition-all cursor-pointer"
                         >
-                          Cancel Edit
+                          {t.cancelEdit}
                         </button>
                       )}
                     </div>
@@ -702,14 +702,14 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                 <div className="lg:col-span-5 flex flex-col gap-4">
                   <div className="bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49]/80 p-5 rounded-2xl shadow-xs">
                     <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 font-display mb-1 flex items-center gap-2">
-                      <Library className="h-4.5 w-4.5 text-violet-500" /> Currently Published ({classLessons.length})
+                      <Library className="h-4.5 w-4.5 text-violet-500" /> {t.currentlyPublished} ({classLessons.length})
                     </h3>
-                    <p className="text-slate-400 text-[11px] mb-4">View, edit, and delete existing lesson study guides for {activeClass.name}.</p>
+                    <p className="text-slate-400 text-[11px] mb-4">{t.manageLessonsDesc} {activeClass.name}.</p>
 
                     {classLessons.length === 0 ? (
                       <div className="py-12 text-center border-2 border-dashed border-slate-200 dark:border-[#2c2452]/40 rounded-xl">
                         <BookOpen className="h-8 w-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-                        <p className="text-xs text-slate-400 font-semibold">No published lessons yet for this class.</p>
+                        <p className="text-xs text-slate-400 font-semibold">{t.noLessonsYet}</p>
                       </div>
                     ) : (
                       <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
@@ -728,7 +728,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                                   {les.title}
                                 </h4>
                                 <p className="text-[9px] text-slate-400 mt-1 font-semibold">
-                                  Published {new Date(les.publishedAt).toLocaleDateString()}
+                                  {t.publishedLabel} {new Date(les.publishedAt).toLocaleDateString()}
                                 </p>
                               </div>
 
@@ -736,22 +736,22 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                                 <button
                                   onClick={() => handleStartEditLesson(les)}
                                   className="p-1.5 text-slate-500 hover:text-violet-600 hover:bg-violet-50 dark:text-slate-400 dark:hover:text-violet-450 dark:hover:bg-violet-950/40 rounded-lg transition-colors cursor-pointer"
-                                  title="Edit Lesson"
+                                  title={t.editLesson}
                                 >
                                   <Edit className="h-3.5 w-3.5" />
                                 </button>
                                 <button
                                   onClick={() => {
-                                    if (confirm("Are you sure you want to delete this lesson? This action cannot be undone.")) {
+                                    if (confirm(t.deleteLessonConfirm)) {
                                       onDeleteLesson(les.id);
-                                      showNotification("Lesson deleted successfully!");
+                                      showNotification(t.lessonDeleted);
                                       if (editingLessonId === les.id) {
                                         handleCancelEditLesson();
                                       }
                                     }
                                   }}
                                   className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:text-slate-400 dark:hover:text-rose-400 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer"
-                                  title="Delete Lesson"
+                                  title={t.deleteLesson}
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </button>
@@ -768,17 +768,17 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                               <div className="flex flex-wrap gap-1.5 mt-3 pt-2.5 border-t border-slate-200/40 dark:border-[#2c2452]/30">
                                 {les.videoUrl && (
                                   <span className="flex items-center gap-1 bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 px-1.5 py-0.5 rounded-md text-[9px] font-bold">
-                                    <Video className="h-2.5 w-2.5" /> Video
+                                    <Video className="h-2.5 w-2.5" /> {t.video}
                                   </span>
                                 )}
                                 {les.pptUrl && (
                                   <span className="flex items-center gap-1 bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded-md text-[9px] font-bold">
-                                    <Presentation className="h-2.5 w-2.5" /> Slides
+                                    <Presentation className="h-2.5 w-2.5" /> {t.slides}
                                   </span>
                                 )}
                                 {les.webUrl && (
                                   <span className="flex items-center gap-1 bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 rounded-md text-[9px] font-bold">
-                                    <Globe className="h-2.5 w-2.5" /> {les.webUrlTitle || "Web Link"}
+                                    <Globe className="h-2.5 w-2.5" /> {les.webUrlTitle || t.webLink}
                                   </span>
                                 )}
                               </div>
@@ -800,8 +800,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                 {activeGradeClasses.length > 0 && (
                   <div className="bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49]/80 p-4 rounded-2xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="text-left">
-                      <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">Select Subject</h3>
-                      <p className="text-[10px] text-slate-400 font-semibold">Filter assignments by subject</p>
+                      <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">{t.selectSubject}</h3>
+                      <p className="text-[10px] text-slate-400 font-semibold">{t.filterAssignmentsBySubject}</p>
                     </div>
                     <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-[#1a1532]/60 p-1.5 rounded-xl border border-slate-200 dark:border-[#2d2553]/50 overflow-x-auto">
                       {activeGradeClasses.map((cl) => {
@@ -832,18 +832,18 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
                 <div className="max-w-3xl bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49]/80 p-6 rounded-2xl shadow-xs">
                 <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 font-display mb-1 flex items-center gap-2">
-                  <Award className="h-5 w-5 text-violet-600 dark:text-violet-450" /> Publish Homework Task
+                  <Award className="h-5 w-5 text-violet-600 dark:text-violet-450" /> {t.publishHomeworkTask}
                 </h2>
-                <p className="text-slate-400 text-xs mb-6">Create written essays or interactive matching tasks for students to earn study XP.</p>
+                <p className="text-slate-400 text-xs mb-6">{t.publishTaskSubtitle}</p>
 
                 <form onSubmit={handleCreateTask} className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Assignment Title</label>
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">{t.taskTitle}</label>
                       <input
                         type="text"
                         required
-                        placeholder="e.g. JS Function Creator"
+                        placeholder={t.assignmentTitlePlaceholder}
                         value={taskTitle}
                         onChange={(e) => setTaskTitle(e.target.value)}
                         className="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-xl focus:outline-hidden text-xs text-slate-700 dark:text-slate-200"
@@ -851,24 +851,24 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Challenge Type</label>
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">{t.challengeType}</label>
                       <select
                         value={taskType}
                         onChange={(e) => setTaskType(e.target.value as "text" | "dragdrop")}
                         className="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-xl focus:outline-hidden text-xs text-slate-700 dark:text-slate-200 font-semibold"
                       >
-                        <option value="text">Written Essay Submission</option>
-                        <option value="dragdrop">Interactive Technology Matcher Game</option>
+                        <option value="text">{t.essay}</option>
+                        <option value="dragdrop">{t.interactiveMatcherGame}</option>
                       </select>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Task Description</label>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">{t.taskDescription}</label>
                     <textarea
                       required
                       rows={4}
-                      placeholder="Detail the instructions or essay prompt clearly..."
+                      placeholder={t.taskDescriptionPlaceholder}
                       value={taskDesc}
                       onChange={(e) => setTaskDesc(e.target.value)}
                       className="w-full p-4 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-xl focus:outline-hidden text-xs text-slate-700 dark:text-slate-200 leading-relaxed"
@@ -877,7 +877,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">XP Reward Amount</label>
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">{t.xpReward}</label>
                       <input
                         type="number"
                         required
@@ -890,7 +890,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Due Date</label>
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">{t.dueDate}</label>
                       <input
                         type="date"
                         required
@@ -905,7 +905,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                     <div className="p-4 bg-violet-50 dark:bg-violet-950/20 border border-violet-100 dark:border-violet-900/60 rounded-2xl flex items-center gap-3">
                       <Sparkles className="h-5 w-5 text-violet-600 shrink-0" />
                       <p className="text-[11px] text-violet-700 dark:text-violet-300 leading-relaxed">
-                        <strong>Preview matching elements:</strong> Selecting matching option sets up drag cards for elements: <em>['HTML', 'CSS', 'JavaScript']</em> targeting core roles <em>['Document Skeleton', 'Layout & Colors', 'Live Interactivity']</em> automatically.
+                        <strong>{t.previewMatchingTitle}</strong> {t.previewMatchingBody1} <em>['HTML', 'CSS', 'JavaScript']</em> {t.previewMatchingBody2} <em>['Document Skeleton', 'Layout & Colors', 'Live Interactivity']</em> {t.previewMatchingBody3}
                       </p>
                     </div>
                   )}
@@ -914,7 +914,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                     type="submit"
                     className="px-5 py-2.5 bg-violet-600 hover:bg-violet-500 text-white font-bold text-xs rounded-xl shadow-md shadow-violet-100 dark:shadow-none transition-all cursor-pointer"
                   >
-                    Publish Assignment
+                    {t.publishAssignment}
                   </button>
                 </form>
               </div>
@@ -928,8 +928,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                 {activeGradeClasses.length > 0 && (
                   <div className="bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49]/80 p-4 rounded-2xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="text-left">
-                      <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">Select Subject</h3>
-                      <p className="text-[10px] text-slate-400 font-semibold">Filter student submissions by subject</p>
+                      <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">{t.selectSubject}</h3>
+                      <p className="text-[10px] text-slate-400 font-semibold">{t.filterSubmissionsBySubject}</p>
                     </div>
                     <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-[#1a1532]/60 p-1.5 rounded-xl border border-slate-200 dark:border-[#2d2553]/50 overflow-x-auto">
                       {activeGradeClasses.map((cl) => {
@@ -960,8 +960,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
                 {!selectedSub ? (
                   <div className="bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49]/80 rounded-2xl p-5 shadow-xs">
-                    <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 font-display">Student Submissions</h2>
-                    <p className="text-slate-400 text-xs mt-1">Review student answers and grant final score XP points.</p>
+                    <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 font-display">{t.studentSubmissions}</h2>
+                    <p className="text-slate-400 text-xs mt-1">{t.gradeSubtitle}</p>
 
                     <div className="mt-4 space-y-3">
                       {classSubmissions.length > 0 ? (
@@ -984,18 +984,18 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                                 />
                                 <div className="text-left">
                                   <h4 className="font-bold text-xs text-slate-800 dark:text-slate-100">{sub.studentName}</h4>
-                                  <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">Task: {sub.taskTitle}</p>
+                                  <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">{t.taskLabel} {sub.taskTitle}</p>
                                 </div>
                               </div>
 
                               <div className="text-right">
                                 {sub.isGraded ? (
                                   <span className="bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-450 border border-emerald-100 dark:border-[#2d2553]/50 font-bold text-[10px] px-2.5 py-1 rounded-lg">
-                                    Graded (+{sub.scoreXpEarned} XP)
+                                    {t.graded} (+{sub.scoreXpEarned} XP)
                                   </span>
                                 ) : (
                                   <span className="bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-450 border border-amber-100 dark:border-[#2d2553]/50 font-bold text-[10px] px-2.5 py-1 rounded-lg flex items-center gap-1">
-                                    Needs Review
+                                    {t.needsReview}
                                   </span>
                                 )}
                               </div>
@@ -1003,7 +1003,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                           );
                         })
                       ) : (
-                        <p className="text-slate-400 text-xs text-center py-6">No student homework submissions found.</p>
+                        <p className="text-slate-400 text-xs text-center py-6">{t.noSubmissionsFound}</p>
                       )}
                     </div>
                   </div>
@@ -1017,18 +1017,18 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                       onClick={() => setSelectedSub(null)}
                       className="text-xs text-slate-500 hover:text-slate-800 dark:text-slate-300 dark:hover:text-slate-100 transition-colors mb-6 font-semibold cursor-pointer"
                     >
-                      ← Back to Submissions
+                      ← {t.backToSubmissions}
                     </button>
 
                     <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 font-display">
-                      Grade Submission for {selectedSub.studentName}
+                      {t.gradeSubmissionFor} {selectedSub.studentName}
                     </h2>
                     <span className="text-[10px] text-slate-400 uppercase font-mono tracking-wider">
-                      Assignment: {selectedSub.taskTitle}
+                      {t.assignmentLabel} {selectedSub.taskTitle}
                     </span>
 
                     <div className="my-6 p-4 bg-slate-50 dark:bg-[#1c1836] border border-slate-100 dark:border-[#2b244c]/60 rounded-xl">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-1.5">Submitted Content</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-1.5">{t.submittedContent}</span>
                       <p className="text-slate-750 dark:text-slate-200 text-xs leading-relaxed whitespace-pre-wrap font-mono">
                         {selectedSub.content.startsWith("{") ? (
                           // Renders nicely if matching cards JSON format
@@ -1045,15 +1045,15 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
                     {selectedSub.isGraded ? (
                       <div className="p-4 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-850 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/40 rounded-xl text-xs space-y-1">
-                        <div className="font-bold">✓ Approved & Graded</div>
-                        <div>XP Points Awarded: {selectedSub.scoreXpEarned} XP</div>
-                        {selectedSub.feedback && <div>Feedback given: "{selectedSub.feedback}"</div>}
+                        <div className="font-bold">✓ {t.approvedGraded}</div>
+                        <div>{t.xpAwarded} {selectedSub.scoreXpEarned} XP</div>
+                        {selectedSub.feedback && <div>{t.feedbackGiven} "{selectedSub.feedback}"</div>}
                       </div>
                     ) : (
                       <form onSubmit={handleGradeSubmit} className="space-y-4">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Award XP Points</label>
+                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">{t.awardXpPoints}</label>
                             <input
                               type="number"
                               required
@@ -1065,10 +1065,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                         </div>
 
                         <div>
-                          <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Teacher Feedback</label>
+                          <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">{t.teacherFeedback}</label>
                           <textarea
                             rows={3}
-                            placeholder="Provide constructive feedback for the student..."
+                            placeholder={t.feedbackPlaceholder}
                             value={gradeFeedback}
                             onChange={(e) => setGradeFeedback(e.target.value)}
                             className="w-full p-4 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-xl focus:outline-hidden text-xs text-slate-700 dark:text-slate-200"
@@ -1079,7 +1079,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                           type="submit"
                           className="px-5 py-2.5 bg-violet-600 hover:bg-violet-500 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
                         >
-                          <CheckCircle2 className="h-4 w-4" /> Approve & Award XP
+                          <CheckCircle2 className="h-4 w-4" /> {t.approveAwardXp}
                         </button>
                       </form>
                     )}
@@ -1092,17 +1092,17 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
             {activeSection === "events" && (
               <div className="max-w-3xl bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49]/80 p-6 rounded-2xl shadow-xs">
                 <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 font-display mb-1 flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-violet-600 dark:text-violet-450" /> Schedule Class Event
+                  <Calendar className="h-5 w-5 text-violet-600 dark:text-violet-450" /> {t.scheduleClassEvent}
                 </h2>
-                <p className="text-slate-400 text-xs mb-6">Add deadlines, live sessions, or virtual study gatherings to the calendar.</p>
+                <p className="text-slate-400 text-xs mb-6">{t.scheduleEventSubtitle}</p>
 
                 <form onSubmit={handleAddEvent} className="space-y-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Event Title</label>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">{t.eventTitle}</label>
                     <input
                       type="text"
                       required
-                      placeholder="e.g. Midterm Coding Review Session"
+                      placeholder={t.eventTitlePlaceholder}
                       value={evtTitle}
                       onChange={(e) => setEvtTitle(e.target.value)}
                       className="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-xl focus:outline-hidden text-xs text-slate-700 dark:text-slate-200"
@@ -1110,10 +1110,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Event Description</label>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">{t.eventDescription}</label>
                     <input
                       type="text"
-                      placeholder="Short details regarding context or meeting links..."
+                      placeholder={t.eventDescPlaceholder}
                       value={evtDesc}
                       onChange={(e) => setEvtDesc(e.target.value)}
                       className="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-xl focus:outline-hidden text-xs text-slate-700 dark:text-slate-200"
@@ -1122,7 +1122,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Date</label>
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">{t.date}</label>
                       <input
                         type="date"
                         required
@@ -1133,7 +1133,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Time</label>
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">{t.time}</label>
                       <input
                         type="time"
                         required
@@ -1148,7 +1148,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                     type="submit"
                     className="px-5 py-2.5 bg-violet-600 hover:bg-violet-500 text-white font-bold text-xs rounded-xl shadow-md shadow-violet-100 dark:shadow-none transition-all cursor-pointer"
                   >
-                    Schedule Event
+                    {t.scheduleEvent}
                   </button>
                 </form>
               </div>
@@ -1158,17 +1158,17 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
             {activeSection === "announcements" && (
               <div className="max-w-3xl bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49]/80 p-6 rounded-2xl shadow-xs">
                 <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 font-display mb-1 flex items-center gap-2">
-                  <Megaphone className="h-5 w-5 text-violet-600 dark:text-violet-450" /> Broadcast Class Announcement
+                  <Megaphone className="h-5 w-5 text-violet-600 dark:text-violet-450" /> {t.broadcastAnnouncement}
                 </h2>
-                <p className="text-slate-400 text-xs mb-6">Send class bulletins, guidelines, or urgent alert updates directly to students' dashboards.</p>
+                <p className="text-slate-400 text-xs mb-6">{t.announcementSubtitle}</p>
 
                 <form onSubmit={handleAddAnnouncement} className="space-y-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Announcement Title</label>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">{t.announcementTitle}</label>
                     <input
                       type="text"
                       required
-                      placeholder="e.g. Locker Avatars Now Customisable"
+                      placeholder={t.announcementTitlePlaceholder}
                       value={annTitle}
                       onChange={(e) => setAnnTitle(e.target.value)}
                       className="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-xl focus:outline-hidden text-xs text-slate-700 dark:text-slate-200"
@@ -1176,11 +1176,11 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Message Content</label>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">{t.messageContent}</label>
                     <textarea
                       required
                       rows={5}
-                      placeholder="Write your news message here..."
+                      placeholder={t.messageContentPlaceholder}
                       value={annContent}
                       onChange={(e) => setAnnContent(e.target.value)}
                       className="w-full p-4 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-xl focus:outline-hidden text-xs text-slate-700 dark:text-slate-200 leading-relaxed"
@@ -1191,7 +1191,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                     type="submit"
                     className="px-5 py-2.5 bg-violet-600 hover:bg-violet-500 text-white font-bold text-xs rounded-xl shadow-md shadow-violet-100 dark:shadow-none transition-all cursor-pointer"
                   >
-                    Broadcast News
+                    {t.broadcastNews}
                   </button>
                 </form>
               </div>
@@ -1227,8 +1227,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           <div className="p-4 bg-violet-100 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400 rounded-2xl mb-4 animate-pulse">
             <Users className="h-8 w-8" />
           </div>
-          <p className="text-slate-700 dark:text-slate-300 font-bold text-sm">No Active Classroom Selected</p>
-          <p className="text-slate-400 text-xs mt-1 max-w-xs">Create or select a classroom channel from the top navigation bar to begin coaching.</p>
+          <p className="text-slate-700 dark:text-slate-300 font-bold text-sm">{t.noActiveClassroom}</p>
+          <p className="text-slate-400 text-xs mt-1 max-w-xs">{t.noClassroomDesc}</p>
         </div>
       )}
 
@@ -1236,17 +1236,17 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       {showCreateClass && (
         <div className="fixed inset-0 z-50 bg-[#06040f]/80 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="w-full max-w-md bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49]/80 rounded-2xl p-6 shadow-xl relative">
-            <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm font-display mb-1">Create Class Community</h3>
-            <p className="text-slate-400 text-[11px] mb-4">Establish a new classroom community, peer chats, calendars, and assignments.</p>
+            <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm font-display mb-1">{t.createClassCommunity}</h3>
+            <p className="text-slate-400 text-[11px] mb-4">{t.createClassSubtitle}</p>
 
             <form onSubmit={handleCreateClass} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Class/Grade</label>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t.classGrade}</label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Class 2B"
+                    placeholder={t.classGradePlaceholder}
                     value={newClassGrade}
                     onChange={(e) => setNewClassGrade(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-xl focus:outline-hidden text-xs dark:text-slate-200"
@@ -1254,11 +1254,11 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Subject</label>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t.subject}</label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. German"
+                    placeholder={t.subjectPlaceholder}
                     value={newClassSubject}
                     onChange={(e) => setNewClassSubject(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-xl focus:outline-hidden text-xs dark:text-slate-200"
@@ -1268,12 +1268,12 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Class Code</label>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t.classCode}</label>
                   <input
                     type="text"
                     required
                     maxLength={10}
-                    placeholder="e.g. SPACE404"
+                    placeholder={t.classCodePlaceholder}
                     value={newClassCode}
                     onChange={(e) => setNewClassCode(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-xl focus:outline-hidden text-xs dark:text-slate-200"
@@ -1281,7 +1281,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Theme Color</label>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t.themeColor}</label>
                   <div className="flex items-center gap-1.5 h-[34px]">
                     {[
                       { key: "emerald", bg: "bg-emerald-500", ring: "ring-emerald-400" },
@@ -1307,10 +1307,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Short Description</label>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t.shortDescription}</label>
                 <input
                   type="text"
-                  placeholder="Summarize subject content in 1-2 sentences..."
+                  placeholder={t.shortDescPlaceholder}
                   value={newClassDesc}
                   onChange={(e) => setNewClassDesc(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-xl focus:outline-hidden text-xs dark:text-slate-200"
@@ -1323,13 +1323,13 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                   onClick={() => setShowCreateClass(false)}
                   className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-xs font-semibold cursor-pointer"
                 >
-                  Cancel
+                  {t.cancel}
                 </button>
                 <button
                   type="submit"
                   className="px-4.5 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-xs font-bold cursor-pointer"
                 >
-                  Create Classroom
+                  {t.createClassroom}
                 </button>
               </div>
             </form>
