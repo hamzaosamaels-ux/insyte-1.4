@@ -396,7 +396,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
               alt={currentStudent.name} 
               className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 p-0.5"
             />
-            <div className="text-left hidden sm:block">
+            <div className="text-center hidden sm:block">
               <div className="text-xs font-bold text-slate-800 dark:text-slate-100">{currentStudent.name}</div>
               <div className="text-[9px] text-amber-500 font-bold uppercase tracking-wider font-mono">
                 {t.level} {currentStudent.level} • {currentStudent.xp} XP
@@ -440,29 +440,85 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
               <span>{t.lobby}</span>
             </button>
 
-            <button
-              onClick={() => { setActiveTab("lessons"); setSelectedLesson(null); setSelectedTask(null); }}
-              className={`w-full flex items-center justify-start gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
-                activeTab === "lessons" 
-                  ? "bg-slate-100 dark:bg-[#1c1836] text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-[#2d2553]/50 shadow-xs" 
-                  : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 hover:text-slate-800 dark:hover:text-slate-200 border border-transparent"
-              }`}
-            >
-              <BookOpen className="h-4 w-4" />
-              <span>{t.lessons}</span>
-            </button>
+            <div>
+              <button
+                onClick={() => { setActiveTab("lessons"); setSelectedLesson(null); setSelectedTask(null); }}
+                className={`w-full flex items-center justify-start gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === "lessons"
+                    ? "bg-slate-100 dark:bg-[#1c1836] text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-[#2d2553]/50 shadow-xs"
+                    : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 hover:text-slate-800 dark:hover:text-slate-200 border border-transparent"
+                }`}
+              >
+                <BookOpen className="h-4 w-4" />
+                <span>{t.lessons}</span>
+                {activeGradeClasses.length > 0 && (
+                  <ChevronRight className={`h-3.5 w-3.5 ml-auto transition-transform ${activeTab === "lessons" ? "rotate-90" : ""}`} />
+                )}
+              </button>
+              {activeTab === "lessons" && activeGradeClasses.length > 0 && (
+                <div className="mt-1 ms-4 ps-3 border-s border-slate-200 dark:border-[#2d2553]/60 flex flex-col gap-1">
+                  {activeGradeClasses.map((cl) => {
+                    const { subject } = getGradeAndSubject(cl.name);
+                    const isSelected = activeClass?.id === cl.id;
+                    const clColors = getClassColors(cl.color);
+                    return (
+                      <button
+                        key={cl.id}
+                        onClick={() => { setActiveClass(cl); setSelectedLesson(null); setSelectedTask(null); handleResetDragDrop(); }}
+                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
+                          isSelected
+                            ? `bg-white dark:bg-[#1c1836] ${clColors.text} shadow-xs border ${clColors.border}`
+                            : `text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 border border-transparent`
+                        }`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${clColors.bgSolid} ${isSelected ? "animate-pulse" : "opacity-60"}`} />
+                        {subject}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
-            <button
-              onClick={() => { setActiveTab("tasks"); setSelectedLesson(null); setSelectedTask(null); }}
-              className={`w-full flex items-center justify-start gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
-                activeTab === "tasks" 
-                  ? "bg-slate-100 dark:bg-[#1c1836] text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-[#2d2553]/50 shadow-xs" 
-                  : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 hover:text-slate-800 dark:hover:text-slate-200 border border-transparent"
-              }`}
-            >
-              <Award className="h-4 w-4" />
-              <span>{t.assignments}</span>
-            </button>
+            <div>
+              <button
+                onClick={() => { setActiveTab("tasks"); setSelectedLesson(null); setSelectedTask(null); }}
+                className={`w-full flex items-center justify-start gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === "tasks"
+                    ? "bg-slate-100 dark:bg-[#1c1836] text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-[#2d2553]/50 shadow-xs"
+                    : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 hover:text-slate-800 dark:hover:text-slate-200 border border-transparent"
+                }`}
+              >
+                <Award className="h-4 w-4" />
+                <span>{t.assignments}</span>
+                {activeGradeClasses.length > 0 && (
+                  <ChevronRight className={`h-3.5 w-3.5 ml-auto transition-transform ${activeTab === "tasks" ? "rotate-90" : ""}`} />
+                )}
+              </button>
+              {activeTab === "tasks" && activeGradeClasses.length > 0 && (
+                <div className="mt-1 ms-4 ps-3 border-s border-slate-200 dark:border-[#2d2553]/60 flex flex-col gap-1">
+                  {activeGradeClasses.map((cl) => {
+                    const { subject } = getGradeAndSubject(cl.name);
+                    const isSelected = activeClass?.id === cl.id;
+                    const clColors = getClassColors(cl.color);
+                    return (
+                      <button
+                        key={cl.id}
+                        onClick={() => { setActiveClass(cl); setSelectedLesson(null); setSelectedTask(null); handleResetDragDrop(); }}
+                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
+                          isSelected
+                            ? `bg-white dark:bg-[#1c1836] ${clColors.text} shadow-xs border ${clColors.border}`
+                            : `text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 border border-transparent`
+                        }`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${clColors.bgSolid} ${isSelected ? "animate-pulse" : "opacity-60"}`} />
+                        {subject}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
             <button
               onClick={() => { setActiveTab("chat"); setSelectedLesson(null); setSelectedTask(null); }}
@@ -716,42 +772,6 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
               );
               return (
                 <div>
-                  {/* Subject Classroom Picker */}
-                  {activeGradeClasses.length > 0 && (
-                    <div className="mb-6 bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49]/80 p-4 rounded-2xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <div className="text-left">
-                        <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">Select Subject</h3>
-                        <p className="text-[10px] text-slate-400 font-semibold">Filter lessons by subject</p>
-                      </div>
-                      <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-[#1c1836]/60 p-1.5 rounded-xl border border-slate-200 dark:border-[#2d2553]/50 overflow-x-auto">
-                        {activeGradeClasses.map((cl) => {
-                          const { subject } = getGradeAndSubject(cl.name);
-                          const isSelected = activeClass?.id === cl.id;
-                          const clColors = getClassColors(cl.color);
-                          return (
-                            <button
-                              key={cl.id}
-                              onClick={() => {
-                                  setActiveClass(cl);
-                                  setSelectedLesson(null);
-                                  setSelectedTask(null);
-                                  handleResetDragDrop();
-                              }}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition-all flex items-center gap-1.5 cursor-pointer ${
-                                isSelected
-                                  ? `bg-white dark:bg-[#1c1836] ${clColors.text} shadow-xs border ${clColors.border}`
-                                  : `text-slate-600 dark:text-slate-350 ${clColors.textHover}`
-                              }`}
-                            >
-                              <span className={`w-1.5 h-1.5 rounded-full ${clColors.bgSolid} ${isSelected ? "animate-pulse" : "opacity-60"}`} />
-                              {subject}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
                   {!selectedLesson ? (
                     <div className="space-y-4">
                       <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between">
@@ -971,42 +991,6 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
               );
               return (
                 <div>
-                  {/* Subject Classroom Picker */}
-                  {activeGradeClasses.length > 0 && (
-                    <div className="mb-6 bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49]/80 p-4 rounded-2xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <div className="text-left">
-                        <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">Select Subject</h3>
-                        <p className="text-[10px] text-slate-400 font-semibold">Filter assignments by subject</p>
-                      </div>
-                      <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-[#1c1836]/60 p-1.5 rounded-xl border border-slate-200 dark:border-[#2d2553]/50 overflow-x-auto">
-                        {activeGradeClasses.map((cl) => {
-                          const { subject } = getGradeAndSubject(cl.name);
-                          const isSelected = activeClass?.id === cl.id;
-                          const clColors = getClassColors(cl.color);
-                          return (
-                            <button
-                              key={cl.id}
-                              onClick={() => {
-                                  setActiveClass(cl);
-                                  setSelectedLesson(null);
-                                  setSelectedTask(null);
-                                  handleResetDragDrop();
-                              }}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition-all flex items-center gap-1.5 cursor-pointer ${
-                                isSelected
-                                  ? `bg-white dark:bg-[#1c1836] ${clColors.text} shadow-xs border ${clColors.border}`
-                                  : `text-slate-600 dark:text-slate-350 ${clColors.textHover}`
-                              }`}
-                            >
-                              <span className={`w-1.5 h-1.5 rounded-full ${clColors.bgSolid} ${isSelected ? "animate-pulse" : "opacity-60"}`} />
-                              {subject}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
                   {!selectedTask ? (
                     <div className="space-y-4">
                       <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between">
