@@ -1,0 +1,223 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================================
+    // Helper functions
+    // ============================================================
+
+    /// Returns true if the caller is authenticated.
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    /// Returns the caller's user document reference.
+    function callerRef() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    /// Returns the caller's full user document.
+    function callerDoc() {
+      return get(callerRef());
+    }
+
+    /// Returns true if the caller's `teacher` field is true.
+    function isTeacher() {
+      return isAuth() && callerDoc().data.Teacher == true;
+    }
+
+    /// Returns true if the given list of refs includes the caller.
+    function listIncludesCaller(refList) {
+      return refList.any(|r| r == callerRef());
+    }
+
+    /// Returns true if the caller is a member of the given community doc.
+    function isCommunityMember(communityId) {
+      let community = get(/databases/$(database)/documents/Communities/$(communityId));
+      return community != null &&
+        (listIncludesCaller(community.data.Members) ||
+         listIncludesCaller(community.data.Cooperators));
+    }
+
+    /// Returns true if the caller is a cooperator (teacher) of the community with the given ID.
+    function isCommunityCooperator(communityId) {
+      let community = get(/databases/$(database)/documents/Communities/$(communityId));
+      return community != null && listIncludesCaller(community.data.Cooperators);
+    }
+
+    /// Returns true if the caller is a cooperator of the community at [communityRef].
+    function isCooperatorOfRef(communityRef) {
+      let community = get(communityRef);
+      return community != null && listIncludesCaller(community.data.Cooperators);
+    }
+
+    /// Returns true if the caller owns the target document (by matching uid field or doc id).
+    function isOwner(docId) {
+      return isAuth() && request.auth.uid == docId;
+    }
+
+    // ============================================================
+    // Users collection
+    // ============================================================
+    match /users/{userId} {
+      // Any authenticated user can read any profile (needed for displaying names, avatars, etc.)
+      allow read: if isAuth();
+      // Users can only create their own profile (document ID == auth.uid)
+      allow create: if isOwner(userId);
+      // Users can update their own profile, but cannot change their teacher status once set
+      allow update: if isOwner(userId)
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['Teacher'])
+            || !resource.data.keys().hasAny(['Teacher']));
+      // Users can delete their own profile
+      allow delete: if isOwner(userId);
+    }
+
+    // ============================================================
+    // Communities collection
+    // ============================================================
+    match /Communities/{communityId} {
+      // Any authenticated user can read community info
+      allow read: if isAuth();
+      // Only teachers can create communities
+      allow create: if isTeacher()
+        && request.resource.data.keys().hasAll(['Name', 'ID'])
+        && request.resource.data.Name is string
+        && request.resource.data.Name.size() > 0
+        && request.resource.data.ID is string
+        && request.resource.data.ID.size() > 0;
+      // Only cooperators can update the community
+      allow update: if isAuth()
+        && isCommunityCooperator(communityId);
+      // No deletes allowed for communities
+      allow delete: if false;
+    }
+
+    // ============================================================
+    // Subcollections under Communities
+    // ============================================================
+
+    // --- Task subcollection ---
+    match /Communities/{communityId}/Task/{document} {
+      // Anyone in the community can read
+      allow read: if isAuth() && isCommunityMember(communityId);
+      // Only teachers/cooperators can create tasks
+      allow create: if isAuth()
+        && isCommunityCooperator(communityId)
+        && request.resource.data.Task_Name is string
+        && request.resource.data.Task_Name.size() > 0;
+      // Only teachers/cooperators can update
+      allow update: if isAuth()
+        && isCommunityCooperator(communityId);
+      // No deletes allowed for now
+      allow delete: if false;
+    }
+
+    // --- Lesson subcollection ---
+    match /Communities/{communityId}/Lesson/{document} {
+      allow read: if isAuth() && isCommunityMember(communityId);
+      allow create: if isAuth()
+        && isCommunityCooperator(communityId)
+        && request.resource.data.Lesson_Name is string
+        && request.resource.data.Lesson_Name.size() > 0;
+      allow update: if isAuth()
+        && isCommunityCooperator(communityId);
+      allow delete: if false;
+    }
+
+    // --- Announcement subcollection ---
+    match /Communities/{communityId}/Announcement/{document} {
+      allow read: if isAuth() && isCommunityMember(communityId);
+      allow create: if isAuth()
+        && isCommunityCooperator(communityId)
+        && request.resource.data.Title is string
+        && request.resource.data.Title.size() > 0;
+      allow update: if isAuth()
+        && isCommunityCooperator(communityId);
+      allow delete: if false;
+    }
+
+    // --- Progress subcollection ---
+    match /Communities/{communityId}/Progress/{document} {
+      // The student themselves or any teacher/cooperator can read
+      allow read: if isAuth() && (
+        isCommunityCooperator(communityId) ||
+        request.resource.data.Student == callerRef()
+      );
+      // Students can create their own progress, teachers can create for any student
+      allow create: if isAuth()
+        && isCommunityMember(communityId)
+        && request.resource.data.Student is path;
+      // Students can update their own, teachers can update any
+      allow update: if isAuth() && (
+        isCommunityCooperator(communityId) ||
+        resource.data.Student == callerRef()
+      );
+      allow delete: if false;
+    }
+
+    // --- Messages subcollection ---
+    match /Communities/{communityId}/messages/{document} {
+      // Members can read messages
+      allow read: if isAuth() && isCommunityMember(communityId);
+      // Members can create messages (validated)
+      allow create: if isAuth()
+        && isCommunityMember(communityId)
+        && request.resource.data.senderUid == request.auth.uid
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0;
+      // Only the sender or teachers can update
+      allow update: if isAuth() && (
+        resource.data.senderUid == request.auth.uid ||
+        isCommunityCooperator(communityId)
+      );
+      // Only teachers can delete messages
+      allow delete: if isAuth() && isCommunityCooperator(communityId);
+    }
+
+    // ============================================================
+    // Top-level Tasks collection (legacy)
+    // ============================================================
+    match /Tasks/{document} {
+      allow read: if isAuth();
+      allow create: if isTeacher()
+        && request.resource.data.Task_Name is string;
+      allow update: if isTeacher();
+      allow delete: if false;
+    }
+
+    // ============================================================
+    // Top-level Lessons collection (legacy)
+    // ============================================================
+    match /Lessons/{document} {
+      allow read: if isAuth();
+      allow create: if isTeacher()
+        && request.resource.data.Lesson_Name is string;
+      allow update: if isTeacher();
+      allow delete: if false;
+    }
+
+    // ============================================================
+    // Calendar marks collection
+    // ============================================================
+    match /calendarmarks/{document} {
+      allow read: if isAuth();
+      allow create: if isAuth()
+        && request.resource.data.Title is string;
+      // Only the marker or a teacher can update
+      allow update: if isAuth() && (
+        resource.data.Marker == callerRef() ||
+        (resource.data.Community != null &&
+         isCooperatorOfRef(resource.data.Community))
+      );
+      allow delete: if false;
+    }
+
+    // ============================================================
+    // Catch-all: deny everything not explicitly allowed
+    // ============================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+  }
+}

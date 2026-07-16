@@ -1,0 +1,8 @@
+{
+  "name": "Remix: insyte-1.1",
+  "description": "Imported from GitHub: hamzaosamaels-ux/insyte-1.1",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
