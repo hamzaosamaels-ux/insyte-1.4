@@ -1,5 +1,23 @@
+# Dependencies
+node_modules/
 
+# Build output
 build/
+dist/
 .dart_tool/
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+
+# Logs & local runtime files
+*.log
+runlog.txt
+
+# Editor / OS
+.DS_Store
+
+# Mobile leftovers
 *.apk
 *.so
