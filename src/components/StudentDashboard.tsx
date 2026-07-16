@@ -13,6 +13,7 @@ import {
 import { Language, Theme, getTranslation } from "../translations";
 import { InteractiveCalendar } from "./InteractiveCalendar";
 import { SettingsTab } from "./SettingsTab";
+import { NavbarControls } from "./NavbarControls";
 import { getClassColors } from "../utils/colorHelper";
 
 interface StudentDashboardProps {
@@ -402,6 +403,14 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
               </div>
             </div>
           </div>
+
+          {/* Language & Theme controls (moved from Settings page) */}
+          <NavbarControls
+            language={language}
+            setLanguage={setLanguage}
+            theme={theme}
+            setTheme={setTheme}
+          />
 
           <button
             onClick={onLogOut}
@@ -1445,12 +1454,11 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
 
             {/* SETTINGS TAB */}
             {activeTab === "settings" && (
-              <SettingsTab 
+              <SettingsTab
                 language={language}
-                setLanguage={setLanguage}
-                theme={theme}
-                setTheme={setTheme}
+                user={currentStudent}
                 userRole="student"
+                onLogOut={onLogOut}
               />
             )}
 

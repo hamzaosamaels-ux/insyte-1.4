@@ -12,6 +12,7 @@ import {
 import { Language, Theme, getTranslation } from "../translations";
 import { InteractiveCalendar } from "./InteractiveCalendar";
 import { SettingsTab } from "./SettingsTab";
+import { NavbarControls } from "./NavbarControls";
 import { getClassColors } from "../utils/colorHelper";
 
 interface TeacherDashboardProps {
@@ -372,9 +373,9 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         {/* Teacher Profile & Logout */}
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-3 bg-slate-50 dark:bg-[#1c1836] border border-slate-200/60 dark:border-[#2d2553]/50 rounded-xl px-3 py-1.5">
-            <img 
-              src={currentTeacher.avatar} 
-              alt={currentTeacher.name} 
+            <img
+              src={currentTeacher.avatar}
+              alt={currentTeacher.name}
               className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 p-0.5 border border-violet-200 dark:border-violet-800"
             />
             <div className="text-left hidden sm:block">
@@ -384,6 +385,14 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Language & Theme controls (moved from Settings page) */}
+          <NavbarControls
+            language={language}
+            setLanguage={setLanguage}
+            theme={theme}
+            setTheme={setTheme}
+          />
 
           <button
             onClick={onLogOut}
@@ -1201,12 +1210,11 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
             {/* SETTINGS VIEW */}
             {activeSection === "settings" && (
-              <SettingsTab 
+              <SettingsTab
                 language={language}
-                setLanguage={setLanguage}
-                theme={theme}
-                setTheme={setTheme}
+                user={currentTeacher}
                 userRole="teacher"
+                onLogOut={onLogOut}
               />
             )}
 

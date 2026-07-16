@@ -1,23 +1,62 @@
-import React from "react";
-import { getTranslation, Language, Theme } from "../translations";
-import { Settings, Globe, Moon, Sun, ShieldCheck, Languages } from "lucide-react";
+import React, { useState } from "react";
+import { getTranslation, Language } from "../translations";
+import { UserProfile } from "../types";
+import { Settings, User, Mail, Bell, LogOut, ShieldCheck, Award, GraduationCap } from "lucide-react";
 
 interface SettingsTabProps {
   language: Language;
-  setLanguage: (lang: Language) => void;
-  theme: Theme;
-  setTheme: (theme: Theme) => void;
+  user: UserProfile;
   userRole: "student" | "teacher";
+  onLogOut: () => void;
 }
+
+/** Small controlled toggle switch persisted to localStorage. */
+const Toggle: React.FC<{ storageKey: string; defaultOn?: boolean }> = ({
+  storageKey,
+  defaultOn = true
+}) => {
+  const [on, setOn] = useState<boolean>(() => {
+    const saved = localStorage.getItem(storageKey);
+    return saved === null ? defaultOn : saved === "true";
+  });
+
+  const toggle = () => {
+    const next = !on;
+    setOn(next);
+    localStorage.setItem(storageKey, String(next));
+  };
+
+  return (
+    <button
+      onClick={toggle}
+      role="switch"
+      aria-checked={on}
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors cursor-pointer ${
+        on ? "bg-violet-600" : "bg-slate-300 dark:bg-[#2d2553]"
+      }`}
+    >
+      <span
+        className={`inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow transition-transform ${
+          on ? "translate-x-5.5" : "translate-x-1"
+        }`}
+      />
+    </button>
+  );
+};
 
 export const SettingsTab: React.FC<SettingsTabProps> = ({
   language,
-  setLanguage,
-  theme,
-  setTheme,
-  userRole
+  user,
+  userRole,
+  onLogOut
 }) => {
   const t = getTranslation(language);
+
+  const notifRows = [
+    { key: "insyte_notif_email", icon: Mail, title: t.notifEmail, desc: t.notifEmailDesc, defaultOn: true },
+    { key: "insyte_notif_push", icon: Bell, title: t.notifPush, desc: t.notifPushDesc, defaultOn: true },
+    { key: "insyte_notif_digest", icon: Award, title: t.notifDigest, desc: t.notifDigestDesc, defaultOn: false }
+  ];
 
   return (
     <div className="space-y-6">
@@ -28,136 +67,110 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           {t.settings}
         </h2>
         <p className="text-slate-500 dark:text-slate-400 text-xs mt-1">
-          Customize your learning dashboard environment, language locales, and display preferences.
+          {t.settingsSubtitle}
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Language Selection Card */}
-        <div className="bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49]/80 p-6 rounded-2xl shadow-xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-xl">
-                <Globe className="h-5 w-5" />
-              </div>
-              <div className="text-left">
-                <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100">
-                  {t.languageLabel}
-                </h4>
-                <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-                  Change the localization and text layout direction.
-                </p>
-              </div>
+      {/* Profile Information */}
+      <div className="bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49]/80 p-6 rounded-2xl shadow-xs">
+        <div className="flex items-center gap-2 mb-5">
+          <User className="h-4.5 w-4.5 text-indigo-500" />
+          <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100">{t.profileInfo}</h4>
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <img
+            src={user.avatar}
+            alt={user.name}
+            className="w-16 h-16 rounded-2xl bg-slate-200 dark:bg-slate-700 p-1 border border-violet-200 dark:border-violet-800 shrink-0"
+          />
+          <div className="flex-1 min-w-0">
+            <div className="text-lg font-bold text-slate-800 dark:text-slate-100 truncate">{user.name}</div>
+            <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 text-xs mt-0.5">
+              <Mail className="h-3.5 w-3.5" />
+              <span className="truncate">{user.email}</span>
             </div>
-
-            {/* Arabic Localization Explanation */}
-            {language === "ar" && (
-              <p className="text-[11px] text-amber-600 bg-amber-50 dark:bg-amber-950/20 dark:text-amber-400 border border-amber-100 dark:border-amber-900/40 p-3 rounded-xl mb-4 leading-relaxed">
-                {t.arabicFontActive}
-              </p>
-            )}
-
-            <div className="space-y-2.5">
-              <button
-                onClick={() => setLanguage("en")}
-                className={`w-full flex items-center justify-between p-3.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                  language === "en"
-                    ? "bg-indigo-50/50 dark:bg-indigo-950/25 border-indigo-300 text-indigo-600 dark:text-indigo-400"
-                    : "bg-slate-50/50 dark:bg-[#1c1836] border-slate-100 dark:border-[#2b244c] text-slate-700 dark:text-slate-300 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 hover:text-indigo-600 dark:hover:text-indigo-400"
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-sm">🇺🇸</span>
-                  <span>{t.english}</span>
-                </div>
-                {language === "en" && (
-                  <span className="w-2 h-2 rounded-full bg-indigo-600 dark:bg-indigo-400" />
-                )}
-              </button>
-
-              <button
-                onClick={() => setLanguage("ar")}
-                className={`w-full flex items-center justify-between p-3.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                  language === "ar"
-                    ? "bg-indigo-50/50 dark:bg-indigo-950/25 border-indigo-300 text-indigo-600 dark:text-indigo-400"
-                    : "bg-slate-50/50 dark:bg-[#1c1836] border-slate-100 dark:border-[#2b244c] text-slate-700 dark:text-slate-300 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 hover:text-indigo-600 dark:hover:text-indigo-400"
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-sm">🇸🇦</span>
-                  <span>{t.arabic}</span>
-                </div>
-                {language === "ar" && (
-                  <span className="w-2 h-2 rounded-full bg-indigo-600 dark:bg-indigo-400" />
-                )}
-              </button>
-            </div>
-          </div>
-
-          <div className="text-[10px] text-slate-400 dark:text-slate-500 border-t border-slate-100 dark:border-[#241c49]/80 pt-3 mt-6 flex items-center gap-1.5 justify-start">
-            <Languages className="h-3.5 w-3.5" />
-            <span>Updates portal text instantly</span>
           </div>
         </div>
 
-        {/* Theme Mode Card */}
-        <div className="bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49]/80 p-6 rounded-2xl shadow-xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-xl">
-                {theme === "dark" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
-              </div>
-              <div className="text-left">
-                <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100">
-                  {t.themeLabel}
-                </h4>
-                <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-                  Select between light mode and dark mode.
-                </p>
-              </div>
+        {/* Detail chips */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5">
+          <div className="bg-slate-50 dark:bg-[#1c1836] border border-slate-100 dark:border-[#2b244c] rounded-xl p-3.5">
+            <div className="flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500 font-mono">
+              {userRole === "teacher" ? <ShieldCheck className="h-3.5 w-3.5" /> : <GraduationCap className="h-3.5 w-3.5" />}
+              {t.accountRole}
             </div>
-
-            <div className="space-y-2.5">
-              <button
-                onClick={() => setTheme("light")}
-                className={`w-full flex items-center justify-between p-3.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                  theme === "light"
-                    ? "bg-indigo-50/50 dark:bg-indigo-950/25 border-indigo-300 text-indigo-600 dark:text-indigo-400"
-                    : "bg-slate-50/50 dark:bg-[#1c1836] border-slate-100 dark:border-[#2b244c] text-slate-700 dark:text-slate-300 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 hover:text-indigo-600 dark:hover:text-indigo-400"
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <Sun className="h-4 w-4 text-amber-500" />
-                  <span>{t.lightMode}</span>
-                </div>
-                {theme === "light" && (
-                  <span className="w-2 h-2 rounded-full bg-indigo-600 dark:bg-indigo-400" />
-                )}
-              </button>
-
-              <button
-                onClick={() => setTheme("dark")}
-                className={`w-full flex items-center justify-between p-3.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                  theme === "dark"
-                    ? "bg-indigo-50/50 dark:bg-indigo-950/25 border-indigo-300 text-indigo-600 dark:text-indigo-400"
-                    : "bg-slate-50/50 dark:bg-[#1c1836] border-slate-100 dark:border-[#2b244c] text-slate-700 dark:text-slate-300 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 hover:text-indigo-600 dark:hover:text-indigo-400"
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <Moon className="h-4 w-4 text-violet-400" />
-                  <span>{t.darkMode}</span>
-                </div>
-                {theme === "dark" && (
-                  <span className="w-2 h-2 rounded-full bg-indigo-600 dark:bg-indigo-400" />
-                )}
-              </button>
+            <div className="text-sm font-bold text-slate-700 dark:text-slate-200 mt-1">
+              {userRole === "teacher" ? t.teacherRole : t.studentRole}
             </div>
           </div>
 
-          <div className="text-[10px] text-slate-400 dark:text-slate-500 border-t border-slate-100 dark:border-[#241c49]/80 pt-3 mt-6 flex items-center gap-1.5 justify-start">
-            <ShieldCheck className="h-3.5 w-3.5" />
-            <span>Persisted automatically across sessions</span>
+          <div className="bg-slate-50 dark:bg-[#1c1836] border border-slate-100 dark:border-[#2b244c] rounded-xl p-3.5">
+            <div className="flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500 font-mono">
+              <Award className="h-3.5 w-3.5" />
+              {userRole === "teacher" ? t.standing : t.level}
+            </div>
+            <div className="text-sm font-bold text-slate-700 dark:text-slate-200 mt-1 truncate">
+              {userRole === "teacher" ? user.rank : `${t.level} ${user.level}`}
+            </div>
           </div>
+
+          <div className="bg-slate-50 dark:bg-[#1c1836] border border-slate-100 dark:border-[#2b244c] rounded-xl p-3.5">
+            <div className="flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500 font-mono">
+              <Award className="h-3.5 w-3.5" />
+              {t.totalXp}
+            </div>
+            <div className="text-sm font-bold text-slate-700 dark:text-slate-200 mt-1">
+              {user.xp} XP
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Notifications */}
+      <div className="bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49]/80 p-6 rounded-2xl shadow-xs">
+        <div className="flex items-center gap-2 mb-5">
+          <Bell className="h-4.5 w-4.5 text-indigo-500" />
+          <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100">{t.notificationsTitle}</h4>
+        </div>
+
+        <div className="divide-y divide-slate-100 dark:divide-[#241c49]/80">
+          {notifRows.map((row) => {
+            const Icon = row.icon;
+            return (
+              <div key={row.key} className="flex items-center justify-between gap-4 py-3.5 first:pt-0 last:pb-0">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="p-2 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-lg shrink-0">
+                    <Icon className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-slate-700 dark:text-slate-200">{row.title}</div>
+                    <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{row.desc}</div>
+                  </div>
+                </div>
+                <Toggle storageKey={row.key} defaultOn={row.defaultOn} />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Account */}
+      <div className="bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49]/80 p-6 rounded-2xl shadow-xs">
+        <div className="flex items-center gap-2 mb-5">
+          <ShieldCheck className="h-4.5 w-4.5 text-indigo-500" />
+          <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100">{t.accountTitle}</h4>
+        </div>
+
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-xs text-slate-500 dark:text-slate-400">{t.signOutDesc}</p>
+          <button
+            onClick={onLogOut}
+            className="flex items-center gap-2 px-4 py-2.5 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-900/50 hover:bg-red-100 dark:hover:bg-red-900/40 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0"
+          >
+            <LogOut className="h-4 w-4" />
+            {t.logout}
+          </button>
         </div>
       </div>
     </div>
