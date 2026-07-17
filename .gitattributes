@@ -1,5 +1,0 @@
-# Force GitHub to detect all TypeScript/React source files as Dart
-*.ts linguist-language=Dart
-*.tsx linguist-language=Dart
-*.css linguist-language=Dart
-*.html linguist-language=Dart
