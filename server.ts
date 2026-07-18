@@ -410,13 +410,22 @@ const PORT = 3000;
 
 // Allow requests from the Vercel frontend
 app.use((req, res, next) => {
+  // CORS
   res.header("Access-Control-Allow-Origin", "https://insyte-1-4.vercel.app");
   res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
   res.header("Access-Control-Allow-Headers", "Content-Type,Authorization");
+
+  // Security headers
+  res.header("X-Content-Type-Options", "nosniff");
+  res.header("X-Frame-Options", "DENY");
+  res.header(
+    "Content-Security-Policy",
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://insyte-1-4.vercel.app"
+  );
+
   if (req.method === "OPTIONS") return res.sendStatus(200);
   next();
 });
-
 // Middleware for parsing JSON requests
 app.use(express.json());
 
