@@ -218,6 +218,85 @@ function findUserByEmail(db: DbSchema, email: string): UserProfile | undefined {
   return [...db.students, ...db.teachers].find(u => u.email.toLowerCase() === lower);
 }
 
+// ---- Response shaping: never serialize private fields to other users ----
+
+// Public view of a user: no email address
+function publicUser(u: UserProfile): Omit<UserProfile, "email"> {
+  const { email, ...rest } = u;
+  return rest;
+}
+
+// Public view of a submission: status only, no homework content or private feedback
+function publicSubmission(s: TaskSubmission): Omit<TaskSubmission, "content" | "feedback"> {
+  const { content, feedback, ...rest } = s;
+  return rest;
+}
+
+// Mails visible to one user: sent or received by them
+function mailsFor(db: DbSchema, userId: string): Mail[] {
+  return db.mails.filter(m => m.fromId === userId || m.toId === userId);
+}
+
+function notificationsFor(db: DbSchema, userId: string): AppNotification[] {
+  return db.notifications.filter(n => n.userId === userId);
+}
+
+// Full submissions a user is allowed to read: students see their own,
+// teachers see submissions for classes they teach
+function submissionsFor(db: DbSchema, user: UserProfile): TaskSubmission[] {
+  if (user.role === "student") {
+    return db.submissions.filter(s => s.studentId === user.id);
+  }
+  const myClassIds = new Set(db.classes.filter(c => c.teacherId === user.id).map(c => c.id));
+  const myTaskIds = new Set(db.tasks.filter(t => myClassIds.has(t.classId)).map(t => t.id));
+  return db.submissions.filter(s => myTaskIds.has(s.taskId));
+}
+
+// ---- URL validation for teacher-supplied lesson media ----
+
+// Hosts allowed inside an <iframe> on the lesson page (matches the frontend CSP)
+const EMBED_HOSTS = [
+  "www.youtube.com",
+  "youtube.com",
+  "www.youtube-nocookie.com",
+  "youtube-nocookie.com",
+  "youtu.be",
+  "player.vimeo.com",
+  "docs.google.com"
+];
+
+function isSafeEmbedUrl(raw: string): boolean {
+  try {
+    const u = new URL(raw);
+    return u.protocol === "https:" && EMBED_HOSTS.includes(u.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function isSafeHttpUrl(raw: string): boolean {
+  try {
+    const u = new URL(raw);
+    return u.protocol === "https:" || u.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
+// Returns an error string for bad lesson media URLs, or null if all fine
+function validateLessonUrls(body: { videoUrl?: string; pptUrl?: string; webUrl?: string }): string | null {
+  if (body.videoUrl && !isSafeEmbedUrl(body.videoUrl)) {
+    return "Video URL must be an https link to YouTube or Vimeo.";
+  }
+  if (body.pptUrl && !isSafeEmbedUrl(body.pptUrl)) {
+    return "Slides URL must be an https link to Google Docs/Slides or YouTube.";
+  }
+  if (body.webUrl && !isSafeHttpUrl(body.webUrl)) {
+    return "Web link must be a valid http(s) URL.";
+  }
+  return null;
+}
+
 function saveUser(db: DbSchema, user: UserProfile) {
   if (user.role === "student") {
     db.students = db.students.map(s => (s.id === user.id ? user : s));
@@ -254,7 +333,7 @@ app.use((req, res, next) => {
   );
   res.header("Vary", "Origin");
   res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Content-Type,Authorization");
+  res.header("Access-Control-Allow-Headers", "Content-Type,X-User-Email");
 
   // Security headers (production only — X-Frame-Options/CSP break local dev preview + Vite's inline preamble)
   res.header("X-Content-Type-Options", "nosniff");
@@ -279,10 +358,43 @@ app.use(express.json());
   // REST BACKEND API ENDPOINTS
   // -----------------------------------------------------
 
-  // Get complete educational portal data state
+  // Get the shared portal state. Private data is excluded here:
+  // no emails, no mail, no notifications, no homework content — those
+  // are served per-user by GET /api/me/:userId.
   app.get("/api/data", (req, res) => {
     const db = readDb();
-    res.json(db);
+    res.json({
+      students: db.students.map(publicUser),
+      teachers: db.teachers.map(publicUser),
+      classes: db.classes,
+      lessons: db.lessons,
+      tasks: db.tasks,
+      announcements: db.announcements,
+      chatMessages: db.chatMessages,
+      events: db.events,
+      submissions: db.submissions.map(publicSubmission)
+    });
+  });
+
+  // Per-user private data: own profile (with email), mailbox, notifications,
+  // and the full submissions this user may read.
+  // Gate: caller must present the account's email (x-user-email header).
+  // Emails are no longer served by any public endpoint, so id alone is not
+  // enough to read a mailbox. Interim measure until real password auth lands.
+  app.get("/api/me/:userId", (req, res) => {
+    const { userId } = req.params;
+    const email = String(req.headers["x-user-email"] || "");
+    const db = readDb();
+    const user = [...db.students, ...db.teachers].find(u => u.id === userId);
+    if (!user || user.email.toLowerCase() !== email.trim().toLowerCase()) {
+      return res.status(403).json({ error: "Not authorized for this account." });
+    }
+    res.json({
+      user,
+      myMails: mailsFor(db, userId),
+      myNotifications: notificationsFor(db, userId),
+      mySubmissions: submissionsFor(db, user)
+    });
   });
 
   // Sign up: create a fresh student or teacher account (no premade profiles)
@@ -318,7 +430,11 @@ app.use(express.json());
     else db.teachers.push(newUser);
 
     writeDb(db);
-    res.status(201).json({ user: newUser, allStudents: db.students, allTeachers: db.teachers });
+    res.status(201).json({
+      user: newUser,
+      allStudents: db.students.map(publicUser),
+      allTeachers: db.teachers.map(publicUser)
+    });
   });
 
   // Log in by email; updates the daily streak
@@ -337,7 +453,11 @@ app.use(express.json());
     const updated = applyStreak(found);
     saveUser(db, updated);
     writeDb(db);
-    res.json({ user: updated, allStudents: db.students, allTeachers: db.teachers });
+    res.json({
+      user: updated,
+      allStudents: db.students.map(publicUser),
+      allTeachers: db.teachers.map(publicUser)
+    });
   });
 
   // Join a class community using its class code
@@ -374,9 +494,8 @@ app.use(express.json());
     writeDb(db);
     res.json({
       student: updatedStudent,
-      allStudents: db.students,
+      allStudents: db.students.map(publicUser),
       allClasses: db.classes,
-      allNotifications: db.notifications,
       joinedClass: db.classes.find(c => c.id === target.id)
     });
   });
@@ -417,7 +536,7 @@ app.use(express.json());
     }
 
     writeDb(db);
-    res.json({ student: updatedStudent, allStudents: db.students });
+    res.json({ student: updatedStudent, allStudents: db.students.map(publicUser) });
   });
 
   // Leave a class (unenroll a student from a classroom)
@@ -453,7 +572,7 @@ app.use(express.json());
     );
 
     writeDb(db);
-    res.json({ student: updatedStudent, allStudents: db.students, allClasses: db.classes });
+    res.json({ student: updatedStudent, allStudents: db.students.map(publicUser), allClasses: db.classes });
   });
 
   // Create a brand new Class Community
@@ -497,7 +616,11 @@ app.use(express.json());
     );
 
     writeDb(db);
-    res.status(201).json({ class: newClass, allClasses: db.classes, allTeachers: db.teachers });
+    res.status(201).json({
+      class: newClass,
+      allClasses: db.classes,
+      allTeachers: db.teachers.map(publicUser)
+    });
   });
 
   // Publish a new lesson guide
@@ -505,6 +628,10 @@ app.use(express.json());
     const { classId, title, content, videoUrl, pptUrl, webUrl, webUrlTitle } = req.body;
     if (!classId || !title || !content) {
       return res.status(400).json({ error: "classId, title, and content are required." });
+    }
+    const urlError = validateLessonUrls(req.body);
+    if (urlError) {
+      return res.status(400).json({ error: urlError });
     }
 
     const db = readDb();
@@ -532,6 +659,10 @@ app.use(express.json());
 
     if (!title || !content) {
       return res.status(400).json({ error: "title and content are required." });
+    }
+    const urlError = validateLessonUrls(req.body);
+    if (urlError) {
+      return res.status(400).json({ error: urlError });
     }
 
     const db = readDb();
@@ -700,7 +831,11 @@ app.use(express.json());
 
     db.submissions.push(newSubmission);
     writeDb(db);
-    res.status(201).json({ submission: newSubmission, allSubmissions: db.submissions });
+    // Return only the submitting student's own submissions
+    res.status(201).json({
+      submission: newSubmission,
+      mySubmissions: db.submissions.filter(s => s.studentId === studentId)
+    });
   });
 
   // Grade student Homework task submission (and award study XP)
@@ -767,11 +902,10 @@ app.use(express.json());
     }
 
     writeDb(db);
+    // Grader gets the updated submission; frontend patches it into state
     res.json({
       submission: updatedSubmission,
-      allSubmissions: db.submissions,
-      allStudents: db.students,
-      allNotifications: db.notifications,
+      allStudents: db.students.map(publicUser),
       studentId: targetStudentId
     });
   });
@@ -812,40 +946,53 @@ app.use(express.json());
     notify(db, recipient.id, "mail", "New mail", `${sender.name}: ${newMail.subject}`);
 
     writeDb(db);
-    res.status(201).json({ mail: newMail, allMails: db.mails, allNotifications: db.notifications });
+    // Sender sees only their own mailbox
+    res.status(201).json({ mail: newMail, myMails: mailsFor(db, sender.id) });
   });
 
-  // Mark a mail as read
+  // Mark a mail as read (only the recipient may mark it; email doubles as
+  // the interim shared secret — see /api/me note)
   app.post("/api/mail/read", (req, res) => {
-    const { mailId } = req.body;
-    if (!mailId) {
-      return res.status(400).json({ error: "mailId is required." });
+    const { mailId, userId, email } = req.body;
+    if (!mailId || !userId || !email) {
+      return res.status(400).json({ error: "mailId, userId, and email are required." });
     }
 
     const db = readDb();
-    const exists = db.mails.some(m => m.id === mailId);
-    if (!exists) {
+    const requester = [...db.students, ...db.teachers].find(u => u.id === userId);
+    if (!requester || requester.email.toLowerCase() !== String(email).trim().toLowerCase()) {
+      return res.status(403).json({ error: "Not authorized for this account." });
+    }
+    const mail = db.mails.find(m => m.id === mailId);
+    if (!mail) {
       return res.status(404).json({ error: "Mail not found." });
+    }
+    if (mail.toId !== userId) {
+      return res.status(403).json({ error: "Only the recipient can mark this mail as read." });
     }
 
     db.mails = db.mails.map(m => (m.id === mailId ? { ...m, read: true } : m));
     writeDb(db);
-    res.json({ allMails: db.mails });
+    res.json({ myMails: mailsFor(db, userId) });
   });
 
   // Mark all of a user's notifications as read
   app.post("/api/notifications/read", (req, res) => {
-    const { userId } = req.body;
-    if (!userId) {
-      return res.status(400).json({ error: "userId is required." });
+    const { userId, email } = req.body;
+    if (!userId || !email) {
+      return res.status(400).json({ error: "userId and email are required." });
     }
 
     const db = readDb();
+    const requester = [...db.students, ...db.teachers].find(u => u.id === userId);
+    if (!requester || requester.email.toLowerCase() !== String(email).trim().toLowerCase()) {
+      return res.status(403).json({ error: "Not authorized for this account." });
+    }
     db.notifications = db.notifications.map(n =>
       n.userId === userId ? { ...n, read: true } : n
     );
     writeDb(db);
-    res.json({ allNotifications: db.notifications });
+    res.json({ myNotifications: notificationsFor(db, userId) });
   });
 
   // Health check endpoint

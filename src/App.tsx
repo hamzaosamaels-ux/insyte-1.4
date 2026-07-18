@@ -56,6 +56,38 @@ export default function App() {
     }
   }, [theme]);
 
+  // Overlay full (private) submissions onto the public status-only list
+  const mergeSubmissions = (fullOnes: TaskSubmission[]) => {
+    setSubmissions(prev => {
+      const byId = new Map(prev.map(s => [s.id, s]));
+      for (const s of fullOnes) byId.set(s.id, s);
+      return Array.from(byId.values());
+    });
+  };
+
+  // Pull the signed-in user's private data: profile, mailbox, notifications,
+  // and the full submissions they may read. The account email is the interim
+  // access credential until real auth exists.
+  const loadMe = (userId: string, email: string) => {
+    return fetch(api(`/api/me/${userId}`), {
+      headers: { "X-User-Email": email }
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("me fetch failed");
+        return res.json();
+      })
+      .then((data) => {
+        // Ignore a response that lands after the user logged out,
+        // otherwise it would silently re-establish the session
+        if (!localStorage.getItem("insyte_currentUser")) return;
+        setCurrentUser(data.user);
+        setMails(data.myMails || []);
+        setNotifications(data.myNotifications || []);
+        mergeSubmissions(data.mySubmissions || []);
+      })
+      .catch((err) => console.error("Failed to load private user data:", err));
+  };
+
   // Sync entire state from full Express Backend DB on startup
   useEffect(() => {
     fetch(api("/api/data"))
@@ -73,28 +105,38 @@ export default function App() {
         setChatMessages(data.chatMessages || []);
         setEvents(data.events || []);
         setSubmissions(data.submissions || []);
-        setMails(data.mails || []);
-        setNotifications(data.notifications || []);
-        setIsLoading(false);
 
-        // Restore active user session if previously logged in
+        // Restore active user session if previously logged in.
+        // Show the saved profile immediately (no login-screen flash),
+        // then refresh it with private data from /api/me.
         const savedUser = localStorage.getItem("insyte_currentUser");
         if (savedUser) {
           try {
             const parsed = JSON.parse(savedUser);
-            const pool = [...(data.students || []), ...(data.teachers || [])];
-            const fresh = pool.find((u: UserProfile) => u.id === parsed.id);
-            if (fresh) setCurrentUser(fresh);
+            if (parsed?.id && parsed?.email) {
+              setCurrentUser(parsed);
+              loadMe(parsed.id, parsed.email);
+            }
           } catch {
             localStorage.removeItem("insyte_currentUser");
           }
         }
+        setIsLoading(false);
       })
       .catch((err) => {
         console.error("Failed to load portal data from backend database:", err);
         setIsLoading(false);
       });
   }, []);
+
+  // Refresh mailbox + notifications every 60s while signed in
+  useEffect(() => {
+    if (!currentUser?.email) return;
+    const uid = currentUser.id;
+    const mail = currentUser.email;
+    const id = setInterval(() => loadMe(uid, mail), 60000);
+    return () => clearInterval(id);
+  }, [currentUser?.id, currentUser?.email]);
 
   // Synchronize currentUser back to localStorage on change
   useEffect(() => {
@@ -124,6 +166,7 @@ export default function App() {
         setStudents(data.allStudents);
         setTeachers(data.allTeachers);
         setCurrentUser(data.user);
+        loadMe(data.user.id, data.user.email);
       })
       .catch((err) => setAuthError(err.message));
   };
@@ -142,6 +185,7 @@ export default function App() {
         setStudents(data.allStudents);
         setTeachers(data.allTeachers);
         setCurrentUser(data.user);
+        loadMe(data.user.id, data.user.email);
       })
       .catch((err) => setAuthError(err.message));
   };
@@ -159,7 +203,6 @@ export default function App() {
         if (!res.ok) return data.error || "Could not join class.";
         setStudents(data.allStudents);
         setClasses(data.allClasses);
-        setNotifications(data.allNotifications);
         setCurrentUser(data.student);
         return null;
       })
@@ -234,7 +277,7 @@ export default function App() {
     })
       .then((res) => res.json())
       .then((data) => {
-        setSubmissions(data.allSubmissions);
+        mergeSubmissions(data.mySubmissions || []);
       })
       .catch((err) => console.error("Error submitting homework assignment:", err));
   };
@@ -260,7 +303,8 @@ export default function App() {
         setClasses(data.allClasses);
         setTeachers(data.allTeachers);
         const freshTeacher = data.allTeachers.find((t: UserProfile) => t.id === currentUser.id);
-        if (freshTeacher) setCurrentUser(freshTeacher);
+        // Public lists omit email; keep the one from the signed-in session
+        if (freshTeacher) setCurrentUser({ ...freshTeacher, email: currentUser.email });
         return null;
       })
       .catch(() => "Connection error. Try again.");
@@ -314,7 +358,6 @@ export default function App() {
       .then((res) => res.json())
       .then((data) => {
         setTasks((prev) => [data.task, ...prev]);
-        setNotifications(data.allNotifications);
       })
       .catch((err) => console.error("Error posting task:", err));
   };
@@ -329,7 +372,6 @@ export default function App() {
       .then((res) => res.json())
       .then((data) => {
         setAnnouncements((prev) => [data.announcement, ...prev]);
-        setNotifications(data.allNotifications);
       })
       .catch((err) => console.error("Error creating announcement:", err));
   };
@@ -357,15 +399,8 @@ export default function App() {
     })
       .then((res) => res.json())
       .then((data) => {
-        setSubmissions(data.allSubmissions);
+        if (data.submission) mergeSubmissions([data.submission]);
         setStudents(data.allStudents);
-        setNotifications(data.allNotifications);
-
-        // If the student graded is currently logged in, sync their local UI profile
-        if (currentUser && currentUser.id === data.studentId) {
-          const freshStud = data.allStudents.find((s: UserProfile) => s.id === currentUser.id);
-          if (freshStud) setCurrentUser(freshStud);
-        }
       })
       .catch((err) => console.error("Error grading submission:", err));
   };
@@ -381,8 +416,7 @@ export default function App() {
       .then(async (res) => {
         const data = await res.json();
         if (!res.ok) return data.error || "Could not send mail.";
-        setMails(data.allMails);
-        setNotifications(data.allNotifications);
+        setMails(data.myMails);
         return null;
       })
       .catch(() => "Connection error. Try again.");
@@ -390,13 +424,16 @@ export default function App() {
 
   // 8. Mark a mail read
   const handleMarkMailRead = (mailId: string) => {
+    if (!currentUser) return;
     fetch(api("/api/mail/read"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mailId })
+      body: JSON.stringify({ mailId, userId: currentUser.id, email: currentUser.email })
     })
       .then((res) => res.json())
-      .then((data) => setMails(data.allMails))
+      .then((data) => {
+        if (data.myMails) setMails(data.myMails);
+      })
       .catch((err) => console.error("Error marking mail read:", err));
   };
 
@@ -406,10 +443,10 @@ export default function App() {
     fetch(api("/api/notifications/read"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: currentUser.id })
+      body: JSON.stringify({ userId: currentUser.id, email: currentUser.email })
     })
       .then((res) => res.json())
-      .then((data) => setNotifications(data.allNotifications))
+      .then((data) => setNotifications(data.myNotifications))
       .catch((err) => console.error("Error marking notifications read:", err));
   };
 

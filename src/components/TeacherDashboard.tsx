@@ -626,7 +626,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                         />
                         <div>
                           <h4 className="font-bold text-xs text-slate-800 dark:text-slate-100">{stud.name}</h4>
-                          <p className="text-[10px] text-slate-400 font-semibold">{stud.email}</p>
+                          <p className="text-[10px] text-slate-400 font-semibold">{stud.rank}</p>
                           <div className="flex items-center gap-1.5 mt-1">
                             <span className="bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-350 px-1.5 py-0.5 rounded-md font-mono text-[9px] font-bold">
                               {t.level} {stud.level}
@@ -1123,15 +1123,16 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                     <div className="my-6 p-4 bg-slate-50 dark:bg-[#1c1836] border border-slate-100 dark:border-[#2b244c]/60 rounded-xl">
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-1.5">{t.submittedContent}</span>
                       <p className="text-slate-750 dark:text-slate-200 text-xs leading-relaxed whitespace-pre-wrap font-mono">
-                        {selectedSub.content.startsWith("{") ? (
+                        {(selectedSub.content ?? "").startsWith("{") ? (
                           // Renders nicely if matching cards JSON format
-                          Object.entries(JSON.parse(selectedSub.content)).map(([key, val]) => (
+                          Object.entries(JSON.parse(selectedSub.content!)).map(([key, val]) => (
                             <div key={key} className="py-1">
                               <strong>{key}:</strong> {val as string} ✅
                             </div>
                           ))
                         ) : (
-                          selectedSub.content
+                          // content is absent until private data loads
+                          selectedSub.content ?? "…"
                         )}
                       </p>
                     </div>

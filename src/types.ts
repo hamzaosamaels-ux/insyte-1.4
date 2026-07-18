@@ -3,7 +3,8 @@ export type UserRole = 'student' | 'teacher';
 export interface UserProfile {
   id: string;
   name: string;
-  email: string;
+  // Present only on the signed-in user's own profile; public lists omit it
+  email?: string;
   role: UserRole;
   avatar: string;
   xp: number;
@@ -85,7 +86,8 @@ export interface TaskSubmission {
   studentId: string;
   studentName: string;
   studentAvatar: string;
-  content: string; // Text answer or drag pairings JSON
+  // Present only for the owner and the class teacher; public lists omit it
+  content?: string; // Text answer or drag pairings JSON
   isGraded: boolean;
   scoreXpEarned?: number;
   submittedAt: string;
