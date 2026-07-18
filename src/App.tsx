@@ -54,7 +54,7 @@ export default function App() {
 
   // Sync entire state from full Express Backend DB on startup
   useEffect(() => {
-    fetch("/api/data")
+  fetch("https://insyte-14-production.up.railway.app/api/data")
       .then((res) => {
         if (!res.ok) throw new Error("Server responded with an error code");
         return res.json();
