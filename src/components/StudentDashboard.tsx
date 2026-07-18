@@ -18,6 +18,7 @@ import { NavbarControls } from "./NavbarControls";
 import { NotificationBell, StreakBadge } from "./HeaderExtras";
 import { MailPanel } from "./MailPanel";
 import { getClassColors } from "../utils/colorHelper";
+import { api } from "../api";
 
 interface StudentDashboardProps {
   currentStudent: UserProfile;
@@ -352,7 +353,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
 6. Use emojis sparingly and warmly.`;
 
     try {
-      const response = await fetch("/api/chat", {
+      const response = await fetch(api("/api/chat"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

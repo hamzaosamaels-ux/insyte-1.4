@@ -167,6 +167,16 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   // Create-class error + submitting state
   const [createClassError, setCreateClassError] = useState<string | null>(null);
   const [creatingClass, setCreatingClass] = useState(false);
+  // When true, the create-class modal was opened from inside a community:
+  // the grade is locked to the active community and only a subject is added
+  const [createInCommunity, setCreateInCommunity] = useState(false);
+
+  const openCreateClass = (insideCommunity: boolean) => {
+    setCreateInCommunity(insideCommunity);
+    setNewClassGrade(insideCommunity && activeGrade ? activeGrade : "Class 2B");
+    setCreateClassError(null);
+    setShowCreateClass(true);
+  };
 
   const unreadMailCount = mails.filter(m => m.toId === currentTeacher.id && !m.read).length;
 
@@ -393,7 +403,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           )}
 
           <button
-            onClick={() => setShowCreateClass(true)}
+            onClick={() => openCreateClass(false)}
             className="p-2 bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-400 border border-violet-100 dark:border-violet-900 rounded-xl hover:bg-violet-100 dark:hover:bg-violet-900/50 transition-all cursor-pointer"
             title={t.createClass}
           >
@@ -583,18 +593,27 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                       <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 font-display">{t.roster} — {activeClass.name}</h2>
                       <p className="text-slate-400 text-xs mt-1">{t.rosterSubtitle}</p>
                     </div>
-                    <button
-                      onClick={() => {
-                        navigator.clipboard?.writeText(activeClass.code);
-                        showNotification(`${t.classCodeTaken} ${activeClass.code}`);
-                      }}
-                      className="flex items-center gap-2 px-4 py-2.5 bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-500/20 rounded-xl cursor-pointer hover:bg-violet-100 dark:hover:bg-violet-950/50 transition-all"
-                      title={t.shareCodeHint}
-                    >
-                      <span className="text-[10px] font-bold text-violet-500 uppercase tracking-wider">{t.classCode}</span>
-                      <span className="font-mono font-extrabold text-sm text-violet-700 dark:text-violet-300 tracking-widest">{activeClass.code}</span>
-                      <Copy className="h-3.5 w-3.5 text-violet-400" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          navigator.clipboard?.writeText(activeClass.code);
+                          showNotification(`${t.classCodeTaken} ${activeClass.code}`);
+                        }}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-500/20 rounded-xl cursor-pointer hover:bg-violet-100 dark:hover:bg-violet-950/50 transition-all"
+                        title={t.shareCodeHint}
+                      >
+                        <span className="text-[10px] font-bold text-violet-500 uppercase tracking-wider">{t.classCode}</span>
+                        <span className="font-mono font-extrabold text-sm text-violet-700 dark:text-violet-300 tracking-widest">{activeClass.code}</span>
+                        <Copy className="h-3.5 w-3.5 text-violet-400" />
+                      </button>
+                      <button
+                        onClick={() => openCreateClass(true)}
+                        className="flex items-center gap-1.5 px-4 py-2.5 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400 rounded-xl cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-950/50 transition-all text-xs font-bold"
+                        title={t.addSubjectHint}
+                      >
+                        <Plus className="h-4 w-4" /> {t.addSubject}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1321,7 +1340,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           <p className="text-slate-700 dark:text-slate-300 font-bold text-sm">{t.noActiveClassroom}</p>
           <p className="text-slate-400 text-xs mt-1 max-w-xs">{t.noClassroomDesc}</p>
           <button
-            onClick={() => setShowCreateClass(true)}
+            onClick={() => openCreateClass(false)}
             className="mt-5 inline-flex items-center gap-2 px-5 py-3 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md"
           >
             <Plus className="h-4 w-4" /> {t.createClassCommunity}
@@ -1343,11 +1362,17 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                   <input
                     type="text"
                     required
+                    disabled={createInCommunity}
                     placeholder={t.classGradePlaceholder}
                     value={newClassGrade}
                     onChange={(e) => setNewClassGrade(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-xl focus:outline-hidden text-xs dark:text-slate-200"
+                    className={`w-full px-3 py-2 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-xl focus:outline-hidden text-xs dark:text-slate-200 ${
+                      createInCommunity ? "opacity-60 cursor-not-allowed" : ""
+                    }`}
                   />
+                  {createInCommunity && (
+                    <p className="text-[9px] text-emerald-500 font-semibold mt-1">{t.addSubjectHint}</p>
+                  )}
                 </div>
 
                 <div>

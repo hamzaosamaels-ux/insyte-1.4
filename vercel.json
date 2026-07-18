@@ -7,7 +7,7 @@
         { "key": "X-Frame-Options", "value": "DENY" },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' https://vercel.live; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; frame-src https://vercel.live; connect-src 'self' https://insyte-14-production.up.railway.app https://vercel.live"
+          "value": "default-src 'self'; script-src 'self' https://vercel.live; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; frame-src https://vercel.live https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://docs.google.com; media-src 'self' https:; connect-src 'self' https://insyte-14-production.up.railway.app https://vercel.live"
         }
       ]
     }
