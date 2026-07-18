@@ -281,7 +281,42 @@ export const translations = {
     wed: "We",
     thu: "Th",
     fri: "Fr",
-    sat: "Sa"
+    sat: "Sa",
+    // Auth
+    logIn: "Log In",
+    signUp: "Sign Up",
+    createAccount: "Create Account",
+    noAccountYet: "No account yet?",
+    alreadyHaveAccount: "Already have an account?",
+    // Join class
+    joinClassTitle: "Join a Class",
+    joinClassDesc: "Enter the class code your teacher shared with you.",
+    classCodeLabel: "Class Code",
+    joinBtn: "Join Class",
+    joinedClassSuccess: "You joined the class!",
+    joinCommunity: "Join Community",
+    noClassesYet: "You haven't joined any classes yet.",
+    // Mail
+    mailTab: "Mail",
+    mailTitle: "Mail",
+    mailSubtitle: "Message your teachers and classmates directly.",
+    composeMail: "Compose",
+    inbox: "Inbox",
+    sentMail: "Sent",
+    mailSent: "Mail sent successfully!",
+    mailTo: "To",
+    selectRecipient: "Select a recipient...",
+    mailSubject: "Subject",
+    mailBody: "Message",
+    sendMailBtn: "Send Mail",
+    noMail: "No mail here yet.",
+    // Streak + notifications
+    streakLabel: "Daily login streak",
+    noNotifications: "No notifications yet.",
+    markAllRead: "Mark all read",
+    // Create class extras
+    classCodeTaken: "Class code shown to students to join:",
+    shareCodeHint: "Share this code with your students so they can join."
   },
   ar: {
     lobby: "الرئيسية والترتيب",
@@ -565,7 +600,42 @@ export const translations = {
     wed: "أربعاء",
     thu: "خميس",
     fri: "جمعة",
-    sat: "سبت"
+    sat: "سبت",
+    // Auth
+    logIn: "تسجيل الدخول",
+    signUp: "إنشاء حساب",
+    createAccount: "إنشاء الحساب",
+    noAccountYet: "ليس لديك حساب؟",
+    alreadyHaveAccount: "لديك حساب بالفعل؟",
+    // Join class
+    joinClassTitle: "الانضمام إلى فصل",
+    joinClassDesc: "أدخل رمز الفصل الذي شاركه معك معلمك.",
+    classCodeLabel: "رمز الفصل",
+    joinBtn: "انضم إلى الفصل",
+    joinedClassSuccess: "انضممت إلى الفصل!",
+    joinCommunity: "الانضمام إلى مجتمع",
+    noClassesYet: "لم تنضم إلى أي فصول بعد.",
+    // Mail
+    mailTab: "البريد",
+    mailTitle: "البريد",
+    mailSubtitle: "راسل معلميك وزملاءك مباشرة.",
+    composeMail: "رسالة جديدة",
+    inbox: "الوارد",
+    sentMail: "المرسل",
+    mailSent: "تم إرسال الرسالة بنجاح!",
+    mailTo: "إلى",
+    selectRecipient: "اختر المستلم...",
+    mailSubject: "الموضوع",
+    mailBody: "الرسالة",
+    sendMailBtn: "إرسال",
+    noMail: "لا يوجد بريد هنا بعد.",
+    // Streak + notifications
+    streakLabel: "سلسلة الدخول اليومي",
+    noNotifications: "لا توجد إشعارات بعد.",
+    markAllRead: "تحديد الكل كمقروء",
+    // Create class extras
+    classCodeTaken: "رمز الفصل الذي يستخدمه الطلاب للانضمام:",
+    shareCodeHint: "شارك هذا الرمز مع طلابك ليتمكنوا من الانضمام."
   }
 };
 

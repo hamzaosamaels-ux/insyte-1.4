@@ -1,19 +1,22 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { 
-  BookOpen, Award, MessageSquare, Calendar, Sparkles, Send, 
+import {
+  BookOpen, Award, MessageSquare, Calendar, Sparkles, Send,
   ChevronRight, Trophy, Bell, Clock, LogOut, CheckCircle2,
   List, ShieldAlert, ArrowLeft, RefreshCw, Star, Info, Settings,
-  Video, Presentation, Globe, ExternalLink, Search
+  Video, Presentation, Globe, ExternalLink, Search, Mail as MailLucide, UserPlus
 } from "lucide-react";
-import { 
-  UserProfile, ClassCommunity, Lesson, TaskItem, 
-  TaskSubmission, Announcement, ChatMessage, ClassEvent 
+import {
+  UserProfile, ClassCommunity, Lesson, TaskItem,
+  TaskSubmission, Announcement, ChatMessage, ClassEvent,
+  Mail, AppNotification
 } from "../types";
 import { Language, Theme, getTranslation } from "../translations";
 import { InteractiveCalendar } from "./InteractiveCalendar";
 import { SettingsTab } from "./SettingsTab";
 import { NavbarControls } from "./NavbarControls";
+import { NotificationBell, StreakBadge } from "./HeaderExtras";
+import { MailPanel } from "./MailPanel";
 import { getClassColors } from "../utils/colorHelper";
 
 interface StudentDashboardProps {
@@ -26,11 +29,18 @@ interface StudentDashboardProps {
   events: ClassEvent[];
   submissions: TaskSubmission[];
   allStudents: UserProfile[];
+  allTeachers: UserProfile[];
+  mails: Mail[];
+  notifications: AppNotification[];
   onLogOut: () => void;
   onSendMessage: (classId: string, text: string) => void;
   onAddXp: (xpAmount: number) => void;
   onSubmitTask: (submission: Omit<TaskSubmission, "id" | "submittedAt">) => void;
   onLeaveClass: (classId: string) => void;
+  onJoinClass: (code: string) => Promise<string | null>;
+  onSendMail: (toId: string, subject: string, body: string) => Promise<string | null>;
+  onMarkMailRead: (mailId: string) => void;
+  onMarkNotificationsRead: () => void;
   language: Language;
   setLanguage: (lang: Language) => void;
   theme: Theme;
@@ -47,11 +57,18 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   events,
   submissions,
   allStudents,
+  allTeachers,
+  mails,
+  notifications,
   onLogOut,
   onSendMessage,
   onAddXp,
   onSubmitTask,
   onLeaveClass,
+  onJoinClass,
+  onSendMail,
+  onMarkMailRead,
+  onMarkNotificationsRead,
   language,
   setLanguage,
   theme,
@@ -123,7 +140,31 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   const activeGradeClasses = classesByGrade[activeGrade] || [];
 
   const activeColors = getClassColors(activeClass?.color);
-  const [activeTab, setActiveTab] = useState<"dashboard" | "lessons" | "tasks" | "chat" | "ai" | "calendar" | "settings">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "lessons" | "tasks" | "chat" | "ai" | "calendar" | "mail" | "settings">("dashboard");
+
+  // Join-class modal state
+  const [joinOpen, setJoinOpen] = useState(false);
+  const [joinCode, setJoinCode] = useState("");
+  const [joinError, setJoinError] = useState<string | null>(null);
+  const [joining, setJoining] = useState(false);
+
+  const handleJoinSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!joinCode.trim() || joining) return;
+    setJoining(true);
+    setJoinError(null);
+    const err = await onJoinClass(joinCode.trim());
+    setJoining(false);
+    if (err) {
+      setJoinError(err);
+    } else {
+      setJoinOpen(false);
+      setJoinCode("");
+      showNotification(t.joinedClassSuccess);
+    }
+  };
+
+  const unreadMailCount = mails.filter(m => m.toId === currentStudent.id && !m.read).length;
 
   // Subview Details States
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
@@ -157,6 +198,13 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   const [aiInput, setAiInput] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const aiBottomRef = useRef<HTMLDivElement>(null);
+
+  // When classes list changes (e.g. just joined first class), ensure one is active
+  useEffect(() => {
+    if (!activeClass && studentClasses.length > 0) {
+      setActiveClass(studentClasses[0]);
+    }
+  }, [classes, currentStudent.joinedClasses]);
 
   // Auto scroll to chat bottoms
   useEffect(() => {
@@ -424,6 +472,16 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
             </div>
           </div>
 
+          {/* Daily streak + notifications */}
+          <StreakBadge streak={currentStudent.streak} label={t.streakLabel} />
+          <NotificationBell
+            notifications={notifications}
+            onMarkAllRead={onMarkNotificationsRead}
+            emptyLabel={t.noNotifications}
+            title={t.notificationsTitle}
+            markReadLabel={t.markAllRead}
+          />
+
           {/* Language & Theme controls (moved from Settings page) */}
           <NavbarControls
             language={language}
@@ -575,6 +633,31 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
             >
               <Calendar className="h-4 w-4" />
               <span>{t.calendar}</span>
+            </button>
+
+            <button
+              onClick={() => { setActiveTab("mail"); setSelectedLesson(null); setSelectedTask(null); }}
+              className={`w-full flex items-center justify-start gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+                activeTab === "mail"
+                  ? "bg-slate-100 dark:bg-[#1c1836] text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-[#2d2553]/50 shadow-xs"
+                  : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 hover:text-slate-800 dark:hover:text-slate-200 border border-transparent"
+              }`}
+            >
+              <MailLucide className="h-4 w-4" />
+              <span>{t.mailTab}</span>
+              {unreadMailCount > 0 && (
+                <span className="ml-auto min-w-4.5 h-4.5 px-1 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                  {unreadMailCount}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setJoinOpen(true)}
+              className="w-full flex items-center justify-start gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-950/50 border border-indigo-200/60 dark:border-indigo-500/20 cursor-pointer"
+            >
+              <UserPlus className="h-4 w-4" />
+              <span>{t.joinCommunity}</span>
             </button>
 
             <button
@@ -1463,6 +1546,24 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
               />
             )}
 
+            {/* MAIL TAB */}
+            {activeTab === "mail" && (
+              <MailPanel
+                currentUser={currentStudent}
+                mails={mails}
+                contacts={[
+                  ...allTeachers.filter(te => studentClasses.some(c => c.teacherId === te.id)),
+                  ...allStudents.filter(s =>
+                    s.id !== currentStudent.id &&
+                    s.joinedClasses.some(cid => currentStudent.joinedClasses.includes(cid))
+                  )
+                ]}
+                onSendMail={onSendMail}
+                onMarkMailRead={onMarkMailRead}
+                language={language}
+              />
+            )}
+
             {/* SETTINGS TAB */}
             {activeTab === "settings" && (
               <SettingsTab
@@ -1481,11 +1582,76 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
         <div className="flex-1 flex items-center justify-center text-center p-6">
           <div>
             <ShieldAlert className="h-10 w-10 text-slate-400 mx-auto" />
-            <h3 className="font-bold text-slate-700 mt-3 text-sm">{t.notEnrolled}</h3>
-            <p className="text-slate-400 text-xs mt-1">{t.notEnrolledDesc}</p>
+            <h3 className="font-bold text-slate-700 dark:text-slate-200 mt-3 text-sm">{t.notEnrolled}</h3>
+            <p className="text-slate-400 text-xs mt-1">{t.noClassesYet}</p>
+            <button
+              onClick={() => setJoinOpen(true)}
+              className="mt-5 inline-flex items-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md"
+            >
+              <UserPlus className="h-4 w-4" /> {t.joinCommunity}
+            </button>
           </div>
         </div>
       )}
+
+      {/* Join Class Modal */}
+      <AnimatePresence>
+        {joinOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setJoinOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49] rounded-2xl p-6 w-full max-w-sm shadow-2xl"
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-500 rounded-xl">
+                  <UserPlus className="h-5 w-5" />
+                </div>
+                <h3 className="font-bold text-base text-slate-800 dark:text-slate-100">{t.joinClassTitle}</h3>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mb-4">
+                {t.joinClassDesc}
+              </p>
+              <form onSubmit={handleJoinSubmit} className="space-y-3">
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  placeholder={t.classCodePlaceholder}
+                  value={joinCode}
+                  onChange={(e) => setJoinCode(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2d2553] focus:border-indigo-500 rounded-xl focus:outline-hidden text-sm font-mono uppercase tracking-widest text-slate-800 dark:text-slate-100"
+                />
+                {joinError && <p className="text-red-500 text-xs font-semibold">{joinError}</p>}
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setJoinOpen(false)}
+                    className="flex-1 px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-[#1c1836] text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#282154] transition-all cursor-pointer"
+                  >
+                    {t.cancel}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={joining}
+                    className="flex-1 px-4 py-2.5 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-50 transition-all cursor-pointer"
+                  >
+                    {t.joinBtn}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Leave Class Confirmation Modal */}
       <AnimatePresence>

@@ -15,6 +15,9 @@ dist/
 *.log
 runlog.txt
 
+# Local flat-file database (never commit user data)
+db.json
+
 # Editor / OS
 .DS_Store
 

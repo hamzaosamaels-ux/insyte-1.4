@@ -17,6 +17,31 @@ interface UserProfile {
   level: number;
   rank: string;
   joinedClasses: string[];
+  streak: number;
+  lastActiveDate: string; // YYYY-MM-DD
+}
+
+interface Mail {
+  id: string;
+  fromId: string;
+  fromName: string;
+  fromAvatar: string;
+  toId: string;
+  toName: string;
+  subject: string;
+  body: string;
+  sentAt: string;
+  read: boolean;
+}
+
+interface AppNotification {
+  id: string;
+  userId: string;
+  type: "announcement" | "task" | "grade" | "mail" | "join" | "event";
+  title: string;
+  body: string;
+  createdAt: string;
+  read: boolean;
 }
 
 interface ClassCommunity {
@@ -27,6 +52,7 @@ interface ClassCommunity {
   teacherId: string;
   teacherName: string;
   studentIds: string[];
+  color?: string;
 }
 
 interface Lesson {
@@ -35,6 +61,10 @@ interface Lesson {
   title: string;
   content: string;
   publishedAt: string;
+  videoUrl?: string;
+  pptUrl?: string;
+  webUrl?: string;
+  webUrlTitle?: string;
 }
 
 interface TaskItem {
@@ -95,7 +125,7 @@ interface ClassEvent {
 
 interface DbSchema {
   students: UserProfile[];
-  teacher: UserProfile;
+  teachers: UserProfile[];
   classes: ClassCommunity[];
   lessons: Lesson[];
   tasks: TaskItem[];
@@ -103,281 +133,24 @@ interface DbSchema {
   chatMessages: ChatMessage[];
   events: ClassEvent[];
   submissions: TaskSubmission[];
+  mails: Mail[];
+  notifications: AppNotification[];
 }
 
-// Initial Seed Data if DB_FILE doesn't exist yet
+
+// Fresh empty database — no premade accounts or content
 const seedData: DbSchema = {
-  students: [
-    {
-      id: "student-1",
-      name: "Alex Rivera",
-      email: "alex@insyte.edu",
-      role: "student",
-      avatar: "https://api.dicebear.com/7.x/adventurer/svg?seed=Alex",
-      xp: 2450,
-      level: 3,
-      rank: "Advanced Scholar",
-      joinedClasses: ["class-1", "class-2", "class-3", "class-4"]
-    },
-    {
-      id: "student-2",
-      name: "Chloe Chen",
-      email: "chloe@insyte.edu",
-      role: "student",
-      avatar: "https://api.dicebear.com/7.x/adventurer/svg?seed=Chloe",
-      xp: 3200,
-      level: 4,
-      rank: "Elite Scholar",
-      joinedClasses: ["class-1", "class-3"]
-    },
-    {
-      id: "student-3",
-      name: "Marcus Vance",
-      email: "marcus@insyte.edu",
-      role: "student",
-      avatar: "https://api.dicebear.com/7.x/adventurer/svg?seed=Marcus",
-      xp: 1850,
-      level: 2,
-      rank: "Active Scholar",
-      joinedClasses: ["class-1", "class-2", "class-3", "class-4"]
-    },
-    {
-      id: "student-4",
-      name: "Sophia Martinez",
-      email: "sophia@insyte.edu",
-      role: "student",
-      avatar: "https://api.dicebear.com/7.x/adventurer/svg?seed=Sophia",
-      xp: 1200,
-      level: 2,
-      rank: "Active Scholar",
-      joinedClasses: ["class-2", "class-4"]
-    }
-  ],
-  teacher: {
-    id: "teacher-1",
-    name: "Prof. Hamza",
-    email: "hamza@insyte.edu",
-    role: "teacher",
-    avatar: "https://api.dicebear.com/7.x/adventurer/svg?seed=Hamza",
-    xp: 0,
-    level: 10,
-    rank: "Master Educator",
-    joinedClasses: ["class-1", "class-2", "class-3", "class-4"]
-  },
-  classes: [
-    {
-      id: "class-1",
-      name: "Class 2B - German",
-      code: "GERM2B",
-      description: "German language and literature class for Class 2B. Learn vocabulary, basic grammar rules, and common greetings.",
-      teacherId: "teacher-1",
-      teacherName: "Prof. Hamza",
-      studentIds: ["student-1", "student-2", "student-3"],
-      color: "emerald"
-    },
-    {
-      id: "class-2",
-      name: "Class 2B - Math",
-      code: "MATH2B",
-      description: "Mathematics and logical arithmetic class for Class 2B. Focuses on fractions, simple division, and equations.",
-      teacherId: "teacher-1",
-      teacherName: "Prof. Hamza",
-      studentIds: ["student-1", "student-3", "student-4"],
-      color: "violet"
-    },
-    {
-      id: "class-3",
-      name: "Class 3A - Science",
-      code: "SCI3A",
-      description: "Explore the exciting world of Science, physics, and biological ecosystems for Class 3A.",
-      teacherId: "teacher-1",
-      teacherName: "Prof. Hamza",
-      studentIds: ["student-1", "student-2", "student-3"],
-      color: "sky"
-    },
-    {
-      id: "class-4",
-      name: "Class 3A - History",
-      code: "HIST3A",
-      description: "Journey through ancient civilizations, medieval conflicts, and modern revolutions in Class 3A History.",
-      teacherId: "teacher-1",
-      teacherName: "Prof. Hamza",
-      studentIds: ["student-1", "student-3", "student-4"],
-      color: "rose"
-    }
-  ],
-  lessons: [
-    {
-      id: "lesson-1",
-      classId: "class-1",
-      title: "1. Basic German Greetings",
-      content: `## Guten Tag! Welcome to Class 2B German!\nIn this lesson, we will explore core greetings that form the foundation of conversational German:\n\n### 1. Guten Tag (Good day / Hello)\nThe most common polite greeting used throughout Germany. You can use it with anyone from teachers to shopkeepers!\n\n### 2. Guten Morgen (Good morning)\nUsed typically until about 11 AM to wish someone a wonderful morning.\n\n### 3. Danke & Bitte (Thank you & Please)\nPolite conversational keywords. 'Bitte' also doubles as 'You are welcome' when someone says 'Danke'.\n\n### 4. Auf Wiedersehen (Goodbye)\nA slightly formal but very polite way to say goodbye, literally meaning 'Until we see each other again'.\n\n### Summary Dialogue\n- **A**: Guten Tag, wie geht es dir? (Hello, how are you?)\n- **B**: Mir geht es gut, danke! Und dir? (I am doing well, thank you! And you?)`,
-      publishedAt: "2026-07-10T09:00:00Z",
-      videoUrl: "https://www.youtube.com/embed/g93UfP699sA",
-      webUrl: "https://www.germanpod101.com",
-      webUrlTitle: "GermanPod101 Pronunciation Guide"
-    },
-    {
-      id: "lesson-2",
-      classId: "class-1",
-      title: "2. German Nouns and Genders",
-      content: `## Noun Genders in German\nUnlike English, German nouns can be masculine, feminine, or neuter, and require different definite articles ('the'):\n\n### 1. Masculine: Der\nUsed for masculine nouns.\n- *der Mann* (the man)\n- *der Hund* (the dog)\n\n### 2. Feminine: Die\nUsed for feminine nouns.\n- *die Frau* (the woman)\n- *die Katze* (the cat)\n\n### 3. Neuter: Das\nUsed for neuter nouns.\n- *das Kind* (the child)\n- *das Buch* (the book)\n\n### Key Rule\nAlways learn a new German noun alongside its corresponding article (*der, die, or das*)!`,
-      publishedAt: "2026-07-12T10:30:00Z"
-    },
-    {
-      id: "lesson-3",
-      classId: "class-2",
-      title: "1. Understanding Fractions",
-      content: `## Introduction to Fractions\nFractions are used to represent a portion or a part of a whole quantity.\n\n### Anatomy of a Fraction\n- **Numerator** (the top number): Indicates how many parts of the whole we are actively considering.\n- **Denominator** (the bottom number): Indicates how many equal parts the whole is divided into.\n\n### Visualization\nImagine a large delicious pizza sliced into **4 equal parts**:\n- If you eat 1 slice, you have consumed **1/4** of the pizza.\n- If Chloe eats 2 slices, she has consumed **2/4** (which simplifies to **1/2**) of the pizza.\n- The denominator remains 4 because the pizza is always cut into 4 total slices.\n\n### Word Problem\nIf a chocolate bar has 6 blocks, and you eat 3 blocks, you have eaten 3/6 (or 1/2) of the bar!`,
-      publishedAt: "2026-07-11T14:00:00Z",
-      videoUrl: "https://www.youtube.com/embed/DnFrOctuGPg"
-    },
-    {
-      id: "lesson-4",
-      classId: "class-3",
-      title: "Quantum Physics & Space-Time Mechanics",
-      content: `## Immersive Quantum Physics & Space-Time lecture!\nWelcome, Scholars. Today we delve into the marvelous world of quantum field theory and relativity.\n\n### Key Conceptual Pillars:\n- **Quantum Superposition**: Particles exist in all possible states until observed.\n- **Space-Time Curvature**: Gravitational forces are described as geometric distortions of the fourth-dimensional continuum.\n- **Quantum Entanglement**: Action at a distance, connecting particle spins across galaxies.\n\nTake a look at the attached Kurzgesagt documentary video and the immersive Google Slides lecture notes below.`,
-      publishedAt: "2026-07-14T08:00:00Z",
-      videoUrl: "https://www.youtube.com/embed/3M8iW0n_r68",
-      pptUrl: "https://docs.google.com/presentation/d/e/2PACX-1vS_g7z9W4kLqS_iS9-j95UvREB4V8gI3n6yDOnXq-B7sRkE3lT31u_b4S/embed?start=false&loop=false&delayms=3000",
-      webUrl: "https://eyes.nasa.gov",
-      webUrlTitle: "NASA Interactive Eyes on Space"
-    },
-    {
-      id: "lesson-5",
-      classId: "class-4",
-      title: "Historical Architecture of Ancient Rome",
-      content: `## The Marvels of Roman Architecture\nWelcome to Class 3A History! This lesson covers the incredible structural and artistic feats of the Roman Empire:\n\n### Core Engineering Feats:\n- **The Arch**: Distributes weight more evenly, allowing larger bridges and roofs.\n- **Concrete (Opus Caementicium)**: A formula using volcanic ash, allowing underwater construction and long-lasting monuments.\n- **The Aqueducts**: Gravity-fed water supplies leading straight into Rome's center.\n\nExplore the virtual 3D reconstruction video of Ancient Rome and review the PowerPoint deck.`,
-      publishedAt: "2026-07-14T09:15:00Z",
-      videoUrl: "https://www.youtube.com/embed/b3R7-V-g3C0",
-      pptUrl: "https://docs.google.com/presentation/d/e/2PACX-1vS_g7z9W4kLqS_iS9-j95UvREB4V8gI3n6yDOnXq-B7sRkE3lT31u_b4S/embed?start=false&loop=false&delayms=5000",
-      webUrl: "https://www.worldhistory.org/Rome/",
-      webUrlTitle: "World History Encyclopedia: Ancient Rome"
-    }
-  ],
-  tasks: [
-    {
-      id: "task-1",
-      classId: "class-1",
-      title: "German Vocabulary Matcher",
-      description: "Match the German greeting or phrase with its correct English meaning. Drag each German text block into its appropriate English definition container below.",
-      rewardXp: 150,
-      dueDate: "2026-07-20",
-      type: "dragdrop",
-      dragItems: ["Guten Tag", "Danke", "Auf Wiedersehen"],
-      dropZones: ["Good day / Hello", "Thank you", "Goodbye"],
-      correctPairing: {
-        "Guten Tag": "Good day / Hello",
-        "Danke": "Thank you",
-        "Auf Wiedersehen": "Goodbye"
-      }
-    },
-    {
-      id: "task-2",
-      classId: "class-1",
-      title: "Introduce Yourself in German",
-      description: "Write a short paragraph in German introducing yourself. Say hello, state your name, and write a polite closing phrase using what you have learned.",
-      rewardXp: 200,
-      dueDate: "2026-07-22",
-      type: "text"
-    },
-    {
-      id: "task-3",
-      classId: "class-2",
-      title: "The Fraction Pizza Challenge",
-      description: "Write a short explanation to solve this: If Alex has 5/8 of a cake and gives 2/8 of the cake to Marcus, what fraction of the cake does Alex have left? Show your formula and explain your steps.",
-      rewardXp: 250,
-      dueDate: "2026-07-19",
-      type: "text"
-    }
-  ],
-  announcements: [
-    {
-      id: "ann-1",
-      classId: "class-1",
-      title: "Welcome to Class 2B German!",
-      content: "Hi everyone! Professor Hamza here. I am thrilled to guide you through conversational German and grammar this semester. Check out the Lessons tab to start, and use our Insyte AI Tutor to practice writing German sentences!",
-      authorName: "Prof. Hamza",
-      publishedAt: "2026-07-10T09:00:00Z"
-    },
-    {
-      id: "ann-2",
-      classId: "class-2",
-      title: "Fractions Practice Active",
-      content: "Hello mathematicians! We have unlocked our first Math task on fractions. Complete the task before the deadline to earn 250 XP and climb our leaderboard!",
-      authorName: "Prof. Hamza",
-      publishedAt: "2026-07-11T14:15:00Z"
-    }
-  ],
-  chatMessages: [
-    {
-      id: "msg-1",
-      classId: "class-1",
-      senderId: "teacher-1",
-      senderName: "Prof. Hamza",
-      senderRole: "teacher",
-      senderAvatar: "https://api.dicebear.com/7.x/adventurer/svg?seed=Hamza",
-      text: "Guten Tag everyone! Welcome to the Class 2B German chat room. Ask questions or converse in German here!",
-      timestamp: "2026-07-10T09:05:00Z"
-    },
-    {
-      id: "msg-2",
-      classId: "class-1",
-      senderId: "student-1",
-      senderName: "Alex Rivera",
-      senderRole: "student",
-      senderAvatar: "https://api.dicebear.com/7.x/adventurer/svg?seed=Alex",
-      text: "Hallo Prof! Super excited to learn German this semester.",
-      timestamp: "2026-07-10T11:20:00Z"
-    },
-    {
-      id: "msg-3",
-      classId: "class-1",
-      senderId: "student-2",
-      senderName: "Chloe Chen",
-      senderRole: "student",
-      senderAvatar: "https://api.dicebear.com/7.x/adventurer/svg?seed=Chloe",
-      text: "Has anyone completed the German Vocabulary Matcher? It's so cool!",
-      timestamp: "2026-07-12T15:45:00Z"
-    },
-    {
-      id: "msg-4",
-      classId: "class-1",
-      senderId: "student-3",
-      senderName: "Marcus Vance",
-      senderRole: "student",
-      senderAvatar: "https://api.dicebear.com/7.x/adventurer/svg?seed=Marcus",
-      text: "Yes Chloe! It makes matching 'Auf Wiedersehen' to goodbye very intuitive.",
-      timestamp: "2026-07-12T16:10:00Z"
-    }
-  ],
-  events: [
-    {
-      id: "evt-1",
-      classId: "class-1",
-      title: "German Conversation Live Practice",
-      description: "Join Professor Hamza on a live review of basic Greetings, German pronunciation, and pronoun grammar rules.",
-      date: "2026-07-18",
-      time: "15:00"
-    },
-    {
-      id: "evt-2",
-      classId: "class-1",
-      title: "German Matcher Assignment Due",
-      description: "Make sure to finish your drag-and-drop matching assignment by tonight for XP rewards.",
-      date: "2026-07-20",
-      time: "23:59"
-    },
-    {
-      id: "evt-3",
-      classId: "class-2",
-      title: "Math Fractions Workshop",
-      description: "Bring your questions about numerators, denominators, and chocolate block divisions to class.",
-      date: "2026-07-19",
-      time: "10:00"
-    }
-  ],
-  submissions: []
+  students: [],
+  teachers: [],
+  classes: [],
+  lessons: [],
+  tasks: [],
+  announcements: [],
+  chatMessages: [],
+  events: [],
+  submissions: [],
+  mails: [],
+  notifications: []
 };
 
 // Help helper to get database state
@@ -385,13 +158,71 @@ function readDb(): DbSchema {
   try {
     if (!fs.existsSync(DB_FILE)) {
       fs.writeFileSync(DB_FILE, JSON.stringify(seedData, null, 2), "utf8");
-      return seedData;
+      return JSON.parse(JSON.stringify(seedData));
     }
     const data = fs.readFileSync(DB_FILE, "utf8");
-    return JSON.parse(data);
+    const db = JSON.parse(data);
+
+    // Migrate old db.json shapes: single `teacher` object, missing arrays
+    if (db.teacher && !db.teachers) {
+      db.teachers = [db.teacher];
+      delete db.teacher;
+    }
+    for (const key of Object.keys(seedData) as (keyof DbSchema)[]) {
+      if (!Array.isArray(db[key])) db[key] = [];
+    }
+    for (const user of [...db.students, ...db.teachers]) {
+      if (typeof user.streak !== "number") user.streak = 0;
+      if (!user.lastActiveDate) user.lastActiveDate = "";
+    }
+    return db;
   } catch (error) {
     console.error("Error reading database file. Reverting to initial seeds.", error);
-    return seedData;
+    return JSON.parse(JSON.stringify(seedData));
+  }
+}
+
+// Today's date as YYYY-MM-DD (UTC)
+function todayStr(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// Update login streak: consecutive-day logic
+function applyStreak(user: UserProfile): UserProfile {
+  const today = todayStr();
+  if (user.lastActiveDate === today) return user;
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const streak = user.lastActiveDate === yesterday ? (user.streak || 0) + 1 : 1;
+  return { ...user, streak, lastActiveDate: today };
+}
+
+// Push an in-app notification for a user
+function notify(db: DbSchema, userId: string, type: AppNotification["type"], title: string, body: string) {
+  db.notifications.push({
+    id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    userId,
+    type,
+    title,
+    body,
+    createdAt: new Date().toISOString(),
+    read: false
+  });
+  // Cap stored notifications so the flat file doesn't grow unbounded
+  if (db.notifications.length > 500) {
+    db.notifications = db.notifications.slice(-500);
+  }
+}
+
+function findUserByEmail(db: DbSchema, email: string): UserProfile | undefined {
+  const lower = email.trim().toLowerCase();
+  return [...db.students, ...db.teachers].find(u => u.email.toLowerCase() === lower);
+}
+
+function saveUser(db: DbSchema, user: UserProfile) {
+  if (user.role === "student") {
+    db.students = db.students.map(s => (s.id === user.id ? user : s));
+  } else {
+    db.teachers = db.teachers.map(t => (t.id === user.id ? user : t));
   }
 }
 
@@ -408,20 +239,32 @@ async function startServer() {
 const app = express();
 const PORT = 3000;
 
-// Allow requests from the Vercel frontend
+// Allow requests from the Vercel frontend + local dev
+const ALLOWED_ORIGINS = [
+  "https://insyte-1-4.vercel.app",
+  "http://localhost:3000",
+  "http://localhost:5173"
+];
 app.use((req, res, next) => {
   // CORS
-  res.header("Access-Control-Allow-Origin", "https://insyte-1-4.vercel.app");
+  const origin = req.headers.origin || "";
+  res.header(
+    "Access-Control-Allow-Origin",
+    ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]
+  );
+  res.header("Vary", "Origin");
   res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
   res.header("Access-Control-Allow-Headers", "Content-Type,Authorization");
 
-  // Security headers
+  // Security headers (production only — X-Frame-Options/CSP break local dev preview + Vite's inline preamble)
   res.header("X-Content-Type-Options", "nosniff");
-  res.header("X-Frame-Options", "DENY");
-  res.header(
-    "Content-Security-Policy",
-    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://insyte-1-4.vercel.app"
-  );
+  if (process.env.NODE_ENV === "production") {
+    res.header("X-Frame-Options", "DENY");
+    res.header(
+      "Content-Security-Policy",
+      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://insyte-1-4.vercel.app"
+    );
+  }
 
   if (req.method === "OPTIONS") return res.sendStatus(200);
   next();
@@ -442,36 +285,100 @@ app.use(express.json());
     res.json(db);
   });
 
-  // Create a brand new student profile
-  app.post("/api/students", (req, res) => {
-    const { name, email } = req.body;
-    if (!name || !email) {
-      return res.status(400).json({ error: "Name and Email are required." });
+  // Sign up: create a fresh student or teacher account (no premade profiles)
+  app.post("/api/signup", (req, res) => {
+    const { name, email, role } = req.body;
+    if (!name || !email || !role) {
+      return res.status(400).json({ error: "Name, email, and role are required." });
+    }
+    if (role !== "student" && role !== "teacher") {
+      return res.status(400).json({ error: "Role must be 'student' or 'teacher'." });
     }
 
     const db = readDb();
-    const newStudent: UserProfile = {
-      id: `student-${Date.now()}`,
-      name,
-      email,
-      role: "student",
+    if (findUserByEmail(db, email)) {
+      return res.status(409).json({ error: "An account with this email already exists. Log in instead." });
+    }
+
+    const newUser: UserProfile = {
+      id: `${role}-${Date.now()}`,
+      name: String(name).trim(),
+      email: String(email).trim(),
+      role,
       avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(name)}`,
       xp: 0,
-      level: 1,
-      rank: "Freshman Scholar",
-      joinedClasses: db.classes.map(cl => cl.id) // Join all current classes by default
+      level: role === "teacher" ? 10 : 1,
+      rank: role === "teacher" ? "Educator" : "Freshman Scholar",
+      joinedClasses: [], // Enrollment happens only via class code
+      streak: 1,
+      lastActiveDate: todayStr()
     };
 
-    db.students.push(newStudent);
-    
-    // Also add this student to all classroom lists
-    db.classes = db.classes.map(cl => ({
-      ...cl,
-      studentIds: Array.from(new Set([...cl.studentIds, newStudent.id]))
-    }));
+    if (role === "student") db.students.push(newUser);
+    else db.teachers.push(newUser);
 
     writeDb(db);
-    res.status(201).json({ student: newStudent, allStudents: db.students, allClasses: db.classes });
+    res.status(201).json({ user: newUser, allStudents: db.students, allTeachers: db.teachers });
+  });
+
+  // Log in by email; updates the daily streak
+  app.post("/api/login", (req, res) => {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: "Email is required." });
+    }
+
+    const db = readDb();
+    const found = findUserByEmail(db, email);
+    if (!found) {
+      return res.status(404).json({ error: "No account found with this email. Sign up first." });
+    }
+
+    const updated = applyStreak(found);
+    saveUser(db, updated);
+    writeDb(db);
+    res.json({ user: updated, allStudents: db.students, allTeachers: db.teachers });
+  });
+
+  // Join a class community using its class code
+  app.post("/api/classes/join", (req, res) => {
+    const { studentId, code } = req.body;
+    if (!studentId || !code) {
+      return res.status(400).json({ error: "studentId and code are required." });
+    }
+
+    const db = readDb();
+    const student = db.students.find(s => s.id === studentId);
+    if (!student) {
+      return res.status(404).json({ error: "Student not found." });
+    }
+
+    const target = db.classes.find(c => c.code.toLowerCase() === String(code).trim().toLowerCase());
+    if (!target) {
+      return res.status(404).json({ error: "No class found with this code. Double-check with your teacher." });
+    }
+    if (student.joinedClasses.includes(target.id)) {
+      return res.status(409).json({ error: "You are already a member of this class." });
+    }
+
+    const updatedStudent = { ...student, joinedClasses: [...student.joinedClasses, target.id] };
+    saveUser(db, updatedStudent);
+    db.classes = db.classes.map(c =>
+      c.id === target.id
+        ? { ...c, studentIds: Array.from(new Set([...c.studentIds, studentId])) }
+        : c
+    );
+
+    notify(db, target.teacherId, "join", "New student joined", `${student.name} joined ${target.name}.`);
+
+    writeDb(db);
+    res.json({
+      student: updatedStudent,
+      allStudents: db.students,
+      allClasses: db.classes,
+      allNotifications: db.notifications,
+      joinedClass: db.classes.find(c => c.id === target.id)
+    });
   });
 
   // Award study XP points and trigger level up + ranking updates
@@ -556,28 +463,41 @@ app.use(express.json());
       return res.status(400).json({ error: "Class name and code are required." });
     }
 
+    if (!teacherId) {
+      return res.status(400).json({ error: "teacherId is required." });
+    }
+
     const db = readDb();
+    const teacher = db.teachers.find(t => t.id === teacherId);
+    if (!teacher) {
+      return res.status(404).json({ error: "Teacher not found." });
+    }
+    if (db.classes.some(c => c.code.toLowerCase() === String(code).trim().toLowerCase())) {
+      return res.status(409).json({ error: "This class code is already taken. Pick a different one." });
+    }
+
     const newClass: ClassCommunity = {
       id: `class-${Date.now()}`,
       name,
-      code: code.toUpperCase(),
+      code: String(code).trim().toUpperCase(),
       description: description || "",
-      teacherId: teacherId || db.teacher.id,
-      teacherName: teacherName || db.teacher.name,
-      studentIds: db.students.map(s => s.id), // Automatically enroll all active student profiles
+      teacherId: teacher.id,
+      teacherName: teacherName || teacher.name,
+      studentIds: [], // Students enroll themselves with the class code
       color: color || "indigo"
     };
 
     db.classes.push(newClass);
 
-    // Update students joined classes array
-    db.students = db.students.map(stud => ({
-      ...stud,
-      joinedClasses: Array.from(new Set([...stud.joinedClasses, newClass.id]))
-    }));
+    // Teacher is a member of their own class
+    db.teachers = db.teachers.map(t =>
+      t.id === teacher.id
+        ? { ...t, joinedClasses: Array.from(new Set([...t.joinedClasses, newClass.id])) }
+        : t
+    );
 
     writeDb(db);
-    res.status(201).json({ class: newClass, allClasses: db.classes, allStudents: db.students });
+    res.status(201).json({ class: newClass, allClasses: db.classes, allTeachers: db.teachers });
   });
 
   // Publish a new lesson guide
@@ -671,8 +591,15 @@ app.use(express.json());
     };
 
     db.tasks.unshift(newTask);
+
+    // Notify every student in the class about the new assignment
+    const taskClass = db.classes.find(c => c.id === classId);
+    for (const sid of taskClass?.studentIds || []) {
+      notify(db, sid, "task", "New assignment", `${title} — due ${dueDate}, worth ${rewardXp} XP.`);
+    }
+
     writeDb(db);
-    res.status(201).json(newTask);
+    res.status(201).json({ task: newTask, allNotifications: db.notifications });
   });
 
   // Broadcast peer classroom chat logs
@@ -712,13 +639,20 @@ app.use(express.json());
       classId,
       title,
       content,
-      authorName: authorName || db.teacher.name,
+      authorName: authorName || db.classes.find(c => c.id === classId)?.teacherName || "Teacher",
       publishedAt: new Date().toISOString()
     };
 
     db.announcements.unshift(newAnn);
+
+    // Notify every student in the class
+    const annClass = db.classes.find(c => c.id === classId);
+    for (const sid of annClass?.studentIds || []) {
+      notify(db, sid, "announcement", "New announcement", `${newAnn.authorName}: ${title}`);
+    }
+
     writeDb(db);
-    res.status(201).json(newAnn);
+    res.status(201).json({ announcement: newAnn, allNotifications: db.notifications });
   });
 
   // Schedule collaborative calendar events
@@ -821,12 +755,97 @@ app.use(express.json());
       });
     }
 
+    // Notify the graded student
+    if (targetStudentId && updatedSubmission) {
+      notify(
+        db,
+        targetStudentId,
+        "grade",
+        "Homework graded",
+        `${(updatedSubmission as TaskSubmission).taskTitle}: +${scoreXp} XP.${feedback ? ` Feedback: ${feedback}` : ""}`
+      );
+    }
+
     writeDb(db);
-    res.json({ 
-      submission: updatedSubmission, 
-      allSubmissions: db.submissions, 
-      allStudents: db.students 
+    res.json({
+      submission: updatedSubmission,
+      allSubmissions: db.submissions,
+      allStudents: db.students,
+      allNotifications: db.notifications,
+      studentId: targetStudentId
     });
+  });
+
+  // -----------------------------------------------------
+  // INTEGRATED MAIL
+  // -----------------------------------------------------
+
+  // Send an in-app mail to another user
+  app.post("/api/mail", (req, res) => {
+    const { fromId, toId, subject, body } = req.body;
+    if (!fromId || !toId || !subject || !body) {
+      return res.status(400).json({ error: "fromId, toId, subject, and body are required." });
+    }
+
+    const db = readDb();
+    const allUsers = [...db.students, ...db.teachers];
+    const sender = allUsers.find(u => u.id === fromId);
+    const recipient = allUsers.find(u => u.id === toId);
+    if (!sender || !recipient) {
+      return res.status(404).json({ error: "Sender or recipient not found." });
+    }
+
+    const newMail: Mail = {
+      id: `mail-${Date.now()}`,
+      fromId: sender.id,
+      fromName: sender.name,
+      fromAvatar: sender.avatar,
+      toId: recipient.id,
+      toName: recipient.name,
+      subject: String(subject).trim(),
+      body: String(body).trim(),
+      sentAt: new Date().toISOString(),
+      read: false
+    };
+
+    db.mails.push(newMail);
+    notify(db, recipient.id, "mail", "New mail", `${sender.name}: ${newMail.subject}`);
+
+    writeDb(db);
+    res.status(201).json({ mail: newMail, allMails: db.mails, allNotifications: db.notifications });
+  });
+
+  // Mark a mail as read
+  app.post("/api/mail/read", (req, res) => {
+    const { mailId } = req.body;
+    if (!mailId) {
+      return res.status(400).json({ error: "mailId is required." });
+    }
+
+    const db = readDb();
+    const exists = db.mails.some(m => m.id === mailId);
+    if (!exists) {
+      return res.status(404).json({ error: "Mail not found." });
+    }
+
+    db.mails = db.mails.map(m => (m.id === mailId ? { ...m, read: true } : m));
+    writeDb(db);
+    res.json({ allMails: db.mails });
+  });
+
+  // Mark all of a user's notifications as read
+  app.post("/api/notifications/read", (req, res) => {
+    const { userId } = req.body;
+    if (!userId) {
+      return res.status(400).json({ error: "userId is required." });
+    }
+
+    const db = readDb();
+    db.notifications = db.notifications.map(n =>
+      n.userId === userId ? { ...n, read: true } : n
+    );
+    writeDb(db);
+    res.json({ allNotifications: db.notifications });
   });
 
   // Health check endpoint
@@ -931,7 +950,14 @@ app.use(express.json());
   // Vite integration and Asset serving
   if (process.env.NODE_ENV !== "production") {
     console.log("Starting server in development mode with Vite middleware...");
+    // configFile: false + no react plugin: the react-refresh preamble is an inline
+    // script that strict CSP environments block, leaving a blank page in dev.
+    // esbuild transforms TSX itself; we only lose fast-refresh (full reload instead).
+    const tailwindcss = (await import("@tailwindcss/vite")).default;
     const vite = await createViteServer({
+      configFile: false,
+      plugins: [tailwindcss()],
+      esbuild: { jsx: "automatic" },
       server: { middlewareMode: true },
       appType: "spa",
     });

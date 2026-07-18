@@ -10,6 +10,33 @@ export interface UserProfile {
   level: number;
   rank: string;
   joinedClasses: string[]; // List of classIds
+  streak: number; // Consecutive-day login streak
+  lastActiveDate: string; // YYYY-MM-DD
+}
+
+export interface Mail {
+  id: string;
+  fromId: string;
+  fromName: string;
+  fromAvatar: string;
+  toId: string;
+  toName: string;
+  subject: string;
+  body: string;
+  sentAt: string;
+  read: boolean;
+}
+
+export type NotificationType = 'announcement' | 'task' | 'grade' | 'mail' | 'join' | 'event';
+
+export interface AppNotification {
+  id: string;
+  userId: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  createdAt: string;
+  read: boolean;
 }
 
 export interface ClassCommunity {

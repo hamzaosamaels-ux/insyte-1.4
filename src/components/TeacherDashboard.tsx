@@ -1,18 +1,22 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { 
-  Plus, BookOpen, Award, Megaphone, Calendar, Users, 
+import {
+  Plus, BookOpen, Award, Megaphone, Calendar, Users,
   CheckSquare, LogOut, CheckCircle2, ChevronRight, Info,
-  Trash2, Send, Clock, Sparkles, Settings, Edit, Check, Library, Video, Presentation, Globe
+  Trash2, Send, Clock, Sparkles, Settings, Edit, Check, Library, Video, Presentation, Globe,
+  Mail as MailLucide, Copy
 } from "lucide-react";
-import { 
-  UserProfile, ClassCommunity, Lesson, TaskItem, 
-  TaskSubmission, Announcement, ClassEvent 
+import {
+  UserProfile, ClassCommunity, Lesson, TaskItem,
+  TaskSubmission, Announcement, ClassEvent,
+  Mail, AppNotification
 } from "../types";
 import { Language, Theme, getTranslation } from "../translations";
 import { InteractiveCalendar } from "./InteractiveCalendar";
 import { SettingsTab } from "./SettingsTab";
 import { NavbarControls } from "./NavbarControls";
+import { NotificationBell, StreakBadge } from "./HeaderExtras";
+import { MailPanel } from "./MailPanel";
 import { getClassColors } from "../utils/colorHelper";
 
 interface TeacherDashboardProps {
@@ -24,8 +28,14 @@ interface TeacherDashboardProps {
   events: ClassEvent[];
   submissions: TaskSubmission[];
   allStudents: UserProfile[];
+  allTeachers: UserProfile[];
+  mails: Mail[];
+  notifications: AppNotification[];
   onLogOut: () => void;
-  onCreateClass: (name: string, code: string, description: string, color?: string) => void;
+  onCreateClass: (name: string, code: string, description: string, color?: string) => Promise<string | null>;
+  onSendMail: (toId: string, subject: string, body: string) => Promise<string | null>;
+  onMarkMailRead: (mailId: string) => void;
+  onMarkNotificationsRead: () => void;
   onCreateLesson: (lesson: Omit<Lesson, "id" | "publishedAt">) => void;
   onUpdateLesson: (id: string, updatedFields: Partial<Lesson>) => void;
   onDeleteLesson: (id: string) => void;
@@ -48,8 +58,14 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   events,
   submissions,
   allStudents,
+  allTeachers,
+  mails,
+  notifications,
   onLogOut,
   onCreateClass,
+  onSendMail,
+  onMarkMailRead,
+  onMarkNotificationsRead,
   onCreateLesson,
   onUpdateLesson,
   onDeleteLesson,
@@ -75,7 +91,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
   // Selection States
   const [activeClass, setActiveClass] = useState<ClassCommunity | null>(classes[0] || null);
-  const [activeSection, setActiveSection] = useState<"lobby" | "lessons" | "tasks" | "grade" | "events" | "announcements" | "calendar" | "settings">("lobby");
+  const [activeSection, setActiveSection] = useState<"lobby" | "lessons" | "tasks" | "grade" | "events" | "announcements" | "calendar" | "mail" | "settings">("lobby");
 
   useEffect(() => {
     if (classes.length > 0) {
@@ -148,18 +164,33 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     }, 4000);
   };
 
+  // Create-class error + submitting state
+  const [createClassError, setCreateClassError] = useState<string | null>(null);
+  const [creatingClass, setCreatingClass] = useState(false);
+
+  const unreadMailCount = mails.filter(m => m.toId === currentTeacher.id && !m.read).length;
+
   // Submit Handlers
-  const handleCreateClass = (e: React.FormEvent) => {
+  const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newClassGrade.trim() || !newClassSubject.trim() || !newClassCode.trim()) return;
+    if (!newClassGrade.trim() || !newClassSubject.trim() || !newClassCode.trim() || creatingClass) return;
     const finalClassName = `${newClassGrade.trim()} - ${newClassSubject.trim()}`;
-    onCreateClass(finalClassName, newClassCode.trim().toUpperCase(), newClassDesc.trim(), newClassColor);
+    const codeUpper = newClassCode.trim().toUpperCase();
+    setCreatingClass(true);
+    setCreateClassError(null);
+    const err = await onCreateClass(finalClassName, codeUpper, newClassDesc.trim(), newClassColor);
+    setCreatingClass(false);
+    if (err) {
+      setCreateClassError(err);
+      return;
+    }
     setNewClassGrade("Class 2B");
     setNewClassSubject("");
     setNewClassCode("");
     setNewClassDesc("");
     setNewClassColor("indigo");
     setShowCreateClass(false);
+    showNotification(`${t.classCodeTaken} ${codeUpper}`);
   };
 
   const handleCreateLesson = (e: React.FormEvent) => {
@@ -386,6 +417,16 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
             </div>
           </div>
 
+          {/* Daily streak + notifications */}
+          <StreakBadge streak={currentTeacher.streak} label={t.streakLabel} />
+          <NotificationBell
+            notifications={notifications}
+            onMarkAllRead={onMarkNotificationsRead}
+            emptyLabel={t.noNotifications}
+            title={t.notificationsTitle}
+            markReadLabel={t.markAllRead}
+          />
+
           {/* Language & Theme controls (moved from Settings page) */}
           <NavbarControls
             language={language}
@@ -500,6 +541,23 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
             </button>
 
             <button
+              onClick={() => { setActiveSection("mail"); setSelectedSub(null); }}
+              className={`w-full flex items-center justify-start gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+                activeSection === "mail"
+                  ? "bg-slate-100 dark:bg-[#1c1836] text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-[#2d2553]/50 shadow-xs"
+                  : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 hover:text-slate-800 dark:hover:text-slate-200 border border-transparent"
+              }`}
+            >
+              <MailLucide className="h-4 w-4" />
+              <span>{t.mailTab}</span>
+              {unreadMailCount > 0 && (
+                <span className="ml-auto min-w-4.5 h-4.5 px-1 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                  {unreadMailCount}
+                </span>
+              )}
+            </button>
+
+            <button
               onClick={() => { setActiveSection("settings"); setSelectedSub(null); }}
               className={`w-full flex items-center justify-start gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
                 activeSection === "settings" 
@@ -520,9 +578,25 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
             {activeSection === "lobby" && (
               <div className="space-y-6">
                 <div className="p-5 bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49]/80 rounded-2xl">
-                  <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 font-display">{t.roster} — {activeClass.name}</h2>
-                  <p className="text-slate-400 text-xs mt-1">{t.rosterSubtitle}</p>
-                  
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 font-display">{t.roster} — {activeClass.name}</h2>
+                      <p className="text-slate-400 text-xs mt-1">{t.rosterSubtitle}</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard?.writeText(activeClass.code);
+                        showNotification(`${t.classCodeTaken} ${activeClass.code}`);
+                      }}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-500/20 rounded-xl cursor-pointer hover:bg-violet-100 dark:hover:bg-violet-950/50 transition-all"
+                      title={t.shareCodeHint}
+                    >
+                      <span className="text-[10px] font-bold text-violet-500 uppercase tracking-wider">{t.classCode}</span>
+                      <span className="font-mono font-extrabold text-sm text-violet-700 dark:text-violet-300 tracking-widest">{activeClass.code}</span>
+                      <Copy className="h-3.5 w-3.5 text-violet-400" />
+                    </button>
+                  </div>
+
                   <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {classStudents.map((stud) => (
                       <div key={stud.id} className="p-4 bg-slate-50 dark:bg-[#1c1836] border border-slate-100 dark:border-[#2b244c]/60 rounded-xl flex items-center gap-3">
@@ -1208,6 +1282,23 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
               />
             )}
 
+            {/* MAIL VIEW */}
+            {activeSection === "mail" && (
+              <MailPanel
+                currentUser={currentTeacher}
+                mails={mails}
+                contacts={[
+                  ...allStudents.filter(s =>
+                    classes.some(c => c.teacherId === currentTeacher.id && c.studentIds.includes(s.id))
+                  ),
+                  ...allTeachers.filter(te => te.id !== currentTeacher.id)
+                ]}
+                onSendMail={onSendMail}
+                onMarkMailRead={onMarkMailRead}
+                language={language}
+              />
+            )}
+
             {/* SETTINGS VIEW */}
             {activeSection === "settings" && (
               <SettingsTab
@@ -1229,6 +1320,12 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           </div>
           <p className="text-slate-700 dark:text-slate-300 font-bold text-sm">{t.noActiveClassroom}</p>
           <p className="text-slate-400 text-xs mt-1 max-w-xs">{t.noClassroomDesc}</p>
+          <button
+            onClick={() => setShowCreateClass(true)}
+            className="mt-5 inline-flex items-center gap-2 px-5 py-3 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md"
+          >
+            <Plus className="h-4 w-4" /> {t.createClassCommunity}
+          </button>
         </div>
       )}
 
@@ -1317,10 +1414,16 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                 />
               </div>
 
+              {createClassError && (
+                <p className="text-red-500 text-xs font-semibold">{createClassError}</p>
+              )}
+
+              <p className="text-[10px] text-slate-400">{t.shareCodeHint}</p>
+
               <div className="flex justify-end gap-2.5 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowCreateClass(false)}
+                  onClick={() => { setShowCreateClass(false); setCreateClassError(null); }}
                   className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-xs font-semibold cursor-pointer"
                 >
                   {t.cancel}

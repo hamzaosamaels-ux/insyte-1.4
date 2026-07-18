@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { UserProfile, ClassCommunity, Lesson, TaskItem, TaskSubmission, Announcement, ChatMessage, ClassEvent } from "./types";
+import { UserProfile, ClassCommunity, Lesson, TaskItem, TaskSubmission, Announcement, ChatMessage, ClassEvent, Mail, AppNotification } from "./types";
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { StudentDashboard } from "./components/StudentDashboard";
 import { TeacherDashboard } from "./components/TeacherDashboard";
 import { Language, Theme, getTranslation } from "./translations";
+import { api } from "./api";
 
 export default function App() {
   const [students, setStudents] = useState<UserProfile[]>([]);
-  const [teacher, setTeacher] = useState<UserProfile | null>(null);
+  const [teachers, setTeachers] = useState<UserProfile[]>([]);
   const [classes, setClasses] = useState<ClassCommunity[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -15,9 +16,12 @@ export default function App() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [events, setEvents] = useState<ClassEvent[]>([]);
   const [submissions, setSubmissions] = useState<TaskSubmission[]>([]);
+  const [mails, setMails] = useState<Mail[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   // Theme & Language Settings State
   const [language, setLanguageState] = useState<Language>(() => {
@@ -54,35 +58,35 @@ export default function App() {
 
   // Sync entire state from full Express Backend DB on startup
   useEffect(() => {
-  fetch("https://insyte-14-production.up.railway.app/api/data")
+    fetch(api("/api/data"))
       .then((res) => {
         if (!res.ok) throw new Error("Server responded with an error code");
         return res.json();
       })
       .then((data) => {
-        setStudents(data.students);
-        setTeacher(data.teacher);
-        setClasses(data.classes);
-        setLessons(data.lessons);
-        setTasks(data.tasks);
-        setAnnouncements(data.announcements);
-        setChatMessages(data.chatMessages);
-        setEvents(data.events);
-        setSubmissions(data.submissions);
+        setStudents(data.students || []);
+        setTeachers(data.teachers || []);
+        setClasses(data.classes || []);
+        setLessons(data.lessons || []);
+        setTasks(data.tasks || []);
+        setAnnouncements(data.announcements || []);
+        setChatMessages(data.chatMessages || []);
+        setEvents(data.events || []);
+        setSubmissions(data.submissions || []);
+        setMails(data.mails || []);
+        setNotifications(data.notifications || []);
         setIsLoading(false);
 
         // Restore active user session if previously logged in
         const savedUser = localStorage.getItem("insyte_currentUser");
         if (savedUser) {
-          const parsed = JSON.parse(savedUser);
-          // Retrieve the freshest version from the synced backend state
-          const fresh = parsed.role === "teacher" 
-            ? data.teacher 
-            : data.students.find((s: any) => s.id === parsed.id);
-          if (fresh) {
-            setCurrentUser(fresh);
-          } else {
-            setCurrentUser(parsed);
+          try {
+            const parsed = JSON.parse(savedUser);
+            const pool = [...(data.students || []), ...(data.teachers || [])];
+            const fresh = pool.find((u: UserProfile) => u.id === parsed.id);
+            if (fresh) setCurrentUser(fresh);
+          } catch {
+            localStorage.removeItem("insyte_currentUser");
           }
         }
       })
@@ -101,35 +105,65 @@ export default function App() {
     }
   }, [currentUser]);
 
-  // Handle Login select profile
-  const handleSelectProfile = (profile: UserProfile) => {
-    setCurrentUser(profile);
-  };
-
   // Logout session
   const handleLogOut = () => {
     setCurrentUser(null);
   };
 
-  // Register brand new student profile on the backend
-  const handleCreateStudent = (name: string, email: string) => {
-    setIsLoading(true);
-    fetch("/api/students", {
+  // Sign up: create a brand new student or teacher account
+  const handleSignUp = (name: string, email: string, role: "student" | "teacher") => {
+    setAuthError(null);
+    fetch(api("/api/signup"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email })
+      body: JSON.stringify({ name, email, role })
     })
-      .then((res) => res.json())
-      .then((data) => {
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Sign up failed.");
+        setStudents(data.allStudents);
+        setTeachers(data.allTeachers);
+        setCurrentUser(data.user);
+      })
+      .catch((err) => setAuthError(err.message));
+  };
+
+  // Log in with an existing account email (updates streak)
+  const handleLogIn = (email: string) => {
+    setAuthError(null);
+    fetch(api("/api/login"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email })
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Log in failed.");
+        setStudents(data.allStudents);
+        setTeachers(data.allTeachers);
+        setCurrentUser(data.user);
+      })
+      .catch((err) => setAuthError(err.message));
+  };
+
+  // Join a class community with its code
+  const handleJoinClass = (code: string): Promise<string | null> => {
+    if (!currentUser || currentUser.role !== "student") return Promise.resolve("Not a student.");
+    return fetch(api("/api/classes/join"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ studentId: currentUser.id, code })
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) return data.error || "Could not join class.";
         setStudents(data.allStudents);
         setClasses(data.allClasses);
+        setNotifications(data.allNotifications);
         setCurrentUser(data.student);
-        setIsLoading(false);
+        return null;
       })
-      .catch((err) => {
-        console.error("Error creating student:", err);
-        setIsLoading(false);
-      });
+      .catch(() => "Connection error. Try again.");
   };
 
   // Classroom Peer Chat Broadcaster
@@ -144,7 +178,7 @@ export default function App() {
       text
     };
 
-    fetch("/api/classroom-chat", {
+    fetch(api("/api/classroom-chat"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
@@ -160,7 +194,7 @@ export default function App() {
   const handleAddXp = (xpAmount: number) => {
     if (!currentUser || currentUser.role !== "student") return;
 
-    fetch("/api/students/add-xp", {
+    fetch(api("/api/students/add-xp"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ studentId: currentUser.id, xpAmount })
@@ -177,7 +211,7 @@ export default function App() {
   const handleLeaveClass = (classId: string) => {
     if (!currentUser || currentUser.role !== "student") return;
 
-    fetch("/api/students/leave-class", {
+    fetch(api("/api/students/leave-class"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ studentId: currentUser.id, classId })
@@ -193,7 +227,7 @@ export default function App() {
 
   // Submit student homework task
   const handleSubmitTask = (sub: Omit<TaskSubmission, "id" | "submittedAt">) => {
-    fetch("/api/submissions", {
+    fetch(api("/api/submissions"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(sub)
@@ -206,31 +240,35 @@ export default function App() {
   };
 
   // 1. Create Classroom Community
-  const handleCreateClass = (name: string, code: string, description: string, color?: string) => {
-    if (!teacher) return;
-    fetch("/api/classes", {
+  const handleCreateClass = (name: string, code: string, description: string, color?: string): Promise<string | null> => {
+    if (!currentUser || currentUser.role !== "teacher") return Promise.resolve("Not a teacher.");
+    return fetch(api("/api/classes"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name,
         code,
         description,
-        teacherId: teacher.id,
-        teacherName: teacher.name,
+        teacherId: currentUser.id,
+        teacherName: currentUser.name,
         color: color || "indigo"
       })
     })
-      .then((res) => res.json())
-      .then((data) => {
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) return data.error || "Could not create class.";
         setClasses(data.allClasses);
-        setStudents(data.allStudents);
+        setTeachers(data.allTeachers);
+        const freshTeacher = data.allTeachers.find((t: UserProfile) => t.id === currentUser.id);
+        if (freshTeacher) setCurrentUser(freshTeacher);
+        return null;
       })
-      .catch((err) => console.error("Error establishing new classroom:", err));
+      .catch(() => "Connection error. Try again.");
   };
 
   // 2. Publish Class Lesson
   const handleCreateLesson = (les: Omit<Lesson, "id" | "publishedAt">) => {
-    fetch("/api/lessons", {
+    fetch(api("/api/lessons"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(les)
@@ -243,7 +281,7 @@ export default function App() {
   };
 
   const handleUpdateLesson = (id: string, updatedFields: Partial<Lesson>) => {
-    fetch(`/api/lessons/${id}`, {
+    fetch(api(`/api/lessons/${id}`), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updatedFields)
@@ -256,7 +294,7 @@ export default function App() {
   };
 
   const handleDeleteLesson = (id: string) => {
-    fetch(`/api/lessons/${id}`, {
+    fetch(api(`/api/lessons/${id}`), {
       method: "DELETE"
     })
       .then((res) => res.json())
@@ -268,35 +306,37 @@ export default function App() {
 
   // 3. Post Homework Assignment
   const handleCreateTask = (task: Omit<TaskItem, "id">) => {
-    fetch("/api/tasks", {
+    fetch(api("/api/tasks"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(task)
     })
       .then((res) => res.json())
-      .then((newTask) => {
-        setTasks((prev) => [newTask, ...prev]);
+      .then((data) => {
+        setTasks((prev) => [data.task, ...prev]);
+        setNotifications(data.allNotifications);
       })
       .catch((err) => console.error("Error posting task:", err));
   };
 
   // 4. Broadcast Class Announcement
   const handleAddAnnouncement = (ann: Omit<Announcement, "id" | "publishedAt">) => {
-    fetch("/api/announcements", {
+    fetch(api("/api/announcements"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(ann)
     })
       .then((res) => res.json())
-      .then((newAnn) => {
-        setAnnouncements((prev) => [newAnn, ...prev]);
+      .then((data) => {
+        setAnnouncements((prev) => [data.announcement, ...prev]);
+        setNotifications(data.allNotifications);
       })
       .catch((err) => console.error("Error creating announcement:", err));
   };
 
   // 5. Schedule Calendar Event
   const handleAddEvent = (evt: Omit<ClassEvent, "id">) => {
-    fetch("/api/events", {
+    fetch(api("/api/events"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(evt)
@@ -310,7 +350,7 @@ export default function App() {
 
   // 6. Grade Homework Task Submission
   const handleGradeSubmission = (submissionId: string, scoreXp: number, feedback: string) => {
-    fetch("/api/submissions/grade", {
+    fetch(api("/api/submissions/grade"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ submissionId, scoreXp, feedback })
@@ -319,14 +359,58 @@ export default function App() {
       .then((data) => {
         setSubmissions(data.allSubmissions);
         setStudents(data.allStudents);
-        
+        setNotifications(data.allNotifications);
+
         // If the student graded is currently logged in, sync their local UI profile
         if (currentUser && currentUser.id === data.studentId) {
-          const freshStud = data.allStudents.find((s: any) => s.id === currentUser.id);
+          const freshStud = data.allStudents.find((s: UserProfile) => s.id === currentUser.id);
           if (freshStud) setCurrentUser(freshStud);
         }
       })
       .catch((err) => console.error("Error grading submission:", err));
+  };
+
+  // 7. Send an in-app mail
+  const handleSendMail = (toId: string, subject: string, body: string): Promise<string | null> => {
+    if (!currentUser) return Promise.resolve("Not logged in.");
+    return fetch(api("/api/mail"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fromId: currentUser.id, toId, subject, body })
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) return data.error || "Could not send mail.";
+        setMails(data.allMails);
+        setNotifications(data.allNotifications);
+        return null;
+      })
+      .catch(() => "Connection error. Try again.");
+  };
+
+  // 8. Mark a mail read
+  const handleMarkMailRead = (mailId: string) => {
+    fetch(api("/api/mail/read"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mailId })
+    })
+      .then((res) => res.json())
+      .then((data) => setMails(data.allMails))
+      .catch((err) => console.error("Error marking mail read:", err));
+  };
+
+  // 9. Mark all my notifications read
+  const handleMarkNotificationsRead = () => {
+    if (!currentUser) return;
+    fetch(api("/api/notifications/read"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: currentUser.id })
+    })
+      .then((res) => res.json())
+      .then((data) => setNotifications(data.allNotifications))
+      .catch((err) => console.error("Error marking notifications read:", err));
   };
 
   // Portal Database Hydration Screen
@@ -345,33 +429,25 @@ export default function App() {
     );
   }
 
-  // Welcome / Register Screen
+  // Welcome / Auth Screen
   if (!currentUser) {
     return (
-      <WelcomeScreen 
-        students={students}
-        teacher={teacher || {
-          id: "teacher-1",
-          name: "Prof. Hamza",
-          email: "hamza@insyte.edu",
-          role: "teacher",
-          avatar: "https://api.dicebear.com/7.x/adventurer/svg?seed=Hamza",
-          xp: 0,
-          level: 10,
-          rank: "Master Educator",
-          joinedClasses: ["class-1", "class-2"]
-        }}
-        onSelectProfile={handleSelectProfile}
-        onCreateStudent={handleCreateStudent}
+      <WelcomeScreen
+        onSignUp={handleSignUp}
+        onLogIn={handleLogIn}
+        authError={authError}
         language={language}
       />
     );
   }
 
+  const myNotifications = notifications.filter(n => n.userId === currentUser.id);
+  const myMails = mails.filter(m => m.toId === currentUser.id || m.fromId === currentUser.id);
+
   // Student Workspace
   if (currentUser.role === "student") {
     return (
-      <StudentDashboard 
+      <StudentDashboard
         currentStudent={currentUser}
         classes={classes}
         lessons={lessons}
@@ -381,11 +457,18 @@ export default function App() {
         events={events}
         submissions={submissions}
         allStudents={students}
+        allTeachers={teachers}
+        mails={myMails}
+        notifications={myNotifications}
         onLogOut={handleLogOut}
         onSendMessage={handleSendMessage}
         onAddXp={handleAddXp}
         onSubmitTask={handleSubmitTask}
         onLeaveClass={handleLeaveClass}
+        onJoinClass={handleJoinClass}
+        onSendMail={handleSendMail}
+        onMarkMailRead={handleMarkMailRead}
+        onMarkNotificationsRead={handleMarkNotificationsRead}
         language={language}
         setLanguage={setLanguage}
         theme={theme}
@@ -394,17 +477,22 @@ export default function App() {
     );
   }
 
-  // Teacher Workspace
+  // Teacher Workspace — only this teacher's classes
+  const teacherClasses = classes.filter(c => c.teacherId === currentUser.id);
+
   return (
-    <TeacherDashboard 
+    <TeacherDashboard
       currentTeacher={currentUser}
-      classes={classes}
+      classes={teacherClasses}
       lessons={lessons}
       tasks={tasks}
       announcements={announcements}
       events={events}
       submissions={submissions}
       allStudents={students}
+      allTeachers={teachers}
+      mails={myMails}
+      notifications={myNotifications}
       onLogOut={handleLogOut}
       onCreateClass={handleCreateClass}
       onCreateLesson={handleCreateLesson}
@@ -414,6 +502,9 @@ export default function App() {
       onAddAnnouncement={handleAddAnnouncement}
       onAddEvent={handleAddEvent}
       onGradeSubmission={handleGradeSubmission}
+      onSendMail={handleSendMail}
+      onMarkMailRead={handleMarkMailRead}
+      onMarkNotificationsRead={handleMarkNotificationsRead}
       language={language}
       setLanguage={setLanguage}
       theme={theme}
