@@ -405,11 +405,20 @@ function writeDb(data: DbSchema) {
 }
 
 async function startServer() {
-  const app = express();
-  const PORT = 3000;
+const app = express();
+const PORT = 3000;
 
-  // Middleware for parsing JSON requests
-  app.use(express.json());
+// Allow requests from the Vercel frontend
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "https://insyte-1-4.vercel.app");
+  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type,Authorization");
+  if (req.method === "OPTIONS") return res.sendStatus(200);
+  next();
+});
+
+// Middleware for parsing JSON requests
+app.use(express.json());
 
   // Ensure DB file exists at boot
   readDb();
