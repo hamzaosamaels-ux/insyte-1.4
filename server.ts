@@ -1,10 +1,66 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
+import crypto from "crypto";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 
 const DB_FILE = path.join(process.cwd(), "db.json");
+
+// ---- Password hashing + session tokens (built-in crypto, no dependencies) ----
+
+// Store as "salt:hash". scrypt is deliberately slow, which resists brute force.
+function hashPassword(pw: string): string {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = crypto.scryptSync(pw, salt, 64).toString("hex");
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(pw: string, stored: string): boolean {
+  const [salt, hash] = (stored || "").split(":");
+  if (!salt || !hash) return false;
+  const test = crypto.scryptSync(pw, salt, 64).toString("hex");
+  // Constant-time compare so timing can't leak the hash
+  const a = Buffer.from(hash, "hex");
+  const b = Buffer.from(test, "hex");
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+function newToken(): string {
+  return crypto.randomBytes(24).toString("hex");
+}
+
+// ---- Per-IP rate limiting (in-memory, no dependencies) ----
+// Counts requests per IP inside a rolling window; over the cap -> 429.
+// Auth endpoints get a much tighter cap to slow password guessing.
+function makeRateLimiter(windowMs: number, max: number, label: string) {
+  const hits = new Map<string, { count: number; resetAt: number }>();
+  // Drop expired windows so the map can't grow forever
+  setInterval(() => {
+    const now = Date.now();
+    for (const [ip, h] of hits) {
+      if (h.resetAt <= now) hits.delete(ip);
+    }
+  }, windowMs).unref?.();
+
+  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const ip = req.ip || req.socket.remoteAddress || "unknown";
+    const now = Date.now();
+    const h = hits.get(ip);
+    if (!h || h.resetAt <= now) {
+      hits.set(ip, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+    h.count++;
+    if (h.count > max) {
+      res.setHeader("Retry-After", Math.ceil((h.resetAt - now) / 1000));
+      return res.status(429).json({
+        error: `Too many ${label} requests. Try again in a bit.`
+      });
+    }
+    next();
+  };
+}
 
 // Types for DB
 interface UserProfile {
@@ -19,6 +75,7 @@ interface UserProfile {
   joinedClasses: string[];
   streak: number;
   lastActiveDate: string; // YYYY-MM-DD
+  passwordHash?: string; // "salt:hash"; never sent to the client
 }
 
 interface Mail {
@@ -135,6 +192,7 @@ interface DbSchema {
   submissions: TaskSubmission[];
   mails: Mail[];
   notifications: AppNotification[];
+  sessions: Record<string, string>; // token -> userId
 }
 
 
@@ -150,7 +208,8 @@ const seedData: DbSchema = {
   events: [],
   submissions: [],
   mails: [],
-  notifications: []
+  notifications: [],
+  sessions: {}
 };
 
 // Help helper to get database state
@@ -169,7 +228,11 @@ function readDb(): DbSchema {
       delete db.teacher;
     }
     for (const key of Object.keys(seedData) as (keyof DbSchema)[]) {
-      if (!Array.isArray(db[key])) db[key] = [];
+      if (key === "sessions") {
+        if (!db.sessions || typeof db.sessions !== "object") db.sessions = {};
+      } else if (!Array.isArray(db[key])) {
+        (db[key] as unknown) = [];
+      }
     }
     for (const user of [...db.students, ...db.teachers]) {
       if (typeof user.streak !== "number") user.streak = 0;
@@ -220,10 +283,25 @@ function findUserByEmail(db: DbSchema, email: string): UserProfile | undefined {
 
 // ---- Response shaping: never serialize private fields to other users ----
 
-// Public view of a user: no email address
-function publicUser(u: UserProfile): Omit<UserProfile, "email"> {
-  const { email, ...rest } = u;
+// Public view of a user: no email, no password hash
+function publicUser(u: UserProfile): Omit<UserProfile, "email" | "passwordHash"> {
+  const { email, passwordHash, ...rest } = u;
   return rest;
+}
+
+// The signed-in user's own view: keeps email, drops the password hash
+function selfUser(u: UserProfile): Omit<UserProfile, "passwordHash"> {
+  const { passwordHash, ...rest } = u;
+  return rest;
+}
+
+// Resolve the caller from their session token, or null if unauthenticated
+function userFromToken(db: DbSchema, req: express.Request): UserProfile | null {
+  const token = String(req.headers["x-auth-token"] || "");
+  if (!token) return null;
+  const userId = db.sessions[token];
+  if (!userId) return null;
+  return [...db.students, ...db.teachers].find(u => u.id === userId) || null;
 }
 
 // Public view of a submission: status only, no homework content or private feedback
@@ -305,6 +383,17 @@ function saveUser(db: DbSchema, user: UserProfile) {
   }
 }
 
+// The community grade a class name belongs to: "Class 2B - German" -> "Class 2B"
+function gradeOf(name: string): string {
+  return name.includes(" - ") ? name.split(" - ")[0].trim() : name.trim();
+}
+
+// All class ids in the same community (grade) as the given class
+function siblingClassIds(db: DbSchema, cls: ClassCommunity): string[] {
+  const g = gradeOf(cls.name).toLowerCase();
+  return db.classes.filter(c => gradeOf(c.name).toLowerCase() === g).map(c => c.id);
+}
+
 // Help helper to write database state
 function writeDb(data: DbSchema) {
   try {
@@ -333,7 +422,7 @@ app.use((req, res, next) => {
   );
   res.header("Vary", "Origin");
   res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Content-Type,X-User-Email");
+  res.header("Access-Control-Allow-Headers", "Content-Type,X-Auth-Token");
 
   // Security headers (production only — X-Frame-Options/CSP break local dev preview + Vite's inline preamble)
   res.header("X-Content-Type-Options", "nosniff");
@@ -350,6 +439,16 @@ app.use((req, res, next) => {
 });
 // Middleware for parsing JSON requests
 app.use(express.json());
+
+// Railway sits behind a proxy; trust one hop so req.ip is the real client IP,
+// not the proxy's — otherwise every visitor shares one rate-limit bucket
+app.set("trust proxy", 1);
+
+// Rate limits: generous for normal browsing, tight for auth endpoints
+app.use("/api/", makeRateLimiter(5 * 60 * 1000, 300, "API"));
+const authLimiter = makeRateLimiter(10 * 60 * 1000, 10, "sign-in");
+app.use("/api/login", authLimiter);
+app.use("/api/signup", authLimiter);
 
   // Ensure DB file exists at boot
   readDb();
@@ -378,33 +477,32 @@ app.use(express.json());
 
   // Per-user private data: own profile (with email), mailbox, notifications,
   // and the full submissions this user may read.
-  // Gate: caller must present the account's email (x-user-email header).
-  // Emails are no longer served by any public endpoint, so id alone is not
-  // enough to read a mailbox. Interim measure until real password auth lands.
-  app.get("/api/me/:userId", (req, res) => {
-    const { userId } = req.params;
-    const email = String(req.headers["x-user-email"] || "");
+  // Gate: a valid session token (X-Auth-Token) issued at login/signup.
+  app.get("/api/me", (req, res) => {
     const db = readDb();
-    const user = [...db.students, ...db.teachers].find(u => u.id === userId);
-    if (!user || user.email.toLowerCase() !== email.trim().toLowerCase()) {
-      return res.status(403).json({ error: "Not authorized for this account." });
+    const user = userFromToken(db, req);
+    if (!user) {
+      return res.status(401).json({ error: "Not signed in." });
     }
     res.json({
-      user,
-      myMails: mailsFor(db, userId),
-      myNotifications: notificationsFor(db, userId),
+      user: selfUser(user),
+      myMails: mailsFor(db, user.id),
+      myNotifications: notificationsFor(db, user.id),
       mySubmissions: submissionsFor(db, user)
     });
   });
 
-  // Sign up: create a fresh student or teacher account (no premade profiles)
+  // Sign up: create a fresh student or teacher account with a password
   app.post("/api/signup", (req, res) => {
-    const { name, email, role } = req.body;
-    if (!name || !email || !role) {
-      return res.status(400).json({ error: "Name, email, and role are required." });
+    const { name, email, role, password } = req.body;
+    if (!name || !email || !role || !password) {
+      return res.status(400).json({ error: "Name, email, password, and role are required." });
     }
     if (role !== "student" && role !== "teacher") {
       return res.status(400).json({ error: "Role must be 'student' or 'teacher'." });
+    }
+    if (String(password).length < 6) {
+      return res.status(400).json({ error: "Password must be at least 6 characters." });
     }
 
     const db = readDb();
@@ -423,41 +521,64 @@ app.use(express.json());
       rank: role === "teacher" ? "Educator" : "Freshman Scholar",
       joinedClasses: [], // Enrollment happens only via class code
       streak: 1,
-      lastActiveDate: todayStr()
+      lastActiveDate: todayStr(),
+      passwordHash: hashPassword(String(password))
     };
 
     if (role === "student") db.students.push(newUser);
     else db.teachers.push(newUser);
 
+    const token = newToken();
+    db.sessions[token] = newUser.id;
+
     writeDb(db);
     res.status(201).json({
-      user: newUser,
+      token,
+      user: selfUser(newUser),
       allStudents: db.students.map(publicUser),
       allTeachers: db.teachers.map(publicUser)
     });
   });
 
-  // Log in by email; updates the daily streak
+  // Log in with email + password; issues a session token and updates streak
   app.post("/api/login", (req, res) => {
-    const { email } = req.body;
-    if (!email) {
-      return res.status(400).json({ error: "Email is required." });
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required." });
     }
 
     const db = readDb();
     const found = findUserByEmail(db, email);
-    if (!found) {
-      return res.status(404).json({ error: "No account found with this email. Sign up first." });
+    // Same message whether the email is unknown or the password is wrong,
+    // so the response can't be used to discover which emails have accounts
+    if (!found || !found.passwordHash || !verifyPassword(String(password), found.passwordHash)) {
+      return res.status(401).json({ error: "Wrong email or password." });
     }
 
     const updated = applyStreak(found);
     saveUser(db, updated);
+    const token = newToken();
+    db.sessions[token] = updated.id;
     writeDb(db);
     res.json({
-      user: updated,
+      token,
+      user: selfUser(updated),
       allStudents: db.students.map(publicUser),
       allTeachers: db.teachers.map(publicUser)
     });
+  });
+
+  // Log out: invalidate the presented session token
+  app.post("/api/logout", (req, res) => {
+    const token = String(req.headers["x-auth-token"] || "");
+    if (token) {
+      const db = readDb();
+      if (db.sessions[token]) {
+        delete db.sessions[token];
+        writeDb(db);
+      }
+    }
+    res.json({ ok: true });
   });
 
   // Join a class community using its class code
@@ -477,14 +598,20 @@ app.use(express.json());
     if (!target) {
       return res.status(404).json({ error: "No class found with this code. Double-check with your teacher." });
     }
-    if (student.joinedClasses.includes(target.id)) {
-      return res.status(409).json({ error: "You are already a member of this class." });
+    // Joining a community enrolls the student in every subject under it
+    const communityIds = siblingClassIds(db, target);
+    if (communityIds.every(id => student.joinedClasses.includes(id))) {
+      return res.status(409).json({ error: "You are already a member of this community." });
     }
 
-    const updatedStudent = { ...student, joinedClasses: [...student.joinedClasses, target.id] };
+    const idSet = new Set(communityIds);
+    const updatedStudent = {
+      ...student,
+      joinedClasses: Array.from(new Set([...student.joinedClasses, ...communityIds]))
+    };
     saveUser(db, updatedStudent);
     db.classes = db.classes.map(c =>
-      c.id === target.id
+      idSet.has(c.id)
         ? { ...c, studentIds: Array.from(new Set([...c.studentIds, studentId])) }
         : c
     );
@@ -493,7 +620,7 @@ app.use(express.json());
 
     writeDb(db);
     res.json({
-      student: updatedStudent,
+      student: selfUser(updatedStudent),
       allStudents: db.students.map(publicUser),
       allClasses: db.classes,
       joinedClass: db.classes.find(c => c.id === target.id)
@@ -536,7 +663,7 @@ app.use(express.json());
     }
 
     writeDb(db);
-    res.json({ student: updatedStudent, allStudents: db.students.map(publicUser) });
+    res.json({ student: selfUser(updatedStudent), allStudents: db.students.map(publicUser) });
   });
 
   // Leave a class (unenroll a student from a classroom)
@@ -572,7 +699,7 @@ app.use(express.json());
     );
 
     writeDb(db);
-    res.json({ student: updatedStudent, allStudents: db.students.map(publicUser), allClasses: db.classes });
+    res.json({ student: selfUser(updatedStudent), allStudents: db.students.map(publicUser), allClasses: db.classes });
   });
 
   // Create a brand new Class Community
@@ -595,6 +722,14 @@ app.use(express.json());
       return res.status(409).json({ error: "This class code is already taken. Pick a different one." });
     }
 
+    // A subject added inside an existing community inherits that community's
+    // current students, so nobody has to re-join for each new subject.
+    const communityStudentIds = Array.from(new Set(
+      db.classes
+        .filter(c => gradeOf(c.name).toLowerCase() === gradeOf(name).toLowerCase())
+        .flatMap(c => c.studentIds)
+    ));
+
     const newClass: ClassCommunity = {
       id: `class-${Date.now()}`,
       name,
@@ -602,11 +737,21 @@ app.use(express.json());
       description: description || "",
       teacherId: teacher.id,
       teacherName: teacherName || teacher.name,
-      studentIds: [], // Students enroll themselves with the class code
+      studentIds: communityStudentIds,
       color: color || "indigo"
     };
 
     db.classes.push(newClass);
+
+    // Enroll those inherited students' joinedClasses in the new subject too
+    if (communityStudentIds.length > 0) {
+      const idSet = new Set(communityStudentIds);
+      db.students = db.students.map(s =>
+        idSet.has(s.id)
+          ? { ...s, joinedClasses: Array.from(new Set([...s.joinedClasses, newClass.id])) }
+          : s
+      );
+    }
 
     // Teacher is a member of their own class
     db.teachers = db.teachers.map(t =>
@@ -619,6 +764,7 @@ app.use(express.json());
     res.status(201).json({
       class: newClass,
       allClasses: db.classes,
+      allStudents: db.students.map(publicUser),
       allTeachers: db.teachers.map(publicUser)
     });
   });
@@ -916,17 +1062,20 @@ app.use(express.json());
 
   // Send an in-app mail to another user
   app.post("/api/mail", (req, res) => {
-    const { fromId, toId, subject, body } = req.body;
-    if (!fromId || !toId || !subject || !body) {
-      return res.status(400).json({ error: "fromId, toId, subject, and body are required." });
+    const { toId, subject, body } = req.body;
+    if (!toId || !subject || !body) {
+      return res.status(400).json({ error: "toId, subject, and body are required." });
     }
 
     const db = readDb();
-    const allUsers = [...db.students, ...db.teachers];
-    const sender = allUsers.find(u => u.id === fromId);
-    const recipient = allUsers.find(u => u.id === toId);
-    if (!sender || !recipient) {
-      return res.status(404).json({ error: "Sender or recipient not found." });
+    // Sender is whoever holds the token; can't spoof another sender
+    const sender = userFromToken(db, req);
+    if (!sender) {
+      return res.status(401).json({ error: "Not signed in." });
+    }
+    const recipient = [...db.students, ...db.teachers].find(u => u.id === toId);
+    if (!recipient) {
+      return res.status(404).json({ error: "Recipient not found." });
     }
 
     const newMail: Mail = {
@@ -950,49 +1099,43 @@ app.use(express.json());
     res.status(201).json({ mail: newMail, myMails: mailsFor(db, sender.id) });
   });
 
-  // Mark a mail as read (only the recipient may mark it; email doubles as
-  // the interim shared secret — see /api/me note)
+  // Mark a mail as read (only the recipient, identified by their token)
   app.post("/api/mail/read", (req, res) => {
-    const { mailId, userId, email } = req.body;
-    if (!mailId || !userId || !email) {
-      return res.status(400).json({ error: "mailId, userId, and email are required." });
+    const { mailId } = req.body;
+    if (!mailId) {
+      return res.status(400).json({ error: "mailId is required." });
     }
 
     const db = readDb();
-    const requester = [...db.students, ...db.teachers].find(u => u.id === userId);
-    if (!requester || requester.email.toLowerCase() !== String(email).trim().toLowerCase()) {
-      return res.status(403).json({ error: "Not authorized for this account." });
+    const requester = userFromToken(db, req);
+    if (!requester) {
+      return res.status(401).json({ error: "Not signed in." });
     }
     const mail = db.mails.find(m => m.id === mailId);
     if (!mail) {
       return res.status(404).json({ error: "Mail not found." });
     }
-    if (mail.toId !== userId) {
+    if (mail.toId !== requester.id) {
       return res.status(403).json({ error: "Only the recipient can mark this mail as read." });
     }
 
     db.mails = db.mails.map(m => (m.id === mailId ? { ...m, read: true } : m));
     writeDb(db);
-    res.json({ myMails: mailsFor(db, userId) });
+    res.json({ myMails: mailsFor(db, requester.id) });
   });
 
-  // Mark all of a user's notifications as read
+  // Mark all of the caller's notifications as read
   app.post("/api/notifications/read", (req, res) => {
-    const { userId, email } = req.body;
-    if (!userId || !email) {
-      return res.status(400).json({ error: "userId and email are required." });
-    }
-
     const db = readDb();
-    const requester = [...db.students, ...db.teachers].find(u => u.id === userId);
-    if (!requester || requester.email.toLowerCase() !== String(email).trim().toLowerCase()) {
-      return res.status(403).json({ error: "Not authorized for this account." });
+    const requester = userFromToken(db, req);
+    if (!requester) {
+      return res.status(401).json({ error: "Not signed in." });
     }
     db.notifications = db.notifications.map(n =>
-      n.userId === userId ? { ...n, read: true } : n
+      n.userId === requester.id ? { ...n, read: true } : n
     );
     writeDb(db);
-    res.json({ myNotifications: notificationsFor(db, userId) });
+    res.json({ myNotifications: notificationsFor(db, requester.id) });
   });
 
   // Health check endpoint

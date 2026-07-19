@@ -288,6 +288,10 @@ export const translations = {
     createAccount: "Create Account",
     noAccountYet: "No account yet?",
     alreadyHaveAccount: "Already have an account?",
+    password: "Password",
+    passwordPlaceholder: "Your password",
+    passwordCreatePlaceholder: "At least 6 characters",
+    passwordTooShort: "Password must be at least 6 characters.",
     // Join class
     joinClassTitle: "Join a Class",
     joinClassDesc: "Enter the class code your teacher shared with you.",
@@ -318,7 +322,8 @@ export const translations = {
     classCodeTaken: "Class code shown to students to join:",
     shareCodeHint: "Share this code with your students so they can join.",
     addSubject: "Add Subject",
-    addSubjectHint: "New subject class inside this community — grade stays the same."
+    addSubjectHint: "New subject class inside this community — grade stays the same.",
+    communityName: "Community Name"
   },
   ar: {
     lobby: "الرئيسية والترتيب",
@@ -609,6 +614,10 @@ export const translations = {
     createAccount: "إنشاء الحساب",
     noAccountYet: "ليس لديك حساب؟",
     alreadyHaveAccount: "لديك حساب بالفعل؟",
+    password: "كلمة المرور",
+    passwordPlaceholder: "كلمة المرور",
+    passwordCreatePlaceholder: "6 أحرف على الأقل",
+    passwordTooShort: "يجب أن تكون كلمة المرور 6 أحرف على الأقل.",
     // Join class
     joinClassTitle: "الانضمام إلى فصل",
     joinClassDesc: "أدخل رمز الفصل الذي شاركه معك معلمك.",
@@ -639,7 +648,8 @@ export const translations = {
     classCodeTaken: "رمز الفصل الذي يستخدمه الطلاب للانضمام:",
     shareCodeHint: "شارك هذا الرمز مع طلابك ليتمكنوا من الانضمام.",
     addSubject: "إضافة مادة",
-    addSubjectHint: "مادة جديدة داخل هذا المجتمع — يبقى الصف كما هو."
+    addSubjectHint: "مادة جديدة داخل هذا المجتمع — يبقى الصف كما هو.",
+    communityName: "اسم المجتمع"
   }
 };
 

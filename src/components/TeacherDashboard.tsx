@@ -183,8 +183,14 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   // Submit Handlers
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newClassGrade.trim() || !newClassSubject.trim() || !newClassCode.trim() || creatingClass) return;
-    const finalClassName = `${newClassGrade.trim()} - ${newClassSubject.trim()}`;
+    if (creatingClass) return;
+    if (!newClassGrade.trim() || !newClassCode.trim()) return;
+    // A subject is only required when adding one inside an existing community.
+    // Creating a community itself takes just a name (the grade) + join code.
+    if (createInCommunity && !newClassSubject.trim()) return;
+    const finalClassName = createInCommunity
+      ? `${newClassGrade.trim()} - ${newClassSubject.trim()}`
+      : newClassGrade.trim();
     const codeUpper = newClassCode.trim().toUpperCase();
     setCreatingClass(true);
     setCreateClassError(null);
@@ -1353,13 +1359,19 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       {showCreateClass && (
         <div className="fixed inset-0 z-50 bg-[#06040f]/80 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="w-full max-w-md bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49]/80 rounded-2xl p-6 shadow-xl relative">
-            <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm font-display mb-1">{t.createClassCommunity}</h3>
-            <p className="text-slate-400 text-[11px] mb-4">{t.createClassSubtitle}</p>
+            <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm font-display mb-1">
+              {createInCommunity ? t.addSubject : t.createClassCommunity}
+            </h3>
+            <p className="text-slate-400 text-[11px] mb-4">
+              {createInCommunity ? t.addSubjectHint : t.createClassSubtitle}
+            </p>
 
             <form onSubmit={handleCreateClass} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className={createInCommunity ? "grid grid-cols-2 gap-3" : ""}>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t.classGrade}</label>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    {createInCommunity ? t.classGrade : t.communityName}
+                  </label>
                   <input
                     type="text"
                     required
@@ -1371,22 +1383,23 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                       createInCommunity ? "opacity-60 cursor-not-allowed" : ""
                     }`}
                   />
-                  {createInCommunity && (
-                    <p className="text-[9px] text-emerald-500 font-semibold mt-1">{t.addSubjectHint}</p>
-                  )}
                 </div>
 
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t.subject}</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder={t.subjectPlaceholder}
-                    value={newClassSubject}
-                    onChange={(e) => setNewClassSubject(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-xl focus:outline-hidden text-xs dark:text-slate-200"
-                  />
-                </div>
+                {/* Subject only when adding one inside an existing community */}
+                {createInCommunity && (
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t.subject}</label>
+                    <input
+                      type="text"
+                      required
+                      autoFocus
+                      placeholder={t.subjectPlaceholder}
+                      value={newClassSubject}
+                      onChange={(e) => setNewClassSubject(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-xl focus:outline-hidden text-xs dark:text-slate-200"
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">

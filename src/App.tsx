@@ -3,8 +3,9 @@ import { UserProfile, ClassCommunity, Lesson, TaskItem, TaskSubmission, Announce
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { StudentDashboard } from "./components/StudentDashboard";
 import { TeacherDashboard } from "./components/TeacherDashboard";
+import { DashboardSkeleton } from "./components/DashboardSkeleton";
 import { Language, Theme, getTranslation } from "./translations";
-import { api } from "./api";
+import { api, authHeaders, getToken, setToken, clearToken } from "./api";
 
 export default function App() {
   const [students, setStudents] = useState<UserProfile[]>([]);
@@ -20,7 +21,16 @@ export default function App() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  // Hydrate the signed-in user synchronously from localStorage so a page
+  // refresh never flashes the login screen or drops the session.
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
+    try {
+      const saved = localStorage.getItem("insyte_currentUser");
+      return saved ? (JSON.parse(saved) as UserProfile) : null;
+    } catch {
+      return null;
+    }
+  });
   const [authError, setAuthError] = useState<string | null>(null);
 
   // Theme & Language Settings State
@@ -66,20 +76,23 @@ export default function App() {
   };
 
   // Pull the signed-in user's private data: profile, mailbox, notifications,
-  // and the full submissions they may read. The account email is the interim
-  // access credential until real auth exists.
-  const loadMe = (userId: string, email: string) => {
-    return fetch(api(`/api/me/${userId}`), {
-      headers: { "X-User-Email": email }
-    })
+  // and the full submissions they may read. Authenticated by session token.
+  const loadMe = () => {
+    if (!getToken()) return Promise.resolve();
+    return fetch(api("/api/me"), { headers: authHeaders() })
       .then((res) => {
+        if (res.status === 401) {
+          // Token expired or server restarted (flat-file sessions don't persist
+          // across redeploys). Sign out cleanly instead of looping.
+          clearToken();
+          setCurrentUser(null);
+          throw new Error("session expired");
+        }
         if (!res.ok) throw new Error("me fetch failed");
         return res.json();
       })
       .then((data) => {
-        // Ignore a response that lands after the user logged out,
-        // otherwise it would silently re-establish the session
-        if (!localStorage.getItem("insyte_currentUser")) return;
+        if (!data || !getToken()) return; // ignore if logged out meanwhile
         setCurrentUser(data.user);
         setMails(data.myMails || []);
         setNotifications(data.myNotifications || []);
@@ -88,7 +101,7 @@ export default function App() {
       .catch((err) => console.error("Failed to load private user data:", err));
   };
 
-  // Sync entire state from full Express Backend DB on startup
+  // Sync the shared (public) portal state on startup
   useEffect(() => {
     fetch(api("/api/data"))
       .then((res) => {
@@ -105,23 +118,9 @@ export default function App() {
         setChatMessages(data.chatMessages || []);
         setEvents(data.events || []);
         setSubmissions(data.submissions || []);
-
-        // Restore active user session if previously logged in.
-        // Show the saved profile immediately (no login-screen flash),
-        // then refresh it with private data from /api/me.
-        const savedUser = localStorage.getItem("insyte_currentUser");
-        if (savedUser) {
-          try {
-            const parsed = JSON.parse(savedUser);
-            if (parsed?.id && parsed?.email) {
-              setCurrentUser(parsed);
-              loadMe(parsed.id, parsed.email);
-            }
-          } catch {
-            localStorage.removeItem("insyte_currentUser");
-          }
-        }
         setIsLoading(false);
+        // If a token survived the refresh, refresh private data
+        if (getToken()) loadMe();
       })
       .catch((err) => {
         console.error("Failed to load portal data from backend database:", err);
@@ -131,12 +130,10 @@ export default function App() {
 
   // Refresh mailbox + notifications every 60s while signed in
   useEffect(() => {
-    if (!currentUser?.email) return;
-    const uid = currentUser.id;
-    const mail = currentUser.email;
-    const id = setInterval(() => loadMe(uid, mail), 60000);
+    if (!currentUser) return;
+    const id = setInterval(() => loadMe(), 60000);
     return () => clearInterval(id);
-  }, [currentUser?.id, currentUser?.email]);
+  }, [currentUser?.id]);
 
   // Synchronize currentUser back to localStorage on change
   useEffect(() => {
@@ -147,45 +144,49 @@ export default function App() {
     }
   }, [currentUser]);
 
-  // Logout session
+  // Logout: clear the local session and tell the server to drop the token
   const handleLogOut = () => {
+    fetch(api("/api/logout"), { method: "POST", headers: authHeaders() }).catch(() => {});
+    clearToken();
     setCurrentUser(null);
   };
 
-  // Sign up: create a brand new student or teacher account
-  const handleSignUp = (name: string, email: string, role: "student" | "teacher") => {
+  // Sign up: create a brand new student or teacher account with a password
+  const handleSignUp = (name: string, email: string, role: "student" | "teacher", password: string) => {
     setAuthError(null);
     fetch(api("/api/signup"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, role })
+      body: JSON.stringify({ name, email, role, password })
     })
       .then(async (res) => {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Sign up failed.");
+        setToken(data.token);
         setStudents(data.allStudents);
         setTeachers(data.allTeachers);
         setCurrentUser(data.user);
-        loadMe(data.user.id, data.user.email);
+        loadMe();
       })
       .catch((err) => setAuthError(err.message));
   };
 
-  // Log in with an existing account email (updates streak)
-  const handleLogIn = (email: string) => {
+  // Log in with email + password
+  const handleLogIn = (email: string, password: string) => {
     setAuthError(null);
     fetch(api("/api/login"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email })
+      body: JSON.stringify({ email, password })
     })
       .then(async (res) => {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Log in failed.");
+        setToken(data.token);
         setStudents(data.allStudents);
         setTeachers(data.allTeachers);
         setCurrentUser(data.user);
-        loadMe(data.user.id, data.user.email);
+        loadMe();
       })
       .catch((err) => setAuthError(err.message));
   };
@@ -302,6 +303,7 @@ export default function App() {
         if (!res.ok) return data.error || "Could not create class.";
         setClasses(data.allClasses);
         setTeachers(data.allTeachers);
+        if (data.allStudents) setStudents(data.allStudents);
         const freshTeacher = data.allTeachers.find((t: UserProfile) => t.id === currentUser.id);
         // Public lists omit email; keep the one from the signed-in session
         if (freshTeacher) setCurrentUser({ ...freshTeacher, email: currentUser.email });
@@ -405,13 +407,13 @@ export default function App() {
       .catch((err) => console.error("Error grading submission:", err));
   };
 
-  // 7. Send an in-app mail
+  // 7. Send an in-app mail (sender is the token holder)
   const handleSendMail = (toId: string, subject: string, body: string): Promise<string | null> => {
     if (!currentUser) return Promise.resolve("Not logged in.");
     return fetch(api("/api/mail"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fromId: currentUser.id, toId, subject, body })
+      headers: authHeaders(true),
+      body: JSON.stringify({ toId, subject, body })
     })
       .then(async (res) => {
         const data = await res.json();
@@ -427,8 +429,8 @@ export default function App() {
     if (!currentUser) return;
     fetch(api("/api/mail/read"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mailId, userId: currentUser.id, email: currentUser.email })
+      headers: authHeaders(true),
+      body: JSON.stringify({ mailId })
     })
       .then((res) => res.json())
       .then((data) => {
@@ -442,28 +444,19 @@ export default function App() {
     if (!currentUser) return;
     fetch(api("/api/notifications/read"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: currentUser.id, email: currentUser.email })
+      headers: authHeaders(true),
+      body: JSON.stringify({})
     })
       .then((res) => res.json())
-      .then((data) => setNotifications(data.myNotifications))
+      .then((data) => {
+        if (data.myNotifications) setNotifications(data.myNotifications);
+      })
       .catch((err) => console.error("Error marking notifications read:", err));
   };
 
-  // Portal Database Hydration Screen
+  // Skeleton shell while portal data loads — keeps the layout stable
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-[#0F172A] flex flex-col items-center justify-center p-6 text-center select-none">
-        <div className="relative flex items-center justify-center mb-6">
-          <div className="w-16 h-16 rounded-2xl border-4 border-violet-500/20 border-t-violet-500 animate-spin"></div>
-          <div className="absolute font-display font-extrabold text-violet-400 text-sm">IN</div>
-        </div>
-        <h2 className="text-white font-bold font-display text-base tracking-tight">{getTranslation(language).syncing}</h2>
-        <p className="text-slate-400 text-xs max-w-xs mt-2 leading-relaxed">
-          {getTranslation(language).syncingDesc}
-        </p>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   // Welcome / Auth Screen

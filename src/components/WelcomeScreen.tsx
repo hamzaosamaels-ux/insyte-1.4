@@ -4,8 +4,8 @@ import { GraduationCap, Award, BookOpen, Sparkles, LogIn, AlertCircle } from "lu
 import { getTranslation, Language } from "../translations";
 
 interface WelcomeScreenProps {
-  onSignUp: (name: string, email: string, role: "student" | "teacher") => void;
-  onLogIn: (email: string) => void;
+  onSignUp: (name: string, email: string, role: "student" | "teacher", password: string) => void;
+  onLogIn: (email: string, password: string) => void;
   authError: string | null;
   language: Language;
 }
@@ -20,16 +20,23 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [role, setRole] = useState<"student" | "teacher">("student");
+  const [localError, setLocalError] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) return;
+    setLocalError(null);
+    if (!email.trim() || !password) return;
     if (mode === "signup") {
       if (!name.trim()) return;
-      onSignUp(name.trim(), email.trim(), role);
+      if (password.length < 6) {
+        setLocalError(t.passwordTooShort);
+        return;
+      }
+      onSignUp(name.trim(), email.trim(), role, password);
     } else {
-      onLogIn(email.trim());
+      onLogIn(email.trim(), password);
     }
   };
 
@@ -145,6 +152,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             <input
               type="email"
               required
+              autoComplete="email"
               placeholder={t.emailPlaceholder}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -152,10 +160,23 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             />
           </div>
 
-          {authError && (
+          <div>
+            <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">{t.password}</label>
+            <input
+              type="password"
+              required
+              autoComplete={mode === "signup" ? "new-password" : "current-password"}
+              placeholder={mode === "signup" ? t.passwordCreatePlaceholder : t.passwordPlaceholder}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 focus:border-indigo-500 rounded-xl focus:outline-hidden text-sm"
+            />
+          </div>
+
+          {(authError || localError) && (
             <div className="flex items-center gap-2 px-4 py-3 bg-red-950/40 border border-red-500/30 rounded-xl text-red-300 text-xs">
               <AlertCircle className="h-4 w-4 shrink-0" />
-              <span>{authError}</span>
+              <span>{localError || authError}</span>
             </div>
           )}
 
