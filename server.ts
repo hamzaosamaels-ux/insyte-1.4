@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
+import { supabaseEnabled, loadFromSupabase, saveToSupabase } from "./supabase-store";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 
@@ -212,33 +213,60 @@ const seedData: DbSchema = {
   sessions: {}
 };
 
-// Help helper to get database state
+// Fill in missing/renamed fields so old data and both storage backends produce
+// the same in-memory shape.
+function normalize(db: any): DbSchema {
+  if (db.teacher && !db.teachers) {
+    db.teachers = [db.teacher];
+    delete db.teacher;
+  }
+  for (const key of Object.keys(seedData) as (keyof DbSchema)[]) {
+    if (key === "sessions") {
+      if (!db.sessions || typeof db.sessions !== "object") db.sessions = {};
+    } else if (!Array.isArray(db[key])) {
+      db[key] = [];
+    }
+  }
+  for (const user of [...db.students, ...db.teachers]) {
+    if (typeof user.streak !== "number") user.streak = 0;
+    if (!user.lastActiveDate) user.lastActiveDate = "";
+  }
+  return db as DbSchema;
+}
+
+// When Supabase is configured, the whole DB lives in this in-memory cache
+// (loaded once at boot). readDb/writeDb stay synchronous; writes persist to
+// Supabase in the background. Null means "use the local db.json file instead".
+let memCache: DbSchema | null = null;
+
+// Load persisted state into memory before the server accepts requests.
+async function initStore(): Promise<void> {
+  if (supabaseEnabled()) {
+    try {
+      const loaded = await loadFromSupabase();
+      memCache = normalize(loaded);
+      console.log("[Insyte] Persistence: Supabase (data survives redeploys)");
+    } catch (err) {
+      console.error("[Insyte] Supabase load failed, starting empty:", err);
+      memCache = JSON.parse(JSON.stringify(seedData));
+    }
+  } else {
+    console.log("[Insyte] Persistence: local db.json (set SUPABASE_URL to use Supabase)");
+  }
+}
+
+// Read the current database state (synchronous — from cache or the flat file)
 function readDb(): DbSchema {
+  if (supabaseEnabled()) {
+    if (!memCache) memCache = JSON.parse(JSON.stringify(seedData));
+    return memCache as DbSchema;
+  }
   try {
     if (!fs.existsSync(DB_FILE)) {
       fs.writeFileSync(DB_FILE, JSON.stringify(seedData, null, 2), "utf8");
       return JSON.parse(JSON.stringify(seedData));
     }
-    const data = fs.readFileSync(DB_FILE, "utf8");
-    const db = JSON.parse(data);
-
-    // Migrate old db.json shapes: single `teacher` object, missing arrays
-    if (db.teacher && !db.teachers) {
-      db.teachers = [db.teacher];
-      delete db.teacher;
-    }
-    for (const key of Object.keys(seedData) as (keyof DbSchema)[]) {
-      if (key === "sessions") {
-        if (!db.sessions || typeof db.sessions !== "object") db.sessions = {};
-      } else if (!Array.isArray(db[key])) {
-        (db[key] as unknown) = [];
-      }
-    }
-    for (const user of [...db.students, ...db.teachers]) {
-      if (typeof user.streak !== "number") user.streak = 0;
-      if (!user.lastActiveDate) user.lastActiveDate = "";
-    }
-    return db;
+    return normalize(JSON.parse(fs.readFileSync(DB_FILE, "utf8")));
   } catch (error) {
     console.error("Error reading database file. Reverting to initial seeds.", error);
     return JSON.parse(JSON.stringify(seedData));
@@ -396,6 +424,16 @@ function siblingClassIds(db: DbSchema, cls: ClassCommunity): string[] {
 
 // Help helper to write database state
 function writeDb(data: DbSchema) {
+  if (supabaseEnabled()) {
+    // Update the in-memory cache immediately (readers see it at once) and
+    // persist to Supabase in the background. A failed save keeps memory correct
+    // and is retried on the next write.
+    memCache = data;
+    saveToSupabase(data as any).catch(err =>
+      console.error("[Insyte] Supabase save failed (data kept in memory):", err)
+    );
+    return;
+  }
   try {
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), "utf8");
   } catch (error) {
@@ -450,7 +488,8 @@ const authLimiter = makeRateLimiter(10 * 60 * 1000, 10, "sign-in");
 app.use("/api/login", authLimiter);
 app.use("/api/signup", authLimiter);
 
-  // Ensure DB file exists at boot
+  // Load persisted state (Supabase or flat file) before serving
+  await initStore();
   readDb();
 
   // -----------------------------------------------------

@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@google/genai": "latest",
+    "@supabase/supabase-js": "^2.110.7",
     "express": "^4.19.2",
     "lucide-react": "^0.435.0",
     "motion": "^11.5.4",

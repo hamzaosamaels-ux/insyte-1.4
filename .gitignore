@@ -24,3 +24,6 @@ db.json
 # Mobile leftovers
 *.apk
 *.so
+
+# Supabase secrets
+.env.supabase
