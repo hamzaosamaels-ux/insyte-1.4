@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { motion } from "motion/react";
 import { GraduationCap, Award, BookOpen, Sparkles, LogIn, AlertCircle } from "lucide-react";
 import { getTranslation, Language } from "../translations";
+import { LegalFooter } from "./Legal";
 
 interface WelcomeScreenProps {
   onSignUp: (name: string, email: string, role: "student" | "teacher", password: string) => void;
@@ -201,6 +202,10 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             {mode === "login" ? t.signUp : t.logIn}
           </button>
         </p>
+
+        <div className="mt-6 pt-5 border-t border-slate-800/60">
+          <LegalFooter dark />
+        </div>
 
       </div>
     </div>

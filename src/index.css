@@ -28,3 +28,19 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #94A3B8;
 }
+
+/* Legal document formatting inside the modal */
+.legal-body h4 {
+  font-weight: 700;
+  font-size: 13px;
+  margin-top: 14px;
+  margin-bottom: 2px;
+  color: inherit;
+}
+.legal-body ul {
+  list-style: disc;
+  padding-inline-start: 20px;
+  margin: 4px 0;
+}
+.legal-body li { margin: 2px 0; }
+.legal-body strong { font-weight: 700; }

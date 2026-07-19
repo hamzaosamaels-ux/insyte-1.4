@@ -101,9 +101,9 @@ export default function App() {
       .catch((err) => console.error("Failed to load private user data:", err));
   };
 
-  // Sync the shared (public) portal state on startup
-  useEffect(() => {
-    fetch(api("/api/data"))
+  // Pull the shared (public) portal state: classes, lessons, tasks, chat, etc.
+  const refreshPublic = (initial = false) => {
+    return fetch(api("/api/data"))
       .then((res) => {
         if (!res.ok) throw new Error("Server responded with an error code");
         return res.json();
@@ -117,21 +117,38 @@ export default function App() {
         setAnnouncements(data.announcements || []);
         setChatMessages(data.chatMessages || []);
         setEvents(data.events || []);
-        setSubmissions(data.submissions || []);
-        setIsLoading(false);
-        // If a token survived the refresh, refresh private data
-        if (getToken()) loadMe();
+        // Public submissions are status-only; keep any full ones already merged
+        mergeSubmissions(data.submissions || []);
+        if (initial) {
+          setIsLoading(false);
+          if (getToken()) loadMe();
+        }
       })
       .catch((err) => {
         console.error("Failed to load portal data from backend database:", err);
-        setIsLoading(false);
+        if (initial) setIsLoading(false);
       });
+  };
+
+  // Initial load
+  useEffect(() => {
+    refreshPublic(true);
   }, []);
 
-  // Refresh mailbox + notifications every 60s while signed in
+  // Near-realtime: refresh shared state every 4s while signed in, so chat
+  // messages and announcements from other users appear within a few seconds.
+  // Pauses when the tab is hidden to save battery and requests.
   useEffect(() => {
     if (!currentUser) return;
-    const id = setInterval(() => loadMe(), 60000);
+    const tick = () => { if (!document.hidden) refreshPublic(); };
+    const id = setInterval(tick, 4000);
+    return () => clearInterval(id);
+  }, [currentUser?.id]);
+
+  // Refresh mailbox + notifications every 30s while signed in
+  useEffect(() => {
+    if (!currentUser) return;
+    const id = setInterval(() => { if (!document.hidden) loadMe(); }, 30000);
     return () => clearInterval(id);
   }, [currentUser?.id]);
 

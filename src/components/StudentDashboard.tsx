@@ -17,6 +17,7 @@ import { SettingsTab } from "./SettingsTab";
 import { NavbarControls } from "./NavbarControls";
 import { NotificationBell, StreakBadge } from "./HeaderExtras";
 import { MailPanel } from "./MailPanel";
+import { MobileMenu } from "./MobileMenu";
 import { getClassColors } from "../utils/colorHelper";
 import { api } from "../api";
 
@@ -79,10 +80,13 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
 
   const getYoutubeEmbedUrl = (url?: string) => {
     if (!url) return "";
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    // Pull the 11-char video id out of any YouTube URL form (watch, youtu.be,
+    // shorts, embed) and always frame the privacy-friendly nocookie embed —
+    // a raw watch URL sends X-Frame-Options and shows "refused to connect".
+    const regExp = /(?:youtu\.be\/|\/shorts\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([\w-]{11})/;
     const match = url.match(regExp);
-    if (match && match[2].length === 11) {
-      return `https://www.youtube.com/embed/${match[2]}`;
+    if (match && match[1]) {
+      return `https://www.youtube-nocookie.com/embed/${match[1]}`;
     }
     return url;
   };
@@ -417,13 +421,13 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
 
       {/* Upper Navigation Bar */}
       <header className="sticky top-0 z-40 bg-white dark:bg-[#130f26] border-b border-slate-200 dark:border-[#241c49]/80 px-3 sm:px-6 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-2 sm:gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-indigo-500 text-white rounded-xl shadow-md">
-            <BookOpen className="h-5 w-5" />
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="p-1.5 sm:p-2 bg-indigo-500 text-white rounded-xl shadow-md">
+            <BookOpen className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
           <div>
-            <h1 className="text-xl font-bold font-display tracking-tight text-slate-900 dark:text-slate-50">insyte</h1>
-            <p className="text-slate-400 text-[10px] uppercase font-mono tracking-widest font-bold">{t.studentCenter}</p>
+            <h1 className="text-base sm:text-xl font-bold font-display tracking-tight text-slate-900 dark:text-slate-50">insyte</h1>
+            <p className="text-slate-400 text-[9px] sm:text-[10px] uppercase font-mono tracking-widest font-bold">{t.studentCenter}</p>
           </div>
         </div>
 
@@ -457,13 +461,13 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
           </div>
         )}
 
-        {/* Current User Profiler */}
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-3 bg-slate-50 dark:bg-[#1c1836] border border-slate-200/60 dark:border-[#2d2553]/50 rounded-xl px-3 py-1.5">
-            <img 
-              src={currentStudent.avatar} 
-              alt={currentStudent.name} 
-              className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 p-0.5"
+        {/* Profile chip — always visible, compact on mobile */}
+        <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-3 bg-slate-50 dark:bg-[#1c1836] border border-slate-200/60 dark:border-[#2d2553]/50 rounded-xl px-2 sm:px-3 py-1.5">
+            <img
+              src={currentStudent.avatar}
+              alt={currentStudent.name}
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-200 dark:bg-slate-700 p-0.5"
             />
             <div className="text-center hidden sm:block">
               <div className="text-xs font-bold text-slate-800 dark:text-slate-100">{currentStudent.name}</div>
@@ -473,27 +477,43 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
             </div>
           </div>
 
-          {/* Daily streak + notifications */}
-          <StreakBadge streak={currentStudent.streak} label={t.streakLabel} />
-          <NotificationBell
-            notifications={notifications}
-            onMarkAllRead={onMarkNotificationsRead}
-            emptyLabel={t.noNotifications}
-            title={t.notificationsTitle}
-            markReadLabel={t.markAllRead}
-          />
+          {/* Desktop: controls inline */}
+          <div className="hidden md:flex items-center gap-4">
+            <StreakBadge streak={currentStudent.streak} label={t.streakLabel} />
+            <NotificationBell
+              notifications={notifications}
+              onMarkAllRead={onMarkNotificationsRead}
+              emptyLabel={t.noNotifications}
+              title={t.notificationsTitle}
+              markReadLabel={t.markAllRead}
+            />
+            <NavbarControls language={language} setLanguage={setLanguage} theme={theme} setTheme={setTheme} />
+          </div>
 
-          {/* Language & Theme controls (moved from Settings page) */}
-          <NavbarControls
-            language={language}
-            setLanguage={setLanguage}
-            theme={theme}
-            setTheme={setTheme}
-          />
+          {/* Mobile: same controls tucked into a hamburger drawer */}
+          <MobileMenu title={currentStudent.name}>
+            <div className="flex items-center gap-3">
+              <StreakBadge streak={currentStudent.streak} label={t.streakLabel} />
+              <NotificationBell
+                notifications={notifications}
+                onMarkAllRead={onMarkNotificationsRead}
+                emptyLabel={t.noNotifications}
+                title={t.notificationsTitle}
+                markReadLabel={t.markAllRead}
+              />
+            </div>
+            <NavbarControls language={language} setLanguage={setLanguage} theme={theme} setTheme={setTheme} />
+            <button
+              onClick={onLogOut}
+              className="flex items-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 rounded-xl text-sm font-bold cursor-pointer"
+            >
+              <LogOut className="h-4 w-4" /> {t.logout}
+            </button>
+          </MobileMenu>
 
           <button
             onClick={onLogOut}
-            className="p-2.5 bg-white dark:bg-[#1c1836] border border-slate-200 dark:border-[#2d2553]/50 hover:bg-slate-50 dark:hover:bg-[#282154] text-slate-500 dark:text-slate-400 hover:text-red-500 rounded-xl transition-all"
+            className="hidden md:block p-2.5 bg-white dark:bg-[#1c1836] border border-slate-200 dark:border-[#2d2553]/50 hover:bg-slate-50 dark:hover:bg-[#282154] text-slate-500 dark:text-slate-400 hover:text-red-500 rounded-xl transition-all"
             title={t.logout}
           >
             <LogOut className="h-4.5 w-4.5" />

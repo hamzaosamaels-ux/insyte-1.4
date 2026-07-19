@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { getTranslation, Language } from "../translations";
 import { UserProfile } from "../types";
 import { Settings, User, Mail, Bell, LogOut, ShieldCheck, Award, GraduationCap } from "lucide-react";
+import { LegalFooter } from "./Legal";
 
 interface SettingsTabProps {
   language: Language;
@@ -172,6 +173,11 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             {t.logout}
           </button>
         </div>
+      </div>
+
+      {/* Legal */}
+      <div className="pt-2">
+        <LegalFooter />
       </div>
     </div>
   );
