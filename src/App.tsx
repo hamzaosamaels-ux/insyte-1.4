@@ -471,6 +471,25 @@ export default function App() {
       .catch((err) => console.error("Error marking notifications read:", err));
   };
 
+  // 10. Upload a profile photo (data URL). Returns an error string or null.
+  const handleUpdateAvatar = (dataUrl: string): Promise<string | null> => {
+    if (!currentUser) return Promise.resolve("Not logged in.");
+    return fetch(api("/api/profile/avatar"), {
+      method: "POST",
+      headers: authHeaders(true),
+      body: JSON.stringify({ avatar: dataUrl })
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) return data.error || "Could not update photo.";
+        setCurrentUser(data.user);
+        setStudents(data.allStudents);
+        setTeachers(data.allTeachers);
+        return null;
+      })
+      .catch(() => "Connection error. Try again.");
+  };
+
   // Skeleton shell while portal data loads — keeps the layout stable
   if (isLoading) {
     return <DashboardSkeleton />;
@@ -516,6 +535,7 @@ export default function App() {
         onSendMail={handleSendMail}
         onMarkMailRead={handleMarkMailRead}
         onMarkNotificationsRead={handleMarkNotificationsRead}
+        onUpdateAvatar={handleUpdateAvatar}
         language={language}
         setLanguage={setLanguage}
         theme={theme}
@@ -552,6 +572,7 @@ export default function App() {
       onSendMail={handleSendMail}
       onMarkMailRead={handleMarkMailRead}
       onMarkNotificationsRead={handleMarkNotificationsRead}
+        onUpdateAvatar={handleUpdateAvatar}
       language={language}
       setLanguage={setLanguage}
       theme={theme}

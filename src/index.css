@@ -44,3 +44,24 @@ body {
 }
 .legal-body li { margin: 2px 0; }
 .legal-body strong { font-weight: 700; }
+
+/* Mobile nav drawer — plain CSS so it doesn't depend on Tailwind JIT/v4
+   translate quirks. On >=768px the media query doesn't apply, so the element
+   is a normal static rail (md:w-64 etc. from Tailwind take over). */
+@media (max-width: 767px) {
+  .mobile-drawer {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 16rem;
+    max-width: 80vw;
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    box-shadow: 0 10px 40px rgba(2, 6, 23, 0.28);
+  }
+  .mobile-drawer.open { transform: translateX(0); }
+  [dir="rtl"] .mobile-drawer { left: auto; right: 0; transform: translateX(100%); }
+  [dir="rtl"] .mobile-drawer.open { transform: translateX(0); }
+}

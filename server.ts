@@ -607,6 +607,32 @@ app.use("/api/signup", authLimiter);
     });
   });
 
+  // Update the signed-in user's profile photo (uploaded image as a data URL)
+  app.post("/api/profile/avatar", (req, res) => {
+    const { avatar } = req.body;
+    const db = readDb();
+    const user = userFromToken(db, req);
+    if (!user) {
+      return res.status(401).json({ error: "Not signed in." });
+    }
+    if (typeof avatar !== "string" || !/^data:image\/(png|jpe?g|webp|gif);base64,/.test(avatar)) {
+      return res.status(400).json({ error: "Avatar must be an uploaded PNG, JPG, WEBP, or GIF image." });
+    }
+    // Cap at ~700KB of base64 so the flat file / DB row stays reasonable
+    if (avatar.length > 700_000) {
+      return res.status(413).json({ error: "Image too large. Please use one under ~500KB." });
+    }
+
+    const updated = { ...user, avatar };
+    saveUser(db, updated);
+    writeDb(db);
+    res.json({
+      user: selfUser(updated),
+      allStudents: db.students.map(publicUser),
+      allTeachers: db.teachers.map(publicUser)
+    });
+  });
+
   // Log out: invalidate the presented session token
   app.post("/api/logout", (req, res) => {
     const token = String(req.headers["x-auth-token"] || "");

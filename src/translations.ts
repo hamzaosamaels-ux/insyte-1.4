@@ -330,7 +330,10 @@ export const translations = {
     matcherZonePlaceholder: "Matches (e.g. Hello)",
     matcherAddPair: "Add pair",
     matcherNeedsTwo: "Add at least 2 complete matching pairs.",
-    remove: "Remove"
+    remove: "Remove",
+    changePhoto: "Change photo",
+    uploading: "Uploading…",
+    photoMustBeImage: "Please choose an image file."
   },
   ar: {
     lobby: "الرئيسية والترتيب",
@@ -663,7 +666,10 @@ export const translations = {
     matcherZonePlaceholder: "يطابق (مثال: مرحبا)",
     matcherAddPair: "أضف زوجًا",
     matcherNeedsTwo: "أضف زوجين مكتملين على الأقل.",
-    remove: "حذف"
+    remove: "حذف",
+    changePhoto: "تغيير الصورة",
+    uploading: "جارٍ الرفع…",
+    photoMustBeImage: "الرجاء اختيار ملف صورة."
   }
 };
 

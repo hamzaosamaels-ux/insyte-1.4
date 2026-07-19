@@ -4,7 +4,7 @@ import {
   BookOpen, Award, MessageSquare, Calendar, Sparkles, Send,
   ChevronRight, Trophy, Bell, Clock, LogOut, CheckCircle2,
   List, ShieldAlert, ArrowLeft, RefreshCw, Star, Info, Settings,
-  Video, Presentation, Globe, ExternalLink, Search, Mail as MailLucide, UserPlus
+  Video, Presentation, Globe, ExternalLink, Search, Mail as MailLucide, UserPlus, Menu
 } from "lucide-react";
 import {
   UserProfile, ClassCommunity, Lesson, TaskItem,
@@ -17,7 +17,6 @@ import { SettingsTab } from "./SettingsTab";
 import { NavbarControls } from "./NavbarControls";
 import { NotificationBell, StreakBadge } from "./HeaderExtras";
 import { MailPanel } from "./MailPanel";
-import { MobileMenu } from "./MobileMenu";
 import { getClassColors } from "../utils/colorHelper";
 import { api } from "../api";
 
@@ -43,6 +42,7 @@ interface StudentDashboardProps {
   onSendMail: (toId: string, subject: string, body: string) => Promise<string | null>;
   onMarkMailRead: (mailId: string) => void;
   onMarkNotificationsRead: () => void;
+  onUpdateAvatar: (dataUrl: string) => Promise<string | null>;
   language: Language;
   setLanguage: (lang: Language) => void;
   theme: Theme;
@@ -71,6 +71,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   onSendMail,
   onMarkMailRead,
   onMarkNotificationsRead,
+  onUpdateAvatar,
   language,
   setLanguage,
   theme,
@@ -173,6 +174,9 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
 
   // Which panel to show when the student hasn't joined any class yet
   const [noClassTab, setNoClassTab] = useState<"home" | "mail" | "settings">("home");
+
+  // Mobile nav drawer (the hamburger opens the left rail)
+  const [menuOpen, setMenuOpen] = useState(false);
 
   // Subview Details States
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
@@ -425,12 +429,20 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
       {/* Upper Navigation Bar */}
       <header className="sticky top-0 z-40 bg-white dark:bg-[#130f26] border-b border-slate-200 dark:border-[#241c49]/80 px-3 sm:px-6 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-2 sm:gap-4">
         <div className="flex items-center gap-2 sm:gap-3">
+          {/* Hamburger on the left (mobile only) */}
+          <button
+            onClick={() => setMenuOpen(true)}
+            aria-label="Open menu"
+            className="md:hidden p-2 -ms-1 text-slate-600 dark:text-slate-300 cursor-pointer"
+          >
+            <Menu className="h-6 w-6" />
+          </button>
           <div className="p-1.5 sm:p-2 bg-indigo-500 text-white rounded-xl shadow-md">
             <BookOpen className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
           <div>
             <h1 className="text-base sm:text-xl font-bold font-display tracking-tight text-slate-900 dark:text-slate-50">insyte</h1>
-            <p className="text-slate-400 text-[9px] sm:text-[10px] uppercase font-mono tracking-widest font-bold">{t.studentCenter}</p>
+            <p className="text-slate-400 text-[9px] sm:text-[10px] uppercase font-mono tracking-widest font-bold hidden xs:block sm:block">{t.studentCenter}</p>
           </div>
         </div>
 
@@ -493,26 +505,17 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
             <NavbarControls language={language} setLanguage={setLanguage} theme={theme} setTheme={setTheme} />
           </div>
 
-          {/* Mobile: same controls tucked into a hamburger drawer */}
-          <MobileMenu title={currentStudent.name}>
-            <div className="flex items-center gap-3">
-              <StreakBadge streak={currentStudent.streak} label={t.streakLabel} />
-              <NotificationBell
-                notifications={notifications}
-                onMarkAllRead={onMarkNotificationsRead}
-                emptyLabel={t.noNotifications}
-                title={t.notificationsTitle}
-                markReadLabel={t.markAllRead}
-              />
-            </div>
-            <NavbarControls language={language} setLanguage={setLanguage} theme={theme} setTheme={setTheme} />
+          {/* Mobile: streak + logout live directly in the header */}
+          <div className="flex md:hidden items-center gap-2">
+            <StreakBadge streak={currentStudent.streak} label={t.streakLabel} />
             <button
               onClick={onLogOut}
-              className="flex items-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 rounded-xl text-sm font-bold cursor-pointer"
+              className="p-2.5 bg-white dark:bg-[#1c1836] border border-slate-200 dark:border-[#2d2553]/50 text-slate-500 dark:text-slate-400 hover:text-red-500 rounded-xl transition-all cursor-pointer"
+              title={t.logout}
             >
-              <LogOut className="h-4 w-4" /> {t.logout}
+              <LogOut className="h-4.5 w-4.5" />
             </button>
-          </MobileMenu>
+          </div>
 
           <button
             onClick={onLogOut}
@@ -528,8 +531,28 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
       {activeClass ? (
         <div className="flex-1 flex flex-col md:flex-row md:h-[calc(100vh-73px)]">
 
-          {/* Workspace Tabs Side Rail — wraps into rows on mobile, vertical rail on desktop */}
-          <aside className="w-full md:w-64 bg-white dark:bg-[#130f26] border-b md:border-b-0 md:border-r border-slate-200 dark:border-[#241c49]/80 p-3 md:p-4 flex flex-row flex-wrap md:flex-col gap-1.5 md:overflow-y-auto shrink-0">
+          {/* Dark overlay behind the mobile drawer */}
+          {menuOpen && (
+            <div className="md:hidden fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm" onClick={() => setMenuOpen(false)} />
+          )}
+
+          {/* Workspace nav: slide-in drawer on mobile, static rail on desktop.
+              Any click inside closes the drawer on mobile. */}
+          <aside
+            onClick={() => setMenuOpen(false)}
+            className={`mobile-drawer ${menuOpen ? "open" : ""} md:static md:w-64 bg-white dark:bg-[#130f26] md:border-r border-slate-200 dark:border-[#241c49]/80 p-3 md:p-4 flex flex-col gap-1.5 overflow-y-auto shrink-0`}
+          >
+            {/* Mobile-only: bell + language/theme at the top of the drawer */}
+            <div className="md:hidden flex items-center gap-2 pb-3 mb-1 border-b border-slate-200 dark:border-[#241c49]" onClick={(e) => e.stopPropagation()}>
+              <NotificationBell
+                notifications={notifications}
+                onMarkAllRead={onMarkNotificationsRead}
+                emptyLabel={t.noNotifications}
+                title={t.notificationsTitle}
+                markReadLabel={t.markAllRead}
+              />
+              <NavbarControls language={language} setLanguage={setLanguage} theme={theme} setTheme={setTheme} />
+            </div>
             <button
               onClick={() => { setActiveTab("dashboard"); setSelectedLesson(null); setSelectedTask(null); }}
               className={`w-auto md:w-full shrink-0 flex items-center justify-start gap-2.5 px-3.5 md:px-4 py-2.5 md:py-3 rounded-xl text-xs font-bold transition-all ${
@@ -1595,6 +1618,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                 user={currentStudent}
                 userRole="student"
                 onLogOut={onLogOut}
+                onUpdateAvatar={onUpdateAvatar}
               />
             )}
 
@@ -1605,7 +1629,23 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
       ) : (
         // Not enrolled in any class yet — still give access to Join, Mail, Settings
         <div className="flex-1 flex flex-col md:flex-row md:h-[calc(100vh-73px)]">
-          <aside className="w-full md:w-64 bg-white dark:bg-[#130f26] border-b md:border-b-0 md:border-r border-slate-200 dark:border-[#241c49]/80 p-3 md:p-4 flex flex-row flex-wrap md:flex-col gap-1.5 shrink-0">
+          {menuOpen && (
+            <div className="md:hidden fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm" onClick={() => setMenuOpen(false)} />
+          )}
+          <aside
+            onClick={() => setMenuOpen(false)}
+            className={`mobile-drawer ${menuOpen ? "open" : ""} md:static md:w-64 bg-white dark:bg-[#130f26] md:border-r border-slate-200 dark:border-[#241c49]/80 p-3 md:p-4 flex flex-col gap-1.5 overflow-y-auto shrink-0`}
+          >
+            <div className="md:hidden flex items-center gap-2 pb-3 mb-1 border-b border-slate-200 dark:border-[#241c49]" onClick={(e) => e.stopPropagation()}>
+              <NotificationBell
+                notifications={notifications}
+                onMarkAllRead={onMarkNotificationsRead}
+                emptyLabel={t.noNotifications}
+                title={t.notificationsTitle}
+                markReadLabel={t.markAllRead}
+              />
+              <NavbarControls language={language} setLanguage={setLanguage} theme={theme} setTheme={setTheme} />
+            </div>
             <button
               onClick={() => setJoinOpen(true)}
               className="w-auto md:w-full shrink-0 flex items-center gap-2.5 px-3.5 md:px-4 py-2.5 md:py-3 rounded-xl text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-950/50 border border-indigo-200/60 dark:border-indigo-500/20 cursor-pointer"
@@ -1637,7 +1677,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                 language={language}
               />
             ) : noClassTab === "settings" ? (
-              <SettingsTab language={language} user={currentStudent} userRole="student" onLogOut={onLogOut} />
+              <SettingsTab language={language} user={currentStudent} userRole="student" onLogOut={onLogOut} onUpdateAvatar={onUpdateAvatar} />
             ) : (
               <div className="h-full flex items-center justify-center text-center">
                 <div>

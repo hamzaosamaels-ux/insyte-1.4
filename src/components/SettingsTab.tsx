@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { getTranslation, Language } from "../translations";
 import { UserProfile } from "../types";
-import { Settings, User, Mail, Bell, LogOut, ShieldCheck, Award, GraduationCap } from "lucide-react";
+import { Settings, User, Mail, Bell, LogOut, ShieldCheck, Award, GraduationCap, Camera } from "lucide-react";
 import { LegalFooter } from "./Legal";
 
 interface SettingsTabProps {
@@ -9,6 +9,7 @@ interface SettingsTabProps {
   user: UserProfile;
   userRole: "student" | "teacher";
   onLogOut: () => void;
+  onUpdateAvatar?: (dataUrl: string) => Promise<string | null>;
 }
 
 /** Small controlled toggle switch persisted to localStorage. */
@@ -49,9 +50,50 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   language,
   user,
   userRole,
-  onLogOut
+  onLogOut,
+  onUpdateAvatar
 }) => {
   const t = getTranslation(language);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+
+  // Read the picked image, downscale it to a square ~256px, and upload as a
+  // compressed JPEG data URL so the stored value stays small.
+  const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !onUpdateAvatar) return;
+    setPhotoError(null);
+    if (!file.type.startsWith("image/")) {
+      setPhotoError(t.photoMustBeImage);
+      return;
+    }
+    setPhotoBusy(true);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = async () => {
+        const size = 256;
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d")!;
+        // center-crop to a square
+        const min = Math.min(img.width, img.height);
+        const sx = (img.width - min) / 2;
+        const sy = (img.height - min) / 2;
+        ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+        const err = await onUpdateAvatar(dataUrl);
+        setPhotoBusy(false);
+        if (err) setPhotoError(err);
+      };
+      img.onerror = () => { setPhotoBusy(false); setPhotoError(t.photoMustBeImage); };
+      img.src = reader.result as string;
+    };
+    reader.onerror = () => { setPhotoBusy(false); setPhotoError(t.photoMustBeImage); };
+    reader.readAsDataURL(file);
+  };
 
   const notifRows = [
     { key: "insyte_notif_email", icon: Mail, title: t.notifEmail, desc: t.notifEmailDesc, defaultOn: true },
@@ -80,17 +122,42 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-          <img
-            src={user.avatar}
-            alt={user.name}
-            className="w-16 h-16 rounded-2xl bg-slate-200 dark:bg-slate-700 p-1 border border-violet-200 dark:border-violet-800 shrink-0"
-          />
+          <div className="relative shrink-0">
+            <img
+              src={user.avatar}
+              alt={user.name}
+              className="w-16 h-16 rounded-2xl object-cover bg-slate-200 dark:bg-slate-700 p-1 border border-violet-200 dark:border-violet-800"
+            />
+            {onUpdateAvatar && (
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={photoBusy}
+                title={t.changePhoto}
+                className="absolute -bottom-1.5 -end-1.5 p-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg shadow-md cursor-pointer disabled:opacity-50"
+              >
+                <Camera className="h-3.5 w-3.5" />
+              </button>
+            )}
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
+          </div>
           <div className="flex-1 min-w-0">
             <div className="text-lg font-bold text-slate-800 dark:text-slate-100 truncate">{user.name}</div>
             <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 text-xs mt-0.5">
               <Mail className="h-3.5 w-3.5" />
               <span className="truncate">{user.email}</span>
             </div>
+            {onUpdateAvatar && (
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={photoBusy}
+                className="mt-2 text-[11px] font-bold text-violet-600 dark:text-violet-400 hover:underline cursor-pointer disabled:opacity-50"
+              >
+                {photoBusy ? t.uploading : t.changePhoto}
+              </button>
+            )}
+            {photoError && <p className="text-red-500 text-[11px] mt-1">{photoError}</p>}
           </div>
         </div>
 
