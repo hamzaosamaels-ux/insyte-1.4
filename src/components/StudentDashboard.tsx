@@ -171,6 +171,9 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
 
   const unreadMailCount = mails.filter(m => m.toId === currentStudent.id && !m.read).length;
 
+  // Which panel to show when the student hasn't joined any class yet
+  const [noClassTab, setNoClassTab] = useState<"home" | "mail" | "settings">("home");
+
   // Subview Details States
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
   const [selectedTask, setSelectedTask] = useState<TaskItem | null>(null);
@@ -1600,18 +1603,57 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
 
         </div>
       ) : (
-        <div className="flex-1 flex items-center justify-center text-center p-6">
-          <div>
-            <ShieldAlert className="h-10 w-10 text-slate-400 mx-auto" />
-            <h3 className="font-bold text-slate-700 dark:text-slate-200 mt-3 text-sm">{t.notEnrolled}</h3>
-            <p className="text-slate-400 text-xs mt-1">{t.noClassesYet}</p>
+        // Not enrolled in any class yet — still give access to Join, Mail, Settings
+        <div className="flex-1 flex flex-col md:flex-row md:h-[calc(100vh-73px)]">
+          <aside className="w-full md:w-64 bg-white dark:bg-[#130f26] border-b md:border-b-0 md:border-r border-slate-200 dark:border-[#241c49]/80 p-3 md:p-4 flex flex-row flex-wrap md:flex-col gap-1.5 shrink-0">
             <button
               onClick={() => setJoinOpen(true)}
-              className="mt-5 inline-flex items-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md"
+              className="w-auto md:w-full shrink-0 flex items-center gap-2.5 px-3.5 md:px-4 py-2.5 md:py-3 rounded-xl text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-950/50 border border-indigo-200/60 dark:border-indigo-500/20 cursor-pointer"
             >
               <UserPlus className="h-4 w-4" /> {t.joinCommunity}
             </button>
-          </div>
+            <button
+              onClick={() => setNoClassTab("mail")}
+              className={`w-auto md:w-full shrink-0 flex items-center gap-2.5 px-3.5 md:px-4 py-2.5 md:py-3 rounded-xl text-xs font-bold cursor-pointer ${noClassTab === "mail" ? "bg-slate-100 dark:bg-[#1c1836] text-slate-900 dark:text-slate-100" : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40"}`}
+            >
+              <MailLucide className="h-4 w-4" /> {t.mailTab}
+            </button>
+            <button
+              onClick={() => setNoClassTab("settings")}
+              className={`w-auto md:w-full shrink-0 flex items-center gap-2.5 px-3.5 md:px-4 py-2.5 md:py-3 rounded-xl text-xs font-bold cursor-pointer ${noClassTab === "settings" ? "bg-slate-100 dark:bg-[#1c1836] text-slate-900 dark:text-slate-100" : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40"}`}
+            >
+              <Settings className="h-4 w-4" /> {t.settings}
+            </button>
+          </aside>
+
+          <main className="flex-1 bg-slate-50/50 dark:bg-slate-900/50 p-4 sm:p-6 overflow-y-auto">
+            {noClassTab === "mail" ? (
+              <MailPanel
+                currentUser={currentStudent}
+                mails={mails}
+                contacts={allTeachers.filter(te => te.id !== currentStudent.id)}
+                onSendMail={onSendMail}
+                onMarkMailRead={onMarkMailRead}
+                language={language}
+              />
+            ) : noClassTab === "settings" ? (
+              <SettingsTab language={language} user={currentStudent} userRole="student" onLogOut={onLogOut} />
+            ) : (
+              <div className="h-full flex items-center justify-center text-center">
+                <div>
+                  <ShieldAlert className="h-10 w-10 text-slate-400 mx-auto" />
+                  <h3 className="font-bold text-slate-700 dark:text-slate-200 mt-3 text-sm">{t.notEnrolled}</h3>
+                  <p className="text-slate-400 text-xs mt-1">{t.noClassesYet}</p>
+                  <button
+                    onClick={() => setJoinOpen(true)}
+                    className="mt-5 inline-flex items-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md"
+                  >
+                    <UserPlus className="h-4 w-4" /> {t.joinCommunity}
+                  </button>
+                </div>
+              </div>
+            )}
+          </main>
         </div>
       )}
 

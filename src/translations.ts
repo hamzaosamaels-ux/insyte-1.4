@@ -323,7 +323,14 @@ export const translations = {
     shareCodeHint: "Share this code with your students so they can join.",
     addSubject: "Add Subject",
     addSubjectHint: "New subject class inside this community — grade stays the same.",
-    communityName: "Community Name"
+    communityName: "Community Name",
+    matcherEditorTitle: "Matching pairs",
+    matcherEditorHint: "Students drag each item onto its matching answer. Add your own pairs below (at least 2).",
+    matcherItemPlaceholder: "Item (e.g. Guten Tag)",
+    matcherZonePlaceholder: "Matches (e.g. Hello)",
+    matcherAddPair: "Add pair",
+    matcherNeedsTwo: "Add at least 2 complete matching pairs.",
+    remove: "Remove"
   },
   ar: {
     lobby: "الرئيسية والترتيب",
@@ -649,7 +656,14 @@ export const translations = {
     shareCodeHint: "شارك هذا الرمز مع طلابك ليتمكنوا من الانضمام.",
     addSubject: "إضافة مادة",
     addSubjectHint: "مادة جديدة داخل هذا المجتمع — يبقى الصف كما هو.",
-    communityName: "اسم المجتمع"
+    communityName: "اسم المجتمع",
+    matcherEditorTitle: "أزواج المطابقة",
+    matcherEditorHint: "يسحب الطلاب كل عنصر إلى إجابته المطابقة. أضف أزواجك أدناه (اثنان على الأقل).",
+    matcherItemPlaceholder: "عنصر (مثال: Guten Tag)",
+    matcherZonePlaceholder: "يطابق (مثال: مرحبا)",
+    matcherAddPair: "أضف زوجًا",
+    matcherNeedsTwo: "أضف زوجين مكتملين على الأقل.",
+    remove: "حذف"
   }
 };
 

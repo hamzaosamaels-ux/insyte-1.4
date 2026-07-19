@@ -140,6 +140,15 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const [taskXp, setTaskXp] = useState(100);
   const [taskDueDate, setTaskDueDate] = useState("2026-07-30");
   const [taskType, setTaskType] = useState<"text" | "dragdrop">("text");
+  // Teacher-defined matching pairs for the dragdrop task (item -> matching zone)
+  const [matchPairs, setMatchPairs] = useState<{ item: string; zone: string }[]>([
+    { item: "", zone: "" },
+    { item: "", zone: "" }
+  ]);
+  const updatePair = (i: number, field: "item" | "zone", val: string) =>
+    setMatchPairs(prev => prev.map((p, idx) => (idx === i ? { ...p, [field]: val } : p)));
+  const addPair = () => setMatchPairs(prev => [...prev, { item: "", zone: "" }]);
+  const removePair = (i: number) => setMatchPairs(prev => prev.filter((_, idx) => idx !== i));
 
   // Create Announcement states
   const [annTitle, setAnnTitle] = useState("");
@@ -267,7 +276,16 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     if (!activeClass || !taskTitle.trim() || !taskDesc.trim()) return;
 
     if (taskType === "dragdrop") {
-      // Create a predefined standard Matching Game task
+      // Build the matcher from the teacher's own pairs
+      const pairs = matchPairs
+        .map(p => ({ item: p.item.trim(), zone: p.zone.trim() }))
+        .filter(p => p.item && p.zone);
+      if (pairs.length < 2) {
+        showNotification(t.matcherNeedsTwo);
+        return;
+      }
+      const correctPairing: Record<string, string> = {};
+      for (const p of pairs) correctPairing[p.item] = p.zone;
       onCreateTask({
         classId: activeClass.id,
         title: taskTitle.trim(),
@@ -275,13 +293,9 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         rewardXp: taskXp,
         dueDate: taskDueDate,
         type: "dragdrop",
-        dragItems: ["HTML", "CSS", "JavaScript"],
-        dropZones: ["Structures Document Skeleton", "Defines Layout & Colors", "Implements Live Interactivity"],
-        correctPairing: {
-          "CSS": "Defines Layout & Colors",
-          "HTML": "Structures Document Skeleton",
-          "JavaScript": "Implements Live Interactivity"
-        }
+        dragItems: pairs.map(p => p.item),
+        dropZones: pairs.map(p => p.zone),
+        correctPairing
       });
     } else {
       onCreateTask({
@@ -297,6 +311,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     setTaskTitle("");
     setTaskDesc("");
     setTaskXp(100);
+    setMatchPairs([{ item: "", zone: "" }, { item: "", zone: "" }]);
     showNotification(t.assignmentPublished);
   };
 
@@ -462,6 +477,14 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
             >
               <Plus className="h-4 w-4" /> {t.createClassCommunity}
             </button>
+            {activeClass && (
+              <button
+                onClick={() => openCreateClass(true)}
+                className="flex items-center gap-2 px-4 py-3 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 rounded-xl text-sm font-bold cursor-pointer"
+              >
+                <Plus className="h-4 w-4" /> {t.addSubject}
+              </button>
+            )}
             <div className="flex items-center gap-3">
               <StreakBadge streak={currentTeacher.streak} label={t.streakLabel} />
               <NotificationBell
@@ -1023,11 +1046,49 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                   </div>
 
                   {taskType === "dragdrop" && (
-                    <div className="p-4 bg-violet-50 dark:bg-violet-950/20 border border-violet-100 dark:border-violet-900/60 rounded-2xl flex items-center gap-3">
-                      <Sparkles className="h-5 w-5 text-violet-600 shrink-0" />
-                      <p className="text-[11px] text-violet-700 dark:text-violet-300 leading-relaxed">
-                        <strong>{t.previewMatchingTitle}</strong> {t.previewMatchingBody1} <em>['HTML', 'CSS', 'JavaScript']</em> {t.previewMatchingBody2} <em>['Document Skeleton', 'Layout & Colors', 'Live Interactivity']</em> {t.previewMatchingBody3}
-                      </p>
+                    <div className="p-4 bg-violet-50 dark:bg-violet-950/20 border border-violet-100 dark:border-violet-900/60 rounded-2xl space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-violet-600 shrink-0" />
+                        <p className="text-[11px] text-violet-700 dark:text-violet-300 font-bold">{t.matcherEditorTitle}</p>
+                      </div>
+                      <p className="text-[10px] text-violet-600/80 dark:text-violet-300/70">{t.matcherEditorHint}</p>
+
+                      {matchPairs.map((p, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={p.item}
+                            onChange={(e) => updatePair(i, "item", e.target.value)}
+                            placeholder={t.matcherItemPlaceholder}
+                            className="flex-1 min-w-0 px-3 py-2 bg-white dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-lg text-xs dark:text-slate-200 focus:outline-hidden"
+                          />
+                          <span className="text-violet-400 text-xs font-bold shrink-0">=</span>
+                          <input
+                            type="text"
+                            value={p.zone}
+                            onChange={(e) => updatePair(i, "zone", e.target.value)}
+                            placeholder={t.matcherZonePlaceholder}
+                            className="flex-1 min-w-0 px-3 py-2 bg-white dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-lg text-xs dark:text-slate-200 focus:outline-hidden"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removePair(i)}
+                            disabled={matchPairs.length <= 2}
+                            className="p-1.5 text-slate-400 hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shrink-0"
+                            title={t.remove}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+
+                      <button
+                        type="button"
+                        onClick={addPair}
+                        className="flex items-center gap-1.5 text-[11px] font-bold text-violet-600 dark:text-violet-400 hover:underline cursor-pointer"
+                      >
+                        <Plus className="h-3.5 w-3.5" /> {t.matcherAddPair}
+                      </button>
                     </div>
                   )}
 
