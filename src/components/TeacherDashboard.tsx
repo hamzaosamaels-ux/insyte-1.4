@@ -365,7 +365,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       </AnimatePresence>
 
       {/* Header Bar */}
-      <header className="sticky top-0 z-40 bg-white dark:bg-[#130f26] border-b border-slate-200 dark:border-[#241c49]/80 px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+      <header className="sticky top-0 z-40 bg-white dark:bg-[#130f26] border-b border-slate-200 dark:border-[#241c49]/80 px-3 sm:px-6 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-2 sm:gap-4">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-violet-600 text-white rounded-xl shadow-md">
             <Users className="h-5 w-5" />
@@ -463,13 +463,13 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
       {/* Main Content Body */}
       {activeClass ? (
-        <div className="flex-1 flex flex-col md:flex-row h-[calc(100vh-73px)]">
-          
-          {/* Workspace Rails */}
-          <aside className="w-full md:w-64 bg-white dark:bg-[#130f26] border-r border-slate-200 dark:border-[#241c49]/80 p-4 flex flex-row md:flex-col gap-1.5 overflow-x-auto md:overflow-x-visible shrink-0">
+        <div className="flex-1 flex flex-col md:flex-row md:h-[calc(100vh-73px)]">
+
+          {/* Workspace Rails — wraps into rows on mobile, vertical rail on desktop */}
+          <aside className="w-full md:w-64 bg-white dark:bg-[#130f26] border-b md:border-b-0 md:border-r border-slate-200 dark:border-[#241c49]/80 p-3 md:p-4 flex flex-row flex-wrap md:flex-col gap-1.5 md:overflow-y-auto shrink-0">
             <button
               onClick={() => { setActiveSection("lobby"); setSelectedSub(null); }}
-              className={`w-full flex items-center justify-start gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+              className={`w-auto md:w-full shrink-0 flex items-center justify-start gap-2.5 px-3.5 md:px-4 py-2.5 md:py-3 rounded-xl text-xs font-bold transition-all ${
                 activeSection === "lobby" 
                   ? "bg-slate-100 dark:bg-[#1c1836] text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-[#2d2553]/50 shadow-xs" 
                   : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 hover:text-slate-800 dark:hover:text-slate-200 border border-transparent"
@@ -481,7 +481,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
             <button
               onClick={() => { setActiveSection("lessons"); setSelectedSub(null); }}
-              className={`w-full flex items-center justify-start gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+              className={`w-auto md:w-full shrink-0 flex items-center justify-start gap-2.5 px-3.5 md:px-4 py-2.5 md:py-3 rounded-xl text-xs font-bold transition-all ${
                 activeSection === "lessons" 
                   ? "bg-slate-100 dark:bg-[#1c1836] text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-[#2d2553]/50 shadow-xs" 
                   : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 hover:text-slate-800 dark:hover:text-slate-200 border border-transparent"
@@ -493,7 +493,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
             <button
               onClick={() => { setActiveSection("tasks"); setSelectedSub(null); }}
-              className={`w-full flex items-center justify-start gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+              className={`w-auto md:w-full shrink-0 flex items-center justify-start gap-2.5 px-3.5 md:px-4 py-2.5 md:py-3 rounded-xl text-xs font-bold transition-all ${
                 activeSection === "tasks" 
                   ? "bg-slate-100 dark:bg-[#1c1836] text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-[#2d2553]/50 shadow-xs" 
                   : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 hover:text-slate-800 dark:hover:text-slate-200 border border-transparent"
@@ -505,7 +505,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
             <button
               onClick={() => { setActiveSection("grade"); setSelectedSub(null); }}
-              className={`w-full flex items-center justify-start gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all relative ${
+              className={`w-auto md:w-full shrink-0 flex items-center justify-start gap-2.5 px-3.5 md:px-4 py-2.5 md:py-3 rounded-xl text-xs font-bold transition-all relative ${
                 activeSection === "grade" 
                   ? "bg-slate-100 dark:bg-[#1c1836] text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-[#2d2553]/50 shadow-xs" 
                   : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 hover:text-slate-800 dark:hover:text-slate-200 border border-transparent"
@@ -522,7 +522,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
             <button
               onClick={() => { setActiveSection("events"); setSelectedSub(null); }}
-              className={`w-full flex items-center justify-start gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+              className={`w-auto md:w-full shrink-0 flex items-center justify-start gap-2.5 px-3.5 md:px-4 py-2.5 md:py-3 rounded-xl text-xs font-bold transition-all ${
                 activeSection === "events" 
                   ? "bg-slate-100 dark:bg-[#1c1836] text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-[#2d2553]/50 shadow-xs" 
                   : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 hover:text-slate-800 dark:hover:text-slate-200 border border-transparent"
@@ -534,7 +534,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
             <button
               onClick={() => { setActiveSection("announcements"); setSelectedSub(null); }}
-              className={`w-full flex items-center justify-start gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+              className={`w-auto md:w-full shrink-0 flex items-center justify-start gap-2.5 px-3.5 md:px-4 py-2.5 md:py-3 rounded-xl text-xs font-bold transition-all ${
                 activeSection === "announcements" 
                   ? "bg-slate-100 dark:bg-[#1c1836] text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-[#2d2553]/50 shadow-xs" 
                   : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 hover:text-slate-800 dark:hover:text-slate-200 border border-transparent"
@@ -546,7 +546,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
             <button
               onClick={() => { setActiveSection("calendar"); setSelectedSub(null); }}
-              className={`w-full flex items-center justify-start gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+              className={`w-auto md:w-full shrink-0 flex items-center justify-start gap-2.5 px-3.5 md:px-4 py-2.5 md:py-3 rounded-xl text-xs font-bold transition-all ${
                 activeSection === "calendar" 
                   ? "bg-slate-100 dark:bg-[#1c1836] text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-[#2d2553]/50 shadow-xs" 
                   : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 hover:text-slate-800 dark:hover:text-slate-200 border border-transparent"
@@ -558,7 +558,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
             <button
               onClick={() => { setActiveSection("mail"); setSelectedSub(null); }}
-              className={`w-full flex items-center justify-start gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+              className={`w-auto md:w-full shrink-0 flex items-center justify-start gap-2.5 px-3.5 md:px-4 py-2.5 md:py-3 rounded-xl text-xs font-bold transition-all ${
                 activeSection === "mail"
                   ? "bg-slate-100 dark:bg-[#1c1836] text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-[#2d2553]/50 shadow-xs"
                   : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 hover:text-slate-800 dark:hover:text-slate-200 border border-transparent"
@@ -575,7 +575,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
             <button
               onClick={() => { setActiveSection("settings"); setSelectedSub(null); }}
-              className={`w-full flex items-center justify-start gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+              className={`w-auto md:w-full shrink-0 flex items-center justify-start gap-2.5 px-3.5 md:px-4 py-2.5 md:py-3 rounded-xl text-xs font-bold transition-all ${
                 activeSection === "settings" 
                   ? "bg-slate-100 dark:bg-[#1c1836] text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-[#2d2553]/50 shadow-xs" 
                   : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 hover:text-slate-800 dark:hover:text-slate-200 border border-transparent"
@@ -587,7 +587,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           </aside>
 
           {/* Active Workspace View */}
-          <main className="flex-1 bg-slate-50/50 dark:bg-slate-900/50 p-6 overflow-y-auto">
+          <main className="flex-1 bg-slate-50/50 dark:bg-slate-900/50 p-4 sm:p-6 overflow-y-auto">
 
             
             {/* STUDENT ROSTER VIEW */}

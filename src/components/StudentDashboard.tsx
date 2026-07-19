@@ -416,7 +416,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
       </AnimatePresence>
 
       {/* Upper Navigation Bar */}
-      <header className="sticky top-0 z-40 bg-white dark:bg-[#130f26] border-b border-slate-200 dark:border-[#241c49]/80 px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+      <header className="sticky top-0 z-40 bg-white dark:bg-[#130f26] border-b border-slate-200 dark:border-[#241c49]/80 px-3 sm:px-6 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-2 sm:gap-4">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-indigo-500 text-white rounded-xl shadow-md">
             <BookOpen className="h-5 w-5" />
@@ -503,13 +503,13 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
 
       {/* Main Workspace Layout */}
       {activeClass ? (
-        <div className="flex-1 flex flex-col md:flex-row h-[calc(100vh-73px)]">
-          
-          {/* Workspace Tabs Side Rail */}
-          <aside className="w-full md:w-64 bg-white dark:bg-[#130f26] border-r border-slate-200 dark:border-[#241c49]/80 p-4 flex flex-row md:flex-col gap-1.5 overflow-x-auto md:overflow-x-visible shrink-0">
+        <div className="flex-1 flex flex-col md:flex-row md:h-[calc(100vh-73px)]">
+
+          {/* Workspace Tabs Side Rail — wraps into rows on mobile, vertical rail on desktop */}
+          <aside className="w-full md:w-64 bg-white dark:bg-[#130f26] border-b md:border-b-0 md:border-r border-slate-200 dark:border-[#241c49]/80 p-3 md:p-4 flex flex-row flex-wrap md:flex-col gap-1.5 md:overflow-y-auto shrink-0">
             <button
               onClick={() => { setActiveTab("dashboard"); setSelectedLesson(null); setSelectedTask(null); }}
-              className={`w-full flex items-center justify-start gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+              className={`w-auto md:w-full shrink-0 flex items-center justify-start gap-2.5 px-3.5 md:px-4 py-2.5 md:py-3 rounded-xl text-xs font-bold transition-all ${
                 activeTab === "dashboard" 
                   ? "bg-slate-100 dark:bg-[#1c1836] text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-[#2d2553]/50 shadow-xs" 
                   : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 hover:text-slate-800 dark:hover:text-slate-200 border border-transparent"
@@ -522,7 +522,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
             <div>
               <button
                 onClick={() => { setActiveTab("lessons"); setSelectedLesson(null); setSelectedTask(null); }}
-                className={`w-full flex items-center justify-start gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+                className={`w-auto md:w-full shrink-0 flex items-center justify-start gap-2.5 px-3.5 md:px-4 py-2.5 md:py-3 rounded-xl text-xs font-bold transition-all ${
                   activeTab === "lessons"
                     ? "bg-slate-100 dark:bg-[#1c1836] text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-[#2d2553]/50 shadow-xs"
                     : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 hover:text-slate-800 dark:hover:text-slate-200 border border-transparent"
@@ -562,7 +562,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
             <div>
               <button
                 onClick={() => { setActiveTab("tasks"); setSelectedLesson(null); setSelectedTask(null); }}
-                className={`w-full flex items-center justify-start gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+                className={`w-auto md:w-full shrink-0 flex items-center justify-start gap-2.5 px-3.5 md:px-4 py-2.5 md:py-3 rounded-xl text-xs font-bold transition-all ${
                   activeTab === "tasks"
                     ? "bg-slate-100 dark:bg-[#1c1836] text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-[#2d2553]/50 shadow-xs"
                     : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 hover:text-slate-800 dark:hover:text-slate-200 border border-transparent"
@@ -601,7 +601,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
 
             <button
               onClick={() => { setActiveTab("chat"); setSelectedLesson(null); setSelectedTask(null); }}
-              className={`w-full flex items-center justify-start gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+              className={`w-auto md:w-full shrink-0 flex items-center justify-start gap-2.5 px-3.5 md:px-4 py-2.5 md:py-3 rounded-xl text-xs font-bold transition-all ${
                 activeTab === "chat" 
                   ? "bg-slate-100 dark:bg-[#1c1836] text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-[#2d2553]/50 shadow-xs" 
                   : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 hover:text-slate-800 dark:hover:text-slate-200 border border-transparent"
@@ -613,7 +613,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
 
             <button
               onClick={() => { setActiveTab("ai"); setSelectedLesson(null); setSelectedTask(null); }}
-              className={`w-full flex items-center justify-start gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all relative ${
+              className={`w-auto md:w-full shrink-0 flex items-center justify-start gap-2.5 px-3.5 md:px-4 py-2.5 md:py-3 rounded-xl text-xs font-bold transition-all relative ${
                 activeTab === "ai" 
                   ? "bg-slate-100 dark:bg-[#1c1836] text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-[#2d2553]/50 shadow-xs" 
                   : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 hover:text-slate-800 dark:hover:text-slate-200 border border-transparent"
@@ -626,7 +626,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
 
             <button
               onClick={() => { setActiveTab("calendar"); setSelectedLesson(null); setSelectedTask(null); }}
-              className={`w-full flex items-center justify-start gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+              className={`w-auto md:w-full shrink-0 flex items-center justify-start gap-2.5 px-3.5 md:px-4 py-2.5 md:py-3 rounded-xl text-xs font-bold transition-all ${
                 activeTab === "calendar" 
                   ? "bg-slate-100 dark:bg-[#1c1836] text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-[#2d2553]/50 shadow-xs" 
                   : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 hover:text-slate-800 dark:hover:text-slate-200 border border-transparent"
@@ -638,7 +638,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
 
             <button
               onClick={() => { setActiveTab("mail"); setSelectedLesson(null); setSelectedTask(null); }}
-              className={`w-full flex items-center justify-start gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+              className={`w-auto md:w-full shrink-0 flex items-center justify-start gap-2.5 px-3.5 md:px-4 py-2.5 md:py-3 rounded-xl text-xs font-bold transition-all ${
                 activeTab === "mail"
                   ? "bg-slate-100 dark:bg-[#1c1836] text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-[#2d2553]/50 shadow-xs"
                   : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 hover:text-slate-800 dark:hover:text-slate-200 border border-transparent"
@@ -655,7 +655,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
 
             <button
               onClick={() => setJoinOpen(true)}
-              className="w-full flex items-center justify-start gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-950/50 border border-indigo-200/60 dark:border-indigo-500/20 cursor-pointer"
+              className="w-auto md:w-full shrink-0 flex items-center justify-start gap-2.5 px-3.5 md:px-4 py-2.5 md:py-3 rounded-xl text-xs font-bold transition-all text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-950/50 border border-indigo-200/60 dark:border-indigo-500/20 cursor-pointer"
             >
               <UserPlus className="h-4 w-4" />
               <span>{t.joinCommunity}</span>
@@ -663,7 +663,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
 
             <button
               onClick={() => { setActiveTab("settings"); setSelectedLesson(null); setSelectedTask(null); }}
-              className={`w-full flex items-center justify-start gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+              className={`w-auto md:w-full shrink-0 flex items-center justify-start gap-2.5 px-3.5 md:px-4 py-2.5 md:py-3 rounded-xl text-xs font-bold transition-all ${
                 activeTab === "settings" 
                   ? "bg-slate-100 dark:bg-[#1c1836] text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-[#2d2553]/50 shadow-xs" 
                   : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 hover:text-slate-800 dark:hover:text-slate-200 border border-transparent"
@@ -675,7 +675,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
           </aside>
 
           {/* Active View Panel */}
-          <main className="flex-1 bg-slate-50/50 dark:bg-slate-900/50 p-6 overflow-y-auto">
+          <main className="flex-1 bg-slate-50/50 dark:bg-slate-900/50 p-4 sm:p-6 overflow-y-auto">
 
             
             {/* LOBBY TAB */}
@@ -1359,7 +1359,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
 
             {/* PEER DISCUSS CHAT ROOM TAB */}
             {activeTab === "chat" && (
-              <div className="bg-white dark:bg-[#18142c] border border-slate-200 dark:border-[#2b244c] rounded-3xl flex flex-col h-[calc(100vh-160px)]">
+              <div className="bg-white dark:bg-[#18142c] border border-slate-200 dark:border-[#2b244c] rounded-3xl flex flex-col h-[70vh] md:h-[calc(100vh-160px)]">
                 
                 {/* Chat header channel summary */}
                 <div className="p-4 border-b border-slate-100 dark:border-[#251e40] flex items-center justify-between bg-slate-50/50 dark:bg-[#201b3a]/50 rounded-t-3xl">
@@ -1440,7 +1440,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
 
             {/* STUDY BUDDY AI CHAT TAB */}
             {activeTab === "ai" && (
-              <div className="bg-white dark:bg-[#18142c] border border-slate-200 dark:border-[#2b244c] rounded-3xl flex flex-col h-[calc(100vh-160px)] shadow-xs">
+              <div className="bg-white dark:bg-[#18142c] border border-slate-200 dark:border-[#2b244c] rounded-3xl flex flex-col h-[70vh] md:h-[calc(100vh-160px)] shadow-xs">
                 
                 {/* AI banner */}
                 <div className="p-4 border-b border-slate-100 dark:border-[#251e40] flex items-center justify-between bg-gradient-to-r from-indigo-50/80 dark:from-indigo-950/20 to-violet-50/80 dark:to-violet-950/20 rounded-t-3xl">
