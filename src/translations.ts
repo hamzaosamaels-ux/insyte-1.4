@@ -333,7 +333,8 @@ export const translations = {
     remove: "Remove",
     changePhoto: "Change photo",
     uploading: "Uploading…",
-    photoMustBeImage: "Please choose an image file."
+    photoMustBeImage: "Please choose an image file.",
+    subjectAdded: "Subject added to your community!"
   },
   ar: {
     lobby: "الرئيسية والترتيب",
@@ -669,7 +670,8 @@ export const translations = {
     remove: "حذف",
     changePhoto: "تغيير الصورة",
     uploading: "جارٍ الرفع…",
-    photoMustBeImage: "الرجاء اختيار ملف صورة."
+    photoMustBeImage: "الرجاء اختيار ملف صورة.",
+    subjectAdded: "تمت إضافة المادة إلى مجتمعك!"
   }
 };
 

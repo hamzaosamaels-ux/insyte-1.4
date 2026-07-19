@@ -186,7 +186,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
   const openCreateClass = (insideCommunity: boolean) => {
     setCreateInCommunity(insideCommunity);
-    setNewClassGrade(insideCommunity && activeGrade ? activeGrade : "Class 2B");
+    setNewClassGrade(insideCommunity && activeGrade ? activeGrade : "");
     setCreateClassError(null);
     setShowCreateClass(true);
   };
@@ -197,17 +197,32 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault();
     if (creatingClass) return;
-    if (!newClassGrade.trim() || !newClassCode.trim()) return;
-    // A subject is only required when adding one inside an existing community.
-    // Creating a community itself takes just a name (the grade) + join code.
-    if (createInCommunity && !newClassSubject.trim()) return;
-    const finalClassName = createInCommunity
-      ? `${newClassGrade.trim()} - ${newClassSubject.trim()}`
-      : newClassGrade.trim();
-    const codeUpper = newClassCode.trim().toUpperCase();
+    if (!newClassGrade.trim()) return;
+
+    let finalClassName: string;
+    let codeUpper: string;
+    if (createInCommunity) {
+      // Adding a subject inside the current community: only the subject name
+      // is asked; the join code is invisible plumbing, generated from the
+      // community's code so students never need it (community code joins all).
+      if (!newClassSubject.trim()) return;
+      finalClassName = `${newClassGrade.trim()} - ${newClassSubject.trim()}`;
+      const base = (activeClass?.code || "CLS").toUpperCase();
+      codeUpper = `${base}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+    } else {
+      if (!newClassCode.trim()) return;
+      finalClassName = newClassGrade.trim();
+      codeUpper = newClassCode.trim().toUpperCase();
+    }
+
     setCreatingClass(true);
     setCreateClassError(null);
-    const err = await onCreateClass(finalClassName, codeUpper, newClassDesc.trim(), newClassColor);
+    let err = await onCreateClass(finalClassName, codeUpper, newClassDesc.trim(), newClassColor);
+    // Auto-generated subject codes can collide; retry once with a fresh one
+    if (err && createInCommunity) {
+      codeUpper = `${(activeClass?.code || "CLS").toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+      err = await onCreateClass(finalClassName, codeUpper, newClassDesc.trim(), newClassColor);
+    }
     setCreatingClass(false);
     if (err) {
       setCreateClassError(err);
@@ -219,7 +234,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     setNewClassDesc("");
     setNewClassColor("indigo");
     setShowCreateClass(false);
-    showNotification(`${t.classCodeTaken} ${codeUpper}`);
+    showNotification(createInCommunity ? t.subjectAdded : `${t.classCodeTaken} ${codeUpper}`);
   };
 
   const handleCreateLesson = (e: React.FormEvent) => {
@@ -446,11 +461,15 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
         {/* Teacher Profile & controls */}
         <div className="flex items-center gap-2 sm:gap-4">
-          <div className="flex items-center gap-2 sm:gap-3 bg-slate-50 dark:bg-[#1c1836] border border-slate-200/60 dark:border-[#2d2553]/50 rounded-xl px-2 sm:px-3 py-1.5">
+          <button
+            onClick={() => { setActiveSection("settings"); setSelectedSub(null); }}
+            title={t.settings}
+            className="flex items-center gap-2 sm:gap-3 bg-slate-50 dark:bg-[#1c1836] border border-slate-200/60 dark:border-[#2d2553]/50 rounded-xl px-2 sm:px-3 py-1.5 cursor-pointer hover:border-violet-300 dark:hover:border-violet-500/40 transition-colors"
+          >
             <img
               src={currentTeacher.avatar}
               alt={currentTeacher.name}
-              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-200 dark:bg-slate-700 p-0.5 border border-violet-200 dark:border-violet-800"
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover bg-slate-200 dark:bg-slate-700 p-0.5 border border-violet-200 dark:border-violet-800"
             />
             <div className="text-left hidden sm:block">
               <div className="text-xs font-bold text-slate-800 dark:text-slate-100">{currentTeacher.name}</div>
@@ -458,7 +477,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                 {currentTeacher.rank}
               </div>
             </div>
-          </div>
+          </button>
 
           {/* Desktop: inline controls */}
           <div className="hidden md:flex items-center gap-4">
@@ -1461,105 +1480,121 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       {showCreateClass && (
         <div className="fixed inset-0 z-50 bg-[#06040f]/80 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="w-full max-w-md bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49]/80 rounded-2xl p-6 shadow-xl relative">
+            {/* Mode switch: add a subject inside the current community, or start a new one */}
+            {activeClass && (
+              <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-[#1c1836]/60 p-1.5 rounded-xl border border-slate-200 dark:border-[#2d2553]/50 mb-4">
+                <button
+                  type="button"
+                  onClick={() => { setCreateInCommunity(true); setNewClassGrade(activeGrade); setCreateClassError(null); }}
+                  className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    createInCommunity ? "bg-emerald-600 text-white shadow-xs" : "text-slate-500 dark:text-slate-400"
+                  }`}
+                >
+                  {t.addSubject}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setCreateInCommunity(false); setNewClassGrade(""); setCreateClassError(null); }}
+                  className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    !createInCommunity ? "bg-violet-600 text-white shadow-xs" : "text-slate-500 dark:text-slate-400"
+                  }`}
+                >
+                  {t.createClassCommunity}
+                </button>
+              </div>
+            )}
+
             <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm font-display mb-1">
-              {createInCommunity ? t.addSubject : t.createClassCommunity}
+              {createInCommunity ? `${t.addSubject} — ${activeGrade}` : t.createClassCommunity}
             </h3>
             <p className="text-slate-400 text-[11px] mb-4">
               {createInCommunity ? t.addSubjectHint : t.createClassSubtitle}
             </p>
 
             <form onSubmit={handleCreateClass} className="space-y-4">
-              <div className={createInCommunity ? "grid grid-cols-2 gap-3" : ""}>
+              {createInCommunity ? (
+                /* Subject mode: just the subject name — everything else is automatic */
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                    {createInCommunity ? t.classGrade : t.communityName}
-                  </label>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t.subject}</label>
                   <input
                     type="text"
                     required
-                    disabled={createInCommunity}
-                    placeholder={t.classGradePlaceholder}
-                    value={newClassGrade}
-                    onChange={(e) => setNewClassGrade(e.target.value)}
-                    className={`w-full px-3 py-2 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-xl focus:outline-hidden text-xs dark:text-slate-200 ${
-                      createInCommunity ? "opacity-60 cursor-not-allowed" : ""
-                    }`}
+                    autoFocus
+                    placeholder={t.subjectPlaceholder}
+                    value={newClassSubject}
+                    onChange={(e) => setNewClassSubject(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-emerald-500 rounded-xl focus:outline-hidden text-xs dark:text-slate-200"
                   />
                 </div>
-
-                {/* Subject only when adding one inside an existing community */}
-                {createInCommunity && (
+              ) : (
+                <>
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t.subject}</label>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t.communityName}</label>
                     <input
                       type="text"
                       required
                       autoFocus
-                      placeholder={t.subjectPlaceholder}
-                      value={newClassSubject}
-                      onChange={(e) => setNewClassSubject(e.target.value)}
+                      placeholder={t.classGradePlaceholder}
+                      value={newClassGrade}
+                      onChange={(e) => setNewClassGrade(e.target.value)}
                       className="w-full px-3 py-2 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-xl focus:outline-hidden text-xs dark:text-slate-200"
                     />
                   </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t.classCode}</label>
-                  <input
-                    type="text"
-                    required
-                    maxLength={10}
-                    placeholder={t.classCodePlaceholder}
-                    value={newClassCode}
-                    onChange={(e) => setNewClassCode(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-xl focus:outline-hidden text-xs dark:text-slate-200"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t.themeColor}</label>
-                  <div className="flex items-center gap-1.5 h-[34px]">
-                    {[
-                      { key: "emerald", bg: "bg-emerald-500", ring: "ring-emerald-400" },
-                      { key: "violet", bg: "bg-violet-500", ring: "ring-violet-400" },
-                      { key: "amber", bg: "bg-amber-500", ring: "ring-amber-400" },
-                      { key: "blue", bg: "bg-blue-500", ring: "ring-blue-400" },
-                      { key: "indigo", bg: "bg-indigo-500", ring: "ring-indigo-400" }
-                    ].map((item) => (
-                      <button
-                        key={item.key}
-                        type="button"
-                        onClick={() => setNewClassColor(item.key)}
-                        className={`w-6 h-6 rounded-full ${item.bg} transition-all cursor-pointer ${
-                          newClassColor === item.key 
-                            ? `ring-2 ring-offset-2 ring-offset-white dark:ring-offset-[#130f26] ${item.ring} scale-110` 
-                            : "opacity-75 hover:opacity-100"
-                        }`}
-                        title={item.key}
-                      />
-                    ))}
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t.classCode}</label>
+                    <input
+                      type="text"
+                      required
+                      maxLength={10}
+                      placeholder={t.classCodePlaceholder}
+                      value={newClassCode}
+                      onChange={(e) => setNewClassCode(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-xl focus:outline-hidden text-xs dark:text-slate-200"
+                    />
                   </div>
-                </div>
-              </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t.shortDescription}</label>
+                    <input
+                      type="text"
+                      placeholder={t.shortDescPlaceholder}
+                      value={newClassDesc}
+                      onChange={(e) => setNewClassDesc(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-xl focus:outline-hidden text-xs dark:text-slate-200"
+                    />
+                  </div>
+                </>
+              )}
 
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t.shortDescription}</label>
-                <input
-                  type="text"
-                  placeholder={t.shortDescPlaceholder}
-                  value={newClassDesc}
-                  onChange={(e) => setNewClassDesc(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-xl focus:outline-hidden text-xs dark:text-slate-200"
-                />
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t.themeColor}</label>
+                <div className="flex items-center gap-1.5 h-[34px]">
+                  {[
+                    { key: "emerald", bg: "bg-emerald-500", ring: "ring-emerald-400" },
+                    { key: "violet", bg: "bg-violet-500", ring: "ring-violet-400" },
+                    { key: "amber", bg: "bg-amber-500", ring: "ring-amber-400" },
+                    { key: "blue", bg: "bg-blue-500", ring: "ring-blue-400" },
+                    { key: "indigo", bg: "bg-indigo-500", ring: "ring-indigo-400" }
+                  ].map((item) => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={() => setNewClassColor(item.key)}
+                      className={`w-6 h-6 rounded-full ${item.bg} transition-all cursor-pointer ${
+                        newClassColor === item.key
+                          ? `ring-2 ring-offset-2 ring-offset-white dark:ring-offset-[#130f26] ${item.ring} scale-110`
+                          : "opacity-75 hover:opacity-100"
+                      }`}
+                      title={item.key}
+                    />
+                  ))}
+                </div>
               </div>
 
               {createClassError && (
                 <p className="text-red-500 text-xs font-semibold">{createClassError}</p>
               )}
 
-              <p className="text-[10px] text-slate-400">{t.shareCodeHint}</p>
+              {!createInCommunity && <p className="text-[10px] text-slate-400">{t.shareCodeHint}</p>}
 
               <div className="flex justify-end gap-2.5 pt-2">
                 <button

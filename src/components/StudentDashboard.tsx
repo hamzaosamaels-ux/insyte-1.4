@@ -478,11 +478,15 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
 
         {/* Profile chip — always visible, compact on mobile */}
         <div className="flex items-center gap-2 sm:gap-4">
-          <div className="flex items-center gap-2 sm:gap-3 bg-slate-50 dark:bg-[#1c1836] border border-slate-200/60 dark:border-[#2d2553]/50 rounded-xl px-2 sm:px-3 py-1.5">
+          <button
+            onClick={() => { setActiveTab("settings"); setSelectedLesson(null); setSelectedTask(null); }}
+            title={t.settings}
+            className="flex items-center gap-2 sm:gap-3 bg-slate-50 dark:bg-[#1c1836] border border-slate-200/60 dark:border-[#2d2553]/50 rounded-xl px-2 sm:px-3 py-1.5 cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-500/40 transition-colors"
+          >
             <img
               src={currentStudent.avatar}
               alt={currentStudent.name}
-              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-200 dark:bg-slate-700 p-0.5"
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover bg-slate-200 dark:bg-slate-700 p-0.5"
             />
             <div className="text-center hidden sm:block">
               <div className="text-xs font-bold text-slate-800 dark:text-slate-100">{currentStudent.name}</div>
@@ -490,7 +494,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                 {t.level} {currentStudent.level} • {currentStudent.xp} XP
               </div>
             </div>
-          </div>
+          </button>
 
           {/* Desktop: controls inline */}
           <div className="hidden md:flex items-center gap-4">
