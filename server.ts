@@ -241,29 +241,43 @@ function normalize(db: any): DbSchema {
 // Supabase in the background. Null means "use the local db.json file instead".
 let memCache: DbSchema | null = null;
 
-// Load persisted state into memory before the server accepts requests.
+// True once Supabase data is loaded; the last boot error (surfaced in /health).
+let supabaseReady = false;
+let supabaseBootError = "";
+
+// Try to load Supabase data into the cache. On failure, stay UP (a crash-loop
+// would just 502 the whole app) and DON'T persist writes until a load succeeds
+// — so we never overwrite real rows with an empty cache. Keeps retrying.
+async function tryLoadSupabase(): Promise<void> {
+  try {
+    memCache = normalize(await loadFromSupabase());
+    supabaseReady = true;
+    supabaseBootError = "";
+    console.log("[Insyte] Persistence: Supabase (data survives redeploys)");
+  } catch (err: any) {
+    supabaseReady = false;
+    supabaseBootError = err?.message || String(err);
+    console.error("[Insyte] Supabase load failed (serving without persistence, will retry):", supabaseBootError);
+    if (!memCache) memCache = JSON.parse(JSON.stringify(seedData));
+  }
+}
+
 async function initStore(): Promise<void> {
   if (!supabaseEnabled()) {
+    supabaseReady = false;
     console.log("[Insyte] Persistence: local db.json (set SUPABASE_URL to use Supabase)");
     return;
   }
-  // Retry a transient Supabase hiccup at boot instead of instantly crashing.
-  // Starting with an empty cache would be catastrophic (writeDb prunes rows
-  // missing from memory), so after all retries fail we exit and let the
-  // platform restart us — but only after genuinely trying.
-  const attempts = 5;
-  for (let i = 1; i <= attempts; i++) {
-    try {
-      memCache = normalize(await loadFromSupabase());
-      console.log("[Insyte] Persistence: Supabase (data survives redeploys)");
-      return;
-    } catch (err) {
-      console.error(`[Insyte] Supabase load attempt ${i}/${attempts} failed:`, err);
-      if (i < attempts) await new Promise(r => setTimeout(r, 2000 * i));
-    }
+  await tryLoadSupabase();
+  // If the first load failed, keep retrying in the background so the service
+  // heals itself once Supabase is reachable — without ever going down.
+  if (!supabaseReady) {
+    const timer = setInterval(async () => {
+      if (supabaseReady) { clearInterval(timer); return; }
+      await tryLoadSupabase();
+    }, 15000);
+    timer.unref?.();
   }
-  console.error("[Insyte] Supabase unreachable after retries — exiting for a clean restart.");
-  process.exit(1);
 }
 
 // Read the current database state (synchronous — from cache or the flat file)
@@ -447,13 +461,14 @@ function siblingClassIds(db: DbSchema, cls: ClassCommunity): string[] {
 // Help helper to write database state
 function writeDb(data: DbSchema) {
   if (supabaseEnabled()) {
-    // Update the in-memory cache immediately (readers see it at once) and
-    // persist to Supabase in the background. A failed save keeps memory correct
-    // and is retried on the next write.
     memCache = data;
-    saveToSupabase(data as any).catch(err =>
-      console.error("[Insyte] Supabase save failed (data kept in memory):", err)
-    );
+    // Only persist once the initial load has succeeded. Writing while the real
+    // rows aren't loaded could push a partial cache over the top of live data.
+    if (supabaseReady) {
+      saveToSupabase(data as any).catch(err =>
+        console.error("[Insyte] Supabase save failed (data kept in memory):", err)
+      );
+    }
     return;
   }
   try {
@@ -1264,11 +1279,16 @@ app.use("/api/signup", authLimiter);
     res.json({ myNotifications: notificationsFor(db, requester.id) });
   });
 
-  // Health check endpoint (storage tells you if data survives redeploys)
+  // Health check endpoint (storage tells you if data survives redeploys, and
+  // surfaces the exact Supabase boot error so we can diagnose without logs).
   app.get("/api/health", (req, res) => {
     res.json({
       status: "healthy",
-      storage: supabaseEnabled() ? "supabase" : "file (wiped on redeploy!)",
+      storage: !supabaseEnabled()
+        ? "file (wiped on redeploy!)"
+        : (supabaseReady ? "supabase (persistent)" : "supabase-configured-but-load-FAILED"),
+      supabaseReady,
+      supabaseBootError: supabaseBootError || undefined,
       timestamp: new Date().toISOString()
     });
   });
