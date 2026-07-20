@@ -3,8 +3,9 @@ import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 import { supabaseEnabled, loadFromSupabase, saveToSupabase, uploadAvatar } from "./supabase-store";
-import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
+// NOTE: `vite` is imported lazily inside the dev branch below so the production
+// server (and Railway's build) never needs vite/tailwind installed.
 
 const DB_FILE = path.join(process.cwd(), "db.json");
 
@@ -1356,9 +1357,10 @@ app.use("/api/signup", authLimiter);
   // Vite integration and Asset serving
   if (process.env.NODE_ENV !== "production") {
     console.log("Starting server in development mode with Vite middleware...");
-    // configFile: false + no react plugin: the react-refresh preamble is an inline
-    // script that strict CSP environments block, leaving a blank page in dev.
-    // esbuild transforms TSX itself; we only lose fast-refresh (full reload instead).
+    // Lazy imports: only dev needs vite/tailwind, so production/Railway can run
+    // without them installed. configFile:false + no react plugin because the
+    // react-refresh inline preamble is blocked by strict CSP in the dev pane.
+    const { createServer: createViteServer } = await import("vite");
     const tailwindcss = (await import("@tailwindcss/vite")).default;
     const vite = await createViteServer({
       configFile: false,
@@ -1369,12 +1371,20 @@ app.use("/api/signup", authLimiter);
     });
     app.use(vite.middlewares);
   } else {
-    console.log("Starting server in production mode serving compiled assets...");
+    console.log("Starting server in production mode (API + static fallback)...");
+    // The real frontend is served by Vercel; Railway serves the API. If a built
+    // frontend exists it's served too, but its absence must not crash the app.
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
+    const indexHtml = path.join(distPath, 'index.html');
+    if (fs.existsSync(indexHtml)) {
+      app.use(express.static(distPath));
+      app.get('*', (req, res) => res.sendFile(indexHtml));
+    } else {
+      app.get('*', (req, res) => {
+        if (req.path.startsWith('/api/')) return res.status(404).json({ error: "Not found." });
+        res.status(200).send("insyte API server. The app is at https://insyte-1-4.vercel.app");
+      });
+    }
   }
 
   app.listen(PORT, "0.0.0.0", () => {
