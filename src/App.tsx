@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { UserProfile, ClassCommunity, Lesson, TaskItem, TaskSubmission, Announcement, ChatMessage, ClassEvent, Mail, AppNotification } from "./types";
 import { WelcomeScreen } from "./components/WelcomeScreen";
+import { Landing } from "./components/Landing";
 import { StudentDashboard } from "./components/StudentDashboard";
 import { TeacherDashboard } from "./components/TeacherDashboard";
 import { DashboardSkeleton } from "./components/DashboardSkeleton";
@@ -533,8 +534,19 @@ export default function App() {
     return <DashboardSkeleton />;
   }
 
-  // Welcome / Auth Screen
+  // Landing for brand-new visitors; returning users (had a token) go straight
+  // to auth. Then the Welcome / Auth screen.
   if (!currentUser) {
+    if (!showAuth) {
+      return (
+        <Landing
+          language={language}
+          setLanguage={setLanguage}
+          onGetStarted={() => setShowAuth(true)}
+          onLogIn={() => setShowAuth(true)}
+        />
+      );
+    }
     return (
       <WelcomeScreen
         onSignUp={handleSignUp}

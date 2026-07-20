@@ -243,18 +243,27 @@ let memCache: DbSchema | null = null;
 
 // Load persisted state into memory before the server accepts requests.
 async function initStore(): Promise<void> {
-  if (supabaseEnabled()) {
-    try {
-      const loaded = await loadFromSupabase();
-      memCache = normalize(loaded);
-      console.log("[Insyte] Persistence: Supabase (data survives redeploys)");
-    } catch (err) {
-      console.error("[Insyte] Supabase load failed, starting empty:", err);
-      memCache = JSON.parse(JSON.stringify(seedData));
-    }
-  } else {
+  if (!supabaseEnabled()) {
     console.log("[Insyte] Persistence: local db.json (set SUPABASE_URL to use Supabase)");
+    return;
   }
+  // Retry a transient Supabase hiccup at boot instead of instantly crashing.
+  // Starting with an empty cache would be catastrophic (writeDb prunes rows
+  // missing from memory), so after all retries fail we exit and let the
+  // platform restart us — but only after genuinely trying.
+  const attempts = 5;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      memCache = normalize(await loadFromSupabase());
+      console.log("[Insyte] Persistence: Supabase (data survives redeploys)");
+      return;
+    } catch (err) {
+      console.error(`[Insyte] Supabase load attempt ${i}/${attempts} failed:`, err);
+      if (i < attempts) await new Promise(r => setTimeout(r, 2000 * i));
+    }
+  }
+  console.error("[Insyte] Supabase unreachable after retries — exiting for a clean restart.");
+  process.exit(1);
 }
 
 // Read the current database state (synchronous — from cache or the flat file)
@@ -1255,9 +1264,13 @@ app.use("/api/signup", authLimiter);
     res.json({ myNotifications: notificationsFor(db, requester.id) });
   });
 
-  // Health check endpoint
+  // Health check endpoint (storage tells you if data survives redeploys)
   app.get("/api/health", (req, res) => {
-    res.json({ status: "healthy", timestamp: new Date().toISOString() });
+    res.json({
+      status: "healthy",
+      storage: supabaseEnabled() ? "supabase" : "file (wiped on redeploy!)",
+      timestamp: new Date().toISOString()
+    });
   });
 
   // Gemini Study Buddy Chat endpoint (Securely Proxied)

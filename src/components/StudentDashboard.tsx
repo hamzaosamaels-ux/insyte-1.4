@@ -1551,45 +1551,58 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                   <span className="text-[9px] font-bold text-slate-400 font-mono">{classStudents.length} {t.activePeers}</span>
                 </div>
 
-                {/* Message display thread */}
-                <div className="flex-1 p-4 overflow-y-auto space-y-4">
-                  {classMessages.map((msg) => {
+                {/* Message display thread — WhatsApp-style: date chips, grouped
+                    senders, time inside the bubble */}
+                <div className="flex-1 p-4 overflow-y-auto bg-slate-100/70 dark:bg-[#120f22]">
+                  {classMessages.map((msg, i) => {
                     const isSelf = msg.senderId === currentStudent.id;
                     const isTeacher = msg.senderRole === 'teacher';
+                    const prev = classMessages[i - 1];
+                    const newDay = !prev || new Date(prev.timestamp).toDateString() !== new Date(msg.timestamp).toDateString();
+                    const grouped = !newDay && prev && prev.senderId === msg.senderId;
+                    const d = new Date(msg.timestamp);
+                    const today = new Date();
+                    const yest = new Date(Date.now() - 864e5);
+                    const dayLabel = d.toDateString() === today.toDateString() ? t.chatToday
+                      : d.toDateString() === yest.toDateString() ? t.chatYesterday
+                      : d.toLocaleDateString();
+                    const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                     return (
-                      <div 
-                        key={msg.id}
-                        className={`flex gap-3 max-w-xl ${isSelf ? "ml-auto flex-row-reverse text-right" : "mr-auto text-left"}`}
-                      >
-                        <img
-                          src={msg.senderAvatar}
-                          alt={msg.senderName}
-                          className="w-8 h-8 rounded-full bg-slate-100 shrink-0 border border-slate-200"
-                        />
-                        <div>
-                          <div className={`text-[10px] text-slate-400 flex items-center gap-1.5 ${isSelf ? "justify-end" : "justify-start"}`}>
-                            <span className="font-bold">{msg.senderName}</span>
-                            {isTeacher && (
-                              <span className="bg-violet-100 text-violet-700 px-1.5 py-0.2 rounded-md font-bold text-[8px] uppercase">
-                                {t.teacherRole}
-                              </span>
-                            )}
-                            <span className="font-mono text-[8px]">
-                              {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      <React.Fragment key={msg.id}>
+                        {newDay && (
+                          <div className="flex justify-center py-2.5">
+                            <span className="px-3 py-1 bg-white dark:bg-[#251e40] text-slate-500 dark:text-slate-400 text-[9px] font-bold rounded-lg shadow-xs">
+                              {dayLabel}
                             </span>
                           </div>
-
-                          <div className={`p-3 rounded-2xl text-xs leading-relaxed mt-1 inline-block ${
-                            isSelf 
-                              ? "bg-indigo-600 text-white rounded-tr-none" 
-                              : isTeacher 
-                                ? "bg-violet-50 dark:bg-violet-950/30 text-violet-800 dark:text-violet-300 border border-violet-100 dark:border-violet-900/40 rounded-tl-none"
-                                : "bg-slate-100 dark:bg-[#201b3a] text-slate-800 dark:text-slate-200 rounded-tl-none"
+                        )}
+                        <div className={`flex items-end gap-2 ${isSelf ? "justify-end" : "justify-start"} ${grouped ? "mt-0.5" : "mt-3"}`}>
+                          {!isSelf && (grouped ? (
+                            <div className="w-7 shrink-0" />
+                          ) : (
+                            <img
+                              src={msg.senderAvatar}
+                              alt={msg.senderName}
+                              className="w-7 h-7 rounded-full bg-slate-100 shrink-0 border border-slate-200 dark:border-[#2b244c]"
+                            />
+                          ))}
+                          <div className={`max-w-[75%] px-3 py-2 text-xs leading-relaxed shadow-xs ${
+                            isSelf
+                              ? "bg-indigo-600 text-white rounded-2xl rounded-br-md"
+                              : "bg-white dark:bg-[#221c3f] text-slate-800 dark:text-slate-200 rounded-2xl rounded-bl-md"
                           }`}>
-                            {msg.text}
+                            {!isSelf && !grouped && (
+                              <div className={`text-[10px] font-bold mb-0.5 ${isTeacher ? "text-violet-500" : "text-indigo-400"}`}>
+                                {msg.senderName}{isTeacher ? ` · ${t.teacherRole}` : ""}
+                              </div>
+                            )}
+                            <span className="break-words">{msg.text}</span>
+                            <span className={`text-[8px] font-mono ms-2 whitespace-nowrap ${isSelf ? "text-indigo-200" : "text-slate-400"}`}>
+                              {time}
+                            </span>
                           </div>
                         </div>
-                      </div>
+                      </React.Fragment>
                     );
                   })}
                   <div ref={chatBottomRef} />
@@ -1603,11 +1616,12 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                     placeholder={`${t.messageChannelPrefix} #${activeClass.code}-community-chat...`}
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
-                    className="flex-1 px-4 py-2.5 bg-white dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-indigo-500 rounded-xl focus:outline-hidden text-xs text-slate-700 dark:text-slate-200"
+                    className="flex-1 px-4 py-2.5 bg-white dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-indigo-500 rounded-full focus:outline-hidden text-xs text-slate-700 dark:text-slate-200"
                   />
                   <button
                     type="submit"
-                    className="p-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl shadow-md shadow-indigo-100 transition-all flex items-center justify-center cursor-pointer"
+                    aria-label={t.messageChannelPrefix}
+                    className="p-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full shadow-md shadow-indigo-100 dark:shadow-none transition-all flex items-center justify-center cursor-pointer"
                   >
                     <Send className="h-4 w-4" />
                   </button>
