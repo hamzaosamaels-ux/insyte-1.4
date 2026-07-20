@@ -22,7 +22,8 @@ const fadeUp = {
 
 export const Landing: React.FC<LandingProps> = ({ language, setLanguage, onGetStarted, onLogIn }) => {
   const t = getTranslation(language);
-  const still = useReducedMotion();
+  // ?still=1 freezes ambient loops (screenshots / testing)
+  const still = useReducedMotion() || new URLSearchParams(window.location.search).has("still");
 
   const features = [
     { icon: Users, title: t.landFeat1t, desc: t.landFeat1d },

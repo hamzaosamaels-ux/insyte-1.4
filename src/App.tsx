@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { UserProfile, ClassCommunity, Lesson, TaskItem, TaskSubmission, Announcement, ChatMessage, ClassEvent, Mail, AppNotification } from "./types";
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { Landing } from "./components/Landing";
+import { AppIntro } from "./components/AppIntro";
 import { StudentDashboard } from "./components/StudentDashboard";
 import { TeacherDashboard } from "./components/TeacherDashboard";
 import { DashboardSkeleton } from "./components/DashboardSkeleton";
@@ -33,6 +34,8 @@ export default function App() {
     }
   });
   const [authError, setAuthError] = useState<string | null>(null);
+  // Returning visitors (any stored token) skip the marketing landing page
+  const [showAuth, setShowAuth] = useState<boolean>(() => Boolean(getToken()));
 
   // Theme & Language Settings State
   const [language, setLanguageState] = useState<Language>(() => {
@@ -534,10 +537,13 @@ export default function App() {
     return <DashboardSkeleton />;
   }
 
-  // Landing for brand-new visitors; returning users (had a token) go straight
-  // to auth. Then the Welcome / Auth screen.
+  // First visit: phones get app-style onboarding slides, desktop gets the
+  // marketing landing. Returning users (had a token) go straight to auth.
   if (!currentUser) {
     if (!showAuth) {
+      if (window.matchMedia("(max-width: 767px)").matches) {
+        return <AppIntro language={language} onGetStarted={() => setShowAuth(true)} />;
+      }
       return (
         <Landing
           language={language}

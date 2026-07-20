@@ -195,15 +195,12 @@ export async function loadFromSupabase(): Promise<StoreSchema> {
 // delete any row whose id is no longer present. Keeps Supabase in sync with the
 // in-memory object without tracking per-field deltas.
 async function syncTable(table: string, rows: any[], idField = "id") {
-  if (rows.length > 0) {
-    const { error } = await db().from(table).upsert(rows);
-    if (error) throw new Error(`Supabase upsert ${table}: ${error.message}`);
-  }
+  if (rows.length === 0) return; // SAFE-PRUNE
+  const { error: upErr } = await db().from(table).upsert(rows);
+  if (upErr) throw new Error(`Supabase upsert ${table}: ${upErr.message}`);
   const keep = rows.map(r => r[idField]);
-  let q = db().from(table).delete();
-  // delete rows not in the keep-set (or all rows if the set is empty)
-  q = keep.length > 0 ? q.not(idField, "in", `(${keep.map(k => `"${k}"`).join(",")})`) : q.neq(idField, " ");
-  const { error } = await q;
+  const { error } = await db().from(table).delete()
+    .not(idField, "in", `(${keep.map(k => `"${k}"`).join(",")})`);
   if (error) throw new Error(`Supabase prune ${table}: ${error.message}`);
 }
 
