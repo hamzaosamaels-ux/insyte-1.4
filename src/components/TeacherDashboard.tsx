@@ -4,7 +4,7 @@ import {
   Plus, BookOpen, Award, Megaphone, Calendar, Users,
   CheckSquare, LogOut, CheckCircle2, ChevronRight, Info,
   Trash2, Send, Clock, Sparkles, Settings, Edit, Check, Library, Video, Presentation, Globe,
-  Mail as MailLucide, Copy, Menu
+  Mail as MailLucide, Copy, Menu, Download
 } from "lucide-react";
 import {
   UserProfile, ClassCommunity, Lesson, TaskItem,
@@ -44,6 +44,7 @@ interface TeacherDashboardProps {
   onAddAnnouncement: (ann: Omit<Announcement, "id" | "publishedAt">) => void;
   onAddEvent: (evt: Omit<ClassEvent, "id">) => void;
   onGradeSubmission: (submissionId: string, scoreXpEarned: number, feedback: string) => void;
+  onAdjustStudentXp: (studentId: string, xpAmount: number) => void;
   language: Language;
   setLanguage: (lang: Language) => void;
   theme: Theme;
@@ -75,6 +76,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   onAddAnnouncement,
   onAddEvent,
   onGradeSubmission,
+  onAdjustStudentXp,
   language,
   setLanguage,
   theme,
@@ -142,7 +144,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const [taskDesc, setTaskDesc] = useState("");
   const [taskXp, setTaskXp] = useState(100);
   const [taskDueDate, setTaskDueDate] = useState("2026-07-30");
-  const [taskType, setTaskType] = useState<"text" | "dragdrop">("text");
+  const [taskType, setTaskType] = useState<"text" | "dragdrop" | "quiz">("text");
   // Teacher-defined matching pairs for the dragdrop task (item -> matching zone)
   const [matchPairs, setMatchPairs] = useState<{ item: string; zone: string }[]>([
     { item: "", zone: "" },
@@ -152,6 +154,27 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     setMatchPairs(prev => prev.map((p, idx) => (idx === i ? { ...p, [field]: val } : p)));
   const addPair = () => setMatchPairs(prev => [...prev, { item: "", zone: "" }]);
   const removePair = (i: number) => setMatchPairs(prev => prev.filter((_, idx) => idx !== i));
+
+  // Teacher-defined multiple-choice quiz questions
+  const [quizQuestions, setQuizQuestions] = useState<{ question: string; options: string[]; correctIndex: number }[]>([
+    { question: "", options: ["", ""], correctIndex: 0 }
+  ]);
+  const addQuestion = () => setQuizQuestions(prev => [...prev, { question: "", options: ["", ""], correctIndex: 0 }]);
+  const removeQuestion = (qi: number) => setQuizQuestions(prev => prev.filter((_, i) => i !== qi));
+  const updateQuestion = (qi: number, text: string) =>
+    setQuizQuestions(prev => prev.map((q, i) => (i === qi ? { ...q, question: text } : q)));
+  const updateOption = (qi: number, oi: number, text: string) =>
+    setQuizQuestions(prev => prev.map((q, i) => (i === qi ? { ...q, options: q.options.map((o, j) => (j === oi ? text : o)) } : q)));
+  const addOption = (qi: number) =>
+    setQuizQuestions(prev => prev.map((q, i) => (i === qi && q.options.length < 4 ? { ...q, options: [...q.options, ""] } : q)));
+  const removeOption = (qi: number, oi: number) =>
+    setQuizQuestions(prev => prev.map((q, i) => {
+      if (i !== qi || q.options.length <= 2) return q;
+      const options = q.options.filter((_, j) => j !== oi);
+      return { ...q, options, correctIndex: q.correctIndex >= options.length ? 0 : q.correctIndex };
+    }));
+  const setCorrect = (qi: number, oi: number) =>
+    setQuizQuestions(prev => prev.map((q, i) => (i === qi ? { ...q, correctIndex: oi } : q)));
 
   // Create Announcement states
   const [annTitle, setAnnTitle] = useState("");
@@ -192,6 +215,27 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   };
 
   const unreadMailCount = mails.filter(m => m.toId === currentTeacher.id && !m.read).length;
+
+  // Export this teacher's submissions as a CSV file (client-side download)
+  const exportGradesCsv = () => {
+    const myClassIds = new Set(classes.filter(c => c.teacherId === currentTeacher.id).map(c => c.id));
+    const myTaskIds = new Set(tasks.filter(tk => myClassIds.has(tk.classId)).map(tk => tk.id));
+    const rows = submissions.filter(s => myTaskIds.has(s.taskId));
+    const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const header = ["Student", "Task", "Graded", "XP Earned", "Submitted At", "Feedback"];
+    const lines = rows.map(s =>
+      [s.studentName, s.taskTitle, s.isGraded ? "yes" : "no", s.scoreXpEarned ?? 0, s.submittedAt, s.feedback ?? ""].map(esc).join(",")
+    );
+    const csv = [header.map(esc).join(","), ...lines].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `insyte-grades-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showNotification(t.gradesExported);
+  };
 
   // Submit Handlers
   const handleCreateClass = async (e: React.FormEvent) => {
@@ -315,6 +359,31 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         dropZones: pairs.map(p => p.zone),
         correctPairing
       });
+    } else if (taskType === "quiz") {
+      // Build the quiz from the teacher's questions; every question needs text
+      // and at least two filled options
+      const qs = quizQuestions
+        .map(q => ({
+          question: q.question.trim(),
+          options: q.options.map(o => o.trim()).filter(Boolean),
+          correctIndex: q.correctIndex
+        }))
+        .filter(q => q.question && q.options.length >= 2);
+      if (qs.length < 1) {
+        showNotification(t.quizNeedsOne);
+        return;
+      }
+      // Clamp correctIndex in case options were trimmed away
+      for (const q of qs) if (q.correctIndex >= q.options.length) q.correctIndex = 0;
+      onCreateTask({
+        classId: activeClass.id,
+        title: taskTitle.trim(),
+        description: taskDesc.trim(),
+        rewardXp: taskXp,
+        dueDate: taskDueDate,
+        type: "quiz",
+        quizQuestions: qs
+      });
     } else {
       onCreateTask({
         classId: activeClass.id,
@@ -330,6 +399,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     setTaskDesc("");
     setTaskXp(100);
     setMatchPairs([{ item: "", zone: "" }, { item: "", zone: "" }]);
+    setQuizQuestions([{ question: "", options: ["", ""], correctIndex: 0 }]);
     showNotification(t.assignmentPublished);
   };
 
@@ -499,16 +569,9 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
             </button>
           </div>
 
-          {/* Mobile: streak + logout live directly in the header */}
+          {/* Mobile: streak in header; logout moved into the drawer bottom */}
           <div className="flex md:hidden items-center gap-2">
             <StreakBadge streak={currentTeacher.streak} label={t.streakLabel} />
-            <button
-              onClick={onLogOut}
-              className="p-2.5 bg-white dark:bg-[#1c1836] border border-slate-200 dark:border-[#2d2553]/50 text-slate-500 dark:text-slate-400 hover:text-red-500 rounded-xl transition-all cursor-pointer"
-              title={t.logout}
-            >
-              <LogOut className="h-4.5 w-4.5" />
-            </button>
           </div>
         </div>
       </header>
@@ -666,6 +729,15 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
               <Settings className="h-4 w-4" />
               <span>{t.settings}</span>
             </button>
+
+            {/* Logout at the bottom of the mobile drawer */}
+            <button
+              onClick={onLogOut}
+              className="md:hidden mt-auto w-full flex items-center justify-start gap-2.5 px-3.5 py-3 rounded-xl text-xs font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900/40 cursor-pointer"
+            >
+              <LogOut className="h-4 w-4" />
+              <span>{t.logout}</span>
+            </button>
           </aside>
 
           {/* Active Workspace View */}
@@ -710,10 +782,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                         <img
                           src={stud.avatar}
                           alt={stud.name}
-                          className="w-10 h-10 rounded-full bg-white dark:bg-[#1c1836] p-0.5 border border-slate-200 dark:border-[#2b244c]"
+                          className="w-10 h-10 rounded-full object-cover bg-white dark:bg-[#1c1836] p-0.5 border border-slate-200 dark:border-[#2b244c] shrink-0"
                         />
-                        <div>
-                          <h4 className="font-bold text-xs text-slate-800 dark:text-slate-100">{stud.name}</h4>
+                        <div className="min-w-0 flex-1">
+                          <h4 className="font-bold text-xs text-slate-800 dark:text-slate-100 truncate">{stud.name}</h4>
                           <p className="text-[10px] text-slate-400 font-semibold">{stud.rank}</p>
                           <div className="flex items-center gap-1.5 mt-1">
                             <span className="bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-350 px-1.5 py-0.5 rounded-md font-mono text-[9px] font-bold">
@@ -721,9 +793,36 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                             </span>
                             <span className="text-amber-500 font-bold font-mono text-[10px]">{stud.xp} XP</span>
                           </div>
+                          {/* Manual XP adjust */}
+                          <div className="flex items-center gap-1 mt-2">
+                            <button
+                              onClick={() => onAdjustStudentXp(stud.id, -50)}
+                              className="px-2 py-0.5 rounded-md bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-[10px] font-bold cursor-pointer hover:bg-red-200 dark:hover:bg-red-900/50"
+                              title={t.minus50Xp}
+                            >
+                              −50
+                            </button>
+                            <button
+                              onClick={() => onAdjustStudentXp(stud.id, 50)}
+                              className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold cursor-pointer hover:bg-emerald-200 dark:hover:bg-emerald-900/50"
+                              title={t.plus50Xp}
+                            >
+                              +50
+                            </button>
+                            <button
+                              onClick={() => onAdjustStudentXp(stud.id, 100)}
+                              className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold cursor-pointer hover:bg-emerald-200 dark:hover:bg-emerald-900/50"
+                              title={t.plus100Xp}
+                            >
+                              +100
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ))}
+                    {classStudents.length === 0 && (
+                      <p className="text-slate-400 text-xs col-span-full py-4 text-center">{t.noStudentsYet}</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1035,11 +1134,12 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                       <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">{t.challengeType}</label>
                       <select
                         value={taskType}
-                        onChange={(e) => setTaskType(e.target.value as "text" | "dragdrop")}
+                        onChange={(e) => setTaskType(e.target.value as "text" | "dragdrop" | "quiz")}
                         className="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-xl focus:outline-hidden text-xs text-slate-700 dark:text-slate-200 font-semibold"
                       >
                         <option value="text">{t.essay}</option>
                         <option value="dragdrop">{t.interactiveMatcherGame}</option>
+                        <option value="quiz">{t.quizGame}</option>
                       </select>
                     </div>
                   </div>
@@ -1129,6 +1229,86 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                     </div>
                   )}
 
+                  {taskType === "quiz" && (
+                    <div className="p-4 bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/60 rounded-2xl space-y-4">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-indigo-600 shrink-0" />
+                        <p className="text-[11px] text-indigo-700 dark:text-indigo-300 font-bold">{t.quizEditorTitle}</p>
+                      </div>
+                      <p className="text-[10px] text-indigo-600/80 dark:text-indigo-300/70">{t.quizEditorHint}</p>
+
+                      {quizQuestions.map((q, qi) => (
+                        <div key={qi} className="p-3 bg-white dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] rounded-xl space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold text-slate-400 shrink-0">Q{qi + 1}</span>
+                            <input
+                              type="text"
+                              value={q.question}
+                              onChange={(e) => updateQuestion(qi, e.target.value)}
+                              placeholder={t.quizQuestionPlaceholder}
+                              className="flex-1 min-w-0 px-3 py-2 bg-slate-50 dark:bg-[#130f26] border border-slate-200 dark:border-[#2b244c] focus:border-indigo-500 rounded-lg text-xs dark:text-slate-200 focus:outline-hidden"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeQuestion(qi)}
+                              disabled={quizQuestions.length <= 1}
+                              className="p-1.5 text-slate-400 hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shrink-0"
+                              title={t.remove}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                          {/* Options — tap the circle to mark the correct one */}
+                          {q.options.map((opt, oi) => (
+                            <div key={oi} className="flex items-center gap-2 ps-6">
+                              <button
+                                type="button"
+                                onClick={() => setCorrect(qi, oi)}
+                                title={t.quizMarkCorrect}
+                                className={`w-4 h-4 rounded-full border-2 shrink-0 cursor-pointer ${
+                                  q.correctIndex === oi ? "bg-emerald-500 border-emerald-500" : "border-slate-300 dark:border-slate-600"
+                                }`}
+                              />
+                              <input
+                                type="text"
+                                value={opt}
+                                onChange={(e) => updateOption(qi, oi, e.target.value)}
+                                placeholder={`${t.quizOptionPlaceholder} ${oi + 1}`}
+                                className="flex-1 min-w-0 px-3 py-1.5 bg-slate-50 dark:bg-[#130f26] border border-slate-200 dark:border-[#2b244c] focus:border-indigo-500 rounded-lg text-xs dark:text-slate-200 focus:outline-hidden"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => removeOption(qi, oi)}
+                                disabled={q.options.length <= 2}
+                                className="p-1 text-slate-400 hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shrink-0"
+                                title={t.remove}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ))}
+                          {q.options.length < 4 && (
+                            <button
+                              type="button"
+                              onClick={() => addOption(qi)}
+                              className="ms-6 flex items-center gap-1 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                            >
+                              <Plus className="h-3 w-3" /> {t.quizAddOption}
+                            </button>
+                          )}
+                        </div>
+                      ))}
+
+                      <button
+                        type="button"
+                        onClick={addQuestion}
+                        className="flex items-center gap-1.5 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                      >
+                        <Plus className="h-3.5 w-3.5" /> {t.quizAddQuestion}
+                      </button>
+                    </div>
+                  )}
+
                   <button
                     type="submit"
                     className="px-5 py-2.5 bg-violet-600 hover:bg-violet-500 text-white font-bold text-xs rounded-xl shadow-md shadow-violet-100 dark:shadow-none transition-all cursor-pointer"
@@ -1143,6 +1323,14 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
             {/* GRADE HOMEWORK SUBMISSIONS VIEW */}
             {activeSection === "grade" && (
               <div className="space-y-6">
+                <div className="flex justify-end">
+                  <button
+                    onClick={exportGradesCsv}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2d2553]/50 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold cursor-pointer hover:bg-slate-200 dark:hover:bg-[#282154] transition-all"
+                  >
+                    <Download className="h-4 w-4" /> {t.exportGrades}
+                  </button>
+                </div>
                 {/* Subject Classroom Picker */}
                 {activeGradeClasses.length > 0 && (
                   <div className="bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49]/80 p-4 rounded-2xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">

@@ -132,10 +132,11 @@ interface TaskItem {
   description: string;
   rewardXp: number;
   dueDate: string;
-  type: "text" | "dragdrop";
+  type: "text" | "dragdrop" | "quiz";
   dragItems?: string[];
   dropZones?: string[];
   correctPairing?: Record<string, string>;
+  quizQuestions?: { question: string; options: string[]; correctIndex: number }[];
 }
 
 interface TaskSubmission {
@@ -913,7 +914,7 @@ app.use("/api/signup", authLimiter);
 
   // Publish a new homework assignment task
   app.post("/api/tasks", (req, res) => {
-    const { classId, title, description, rewardXp, dueDate, type, dragItems, dropZones, correctPairing } = req.body;
+    const { classId, title, description, rewardXp, dueDate, type, dragItems, dropZones, correctPairing, quizQuestions } = req.body;
     if (!classId || !title || !description || !rewardXp || !dueDate || !type) {
       return res.status(400).json({ error: "Missing required task fields." });
     }
@@ -929,7 +930,8 @@ app.use("/api/signup", authLimiter);
       type,
       dragItems,
       dropZones,
-      correctPairing
+      correctPairing,
+      quizQuestions
     };
 
     db.tasks.unshift(newTask);

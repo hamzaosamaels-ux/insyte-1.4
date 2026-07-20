@@ -63,7 +63,13 @@ export interface Lesson {
   webUrlTitle?: string;    // Label for the web link
 }
 
-export type TaskType = 'text' | 'dragdrop';
+export type TaskType = 'text' | 'dragdrop' | 'quiz';
+
+export interface QuizQuestion {
+  question: string;
+  options: string[];      // 2–4 answer choices
+  correctIndex: number;   // index of the right option
+}
 
 export interface TaskItem {
   id: string;
@@ -77,6 +83,8 @@ export interface TaskItem {
   dragItems?: string[]; // E.g., ['2', '+', '2'] or ['HTML', 'CSS', 'JS']
   dropZones?: string[]; // E.g., ['Input', 'Style', 'Action'] or empty boxes
   correctPairing?: Record<string, string>; // Maps drag item to target drop zone
+  // Multiple-choice quiz specific
+  quizQuestions?: QuizQuestion[];
 }
 
 export interface TaskSubmission {

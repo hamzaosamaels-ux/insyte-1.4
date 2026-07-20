@@ -424,6 +424,18 @@ export default function App() {
       .catch((err) => console.error("Error grading submission:", err));
   };
 
+  // 6b. Teacher manually adjusts a student's XP (+/-). Reuses the add-xp endpoint.
+  const handleAdjustStudentXp = (studentId: string, xpAmount: number) => {
+    fetch(api("/api/students/add-xp"), {
+      method: "POST",
+      headers: authHeaders(true),
+      body: JSON.stringify({ studentId, xpAmount })
+    })
+      .then((res) => res.json())
+      .then((data) => { if (data.allStudents) setStudents(data.allStudents); })
+      .catch((err) => console.error("Error adjusting XP:", err));
+  };
+
   // 7. Send an in-app mail (sender is the token holder)
   const handleSendMail = (toId: string, subject: string, body: string): Promise<string | null> => {
     if (!currentUser) return Promise.resolve("Not logged in.");
@@ -569,6 +581,7 @@ export default function App() {
       onAddAnnouncement={handleAddAnnouncement}
       onAddEvent={handleAddEvent}
       onGradeSubmission={handleGradeSubmission}
+      onAdjustStudentXp={handleAdjustStudentXp}
       onSendMail={handleSendMail}
       onMarkMailRead={handleMarkMailRead}
       onMarkNotificationsRead={handleMarkNotificationsRead}

@@ -17,6 +17,7 @@ import { SettingsTab } from "./SettingsTab";
 import { NavbarControls } from "./NavbarControls";
 import { NotificationBell, StreakBadge } from "./HeaderExtras";
 import { MailPanel } from "./MailPanel";
+import { XpBar, Confetti, LevelUpToast } from "./Gamify";
 import { getClassColors } from "../utils/colorHelper";
 import { api } from "../api";
 
@@ -178,6 +179,18 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   // Mobile nav drawer (the hamburger opens the left rail)
   const [menuOpen, setMenuOpen] = useState(false);
 
+  // Level-up celebration: fire confetti + banner when the level number rises
+  const [confettiTick, setConfettiTick] = useState(0);
+  const [levelUpTo, setLevelUpTo] = useState<number | null>(null);
+  const prevLevelRef = useRef(currentStudent.level);
+  useEffect(() => {
+    if (currentStudent.level > prevLevelRef.current) {
+      setConfettiTick(t => t + 1);
+      setLevelUpTo(currentStudent.level);
+    }
+    prevLevelRef.current = currentStudent.level;
+  }, [currentStudent.level]);
+
   // Subview Details States
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
   const [selectedTask, setSelectedTask] = useState<TaskItem | null>(null);
@@ -292,6 +305,37 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
         text: t.dragMatchFail
       });
     }
+  };
+
+  // Quiz answers: questionIndex -> chosen optionIndex
+  const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({});
+  const [quizResult, setQuizResult] = useState<{ correct: number; total: number; xp: number } | null>(null);
+  // Fresh quiz state whenever a different task is opened
+  useEffect(() => {
+    setQuizAnswers({});
+    setQuizResult(null);
+  }, [selectedTask?.id]);
+
+  const handleSubmitQuiz = () => {
+    if (!selectedTask?.quizQuestions) return;
+    const qs = selectedTask.quizQuestions;
+    let correct = 0;
+    qs.forEach((q, i) => { if (quizAnswers[i] === q.correctIndex) correct++; });
+    const xp = Math.round((correct / qs.length) * selectedTask.rewardXp);
+    setQuizResult({ correct, total: qs.length, xp });
+
+    onSubmitTask({
+      taskId: selectedTask.id,
+      taskTitle: selectedTask.title,
+      studentId: currentStudent.id,
+      studentName: currentStudent.name,
+      studentAvatar: currentStudent.avatar,
+      content: `Quiz: ${correct}/${qs.length} correct`,
+      isGraded: true,
+      scoreXpEarned: xp
+    });
+    if (xp > 0) onAddXp(xp);
+    showNotification(`${t.quizScore} ${correct}/${qs.length} — +${xp} XP`);
   };
 
   // Submit Text Homework Task
@@ -409,6 +453,10 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#0b081a] text-slate-800 dark:text-slate-100 flex flex-col transition-colors duration-200">
+      {/* Level-up celebration */}
+      <Confetti trigger={confettiTick} />
+      <LevelUpToast level={levelUpTo} onDone={() => setLevelUpTo(null)} />
+
       {/* Toast Notification */}
       <AnimatePresence>
         {notification && (
@@ -498,6 +546,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
 
           {/* Desktop: controls inline */}
           <div className="hidden md:flex items-center gap-4">
+            <XpBar user={currentStudent} />
             <StreakBadge streak={currentStudent.streak} label={t.streakLabel} />
             <NotificationBell
               notifications={notifications}
@@ -509,16 +558,10 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
             <NavbarControls language={language} setLanguage={setLanguage} theme={theme} setTheme={setTheme} />
           </div>
 
-          {/* Mobile: streak + logout live directly in the header */}
+          {/* Mobile: XP bar + streak in header; logout moved into the drawer */}
           <div className="flex md:hidden items-center gap-2">
+            <XpBar user={currentStudent} className="w-20" />
             <StreakBadge streak={currentStudent.streak} label={t.streakLabel} />
-            <button
-              onClick={onLogOut}
-              className="p-2.5 bg-white dark:bg-[#1c1836] border border-slate-200 dark:border-[#2d2553]/50 text-slate-500 dark:text-slate-400 hover:text-red-500 rounded-xl transition-all cursor-pointer"
-              title={t.logout}
-            >
-              <LogOut className="h-4.5 w-4.5" />
-            </button>
           </div>
 
           <button
@@ -721,6 +764,15 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
             >
               <Settings className="h-4 w-4" />
               <span>{t.settings}</span>
+            </button>
+
+            {/* Logout at the bottom of the mobile drawer */}
+            <button
+              onClick={onLogOut}
+              className="md:hidden mt-auto w-full flex items-center justify-start gap-2.5 px-3.5 py-3 rounded-xl text-xs font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900/40 cursor-pointer"
+            >
+              <LogOut className="h-4 w-4" />
+              <span>{t.logout}</span>
             </button>
           </aside>
 
@@ -1400,6 +1452,61 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                           )}
                         </button>
                       </form>
+                    )}
+
+                    {selectedTask.type === 'quiz' && selectedTask.quizQuestions && (
+                      <div className="space-y-5">
+                        {selectedTask.quizQuestions.map((q, qi) => {
+                          const chosen = quizAnswers[qi];
+                          const graded = quizResult != null;
+                          return (
+                            <div key={qi} className="p-4 bg-slate-50 dark:bg-[#201b3a] border border-slate-200 dark:border-[#2d2553]/50 rounded-2xl">
+                              <p className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-3">
+                                <span className="text-indigo-500">{qi + 1}.</span> {q.question}
+                              </p>
+                              <div className="space-y-2">
+                                {q.options.map((opt, oi) => {
+                                  const isChosen = chosen === oi;
+                                  const isCorrect = q.correctIndex === oi;
+                                  let cls = "border-slate-200 dark:border-[#2d2553]/60 hover:border-indigo-300";
+                                  if (graded && isCorrect) cls = "border-emerald-400 bg-emerald-50 dark:bg-emerald-950/30";
+                                  else if (graded && isChosen && !isCorrect) cls = "border-red-400 bg-red-50 dark:bg-red-950/30";
+                                  else if (isChosen) cls = "border-indigo-400 bg-indigo-50 dark:bg-indigo-950/30";
+                                  return (
+                                    <button
+                                      key={oi}
+                                      type="button"
+                                      disabled={graded}
+                                      onClick={() => setQuizAnswers(prev => ({ ...prev, [qi]: oi }))}
+                                      className={`w-full text-left flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-xs font-semibold text-slate-700 dark:text-slate-200 transition-all cursor-pointer disabled:cursor-default ${cls}`}
+                                    >
+                                      <span className={`w-4 h-4 rounded-full border-2 shrink-0 ${isChosen ? "bg-indigo-500 border-indigo-500" : "border-slate-300 dark:border-slate-600"}`} />
+                                      {opt}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {quizResult ? (
+                          <div className="p-4 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-500/30 rounded-2xl text-center">
+                            <p className="text-sm font-bold text-indigo-700 dark:text-indigo-300">
+                              {t.quizScore} {quizResult.correct}/{quizResult.total} — +{quizResult.xp} XP 🎉
+                            </p>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleSubmitQuiz}
+                            disabled={Object.keys(quizAnswers).length < selectedTask.quizQuestions.length}
+                            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-200 dark:disabled:bg-slate-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed"
+                          >
+                            <CheckCircle2 className="h-4 w-4" /> {t.quizSubmit} (+{selectedTask.rewardXp} {t.xpMaxSuffix})
+                          </button>
+                        )}
+                      </div>
                     )}
                   </motion.div>
                 )}
