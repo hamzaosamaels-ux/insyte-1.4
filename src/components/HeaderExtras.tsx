@@ -60,6 +60,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
         onClick={() => setOpen(o => !o)}
         className="relative p-2.5 bg-white dark:bg-[#1c1836] border border-slate-200 dark:border-[#2d2553]/50 hover:bg-slate-50 dark:hover:bg-[#282154] text-slate-500 dark:text-slate-400 rounded-xl transition-all cursor-pointer"
         title={title}
+        aria-label={title}
       >
         <Bell className="h-4.5 w-4.5" />
         {unread > 0 && (

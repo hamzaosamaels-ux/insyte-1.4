@@ -4,7 +4,7 @@ import {
   Plus, BookOpen, Award, Megaphone, Calendar, Users,
   CheckSquare, LogOut, CheckCircle2, ChevronRight, Info,
   Trash2, Send, Clock, Sparkles, Settings, Edit, Check, Library, Video, Presentation, Globe,
-  Mail as MailLucide, Copy, Menu, Download
+  Mail as MailLucide, Copy, Menu, Download, UserPlus
 } from "lucide-react";
 import {
   UserProfile, ClassCommunity, Lesson, TaskItem,
@@ -34,6 +34,7 @@ interface TeacherDashboardProps {
   notifications: AppNotification[];
   onLogOut: () => void;
   onCreateClass: (name: string, code: string, description: string, color?: string) => Promise<string | null>;
+  onJoinClass: (code: string) => Promise<string | null>;
   onSendMail: (toId: string, subject: string, body: string) => Promise<string | null>;
   onMarkMailRead: (mailId: string) => void;
   onMarkNotificationsRead: () => void;
@@ -66,6 +67,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   notifications,
   onLogOut,
   onCreateClass,
+  onJoinClass,
   onSendMail,
   onMarkMailRead,
   onMarkNotificationsRead,
@@ -101,7 +103,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const [menuOpen, setMenuOpen] = useState(false);
 
   // Onboarding progress (persist "shared code" locally once they copy it)
-  const myClasses = classes.filter(c => c.teacherId === currentTeacher.id);
+  // `classes` prop is already scoped to owned + joined communities (App.tsx)
+  const myClasses = classes;
   const hasCommunity = myClasses.length > 0;
   const hasSubject = myClasses.some(c => c.name.includes(" - "));
   const [hasShared, setHasShared] = useState(() => localStorage.getItem("insyte_shared_code") === "1");
@@ -215,9 +218,20 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   // the grade is locked to the active community and only a subject is added
   const [createInCommunity, setCreateInCommunity] = useState(false);
 
+  // Join an existing community by its code (co-teaching)
+  const [joinMode, setJoinMode] = useState(false);
+
   const openCreateClass = (insideCommunity: boolean) => {
+    setJoinMode(false);
     setCreateInCommunity(insideCommunity);
     setNewClassGrade(insideCommunity && activeGrade ? activeGrade : "");
+    setCreateClassError(null);
+    setShowCreateClass(true);
+  };
+
+  const openJoinCommunity = () => {
+    setJoinMode(true);
+    setNewClassCode("");
     setCreateClassError(null);
     setShowCreateClass(true);
   };
@@ -226,7 +240,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
   // Export this teacher's submissions as a CSV file (client-side download)
   const exportGradesCsv = () => {
-    const myClassIds = new Set(classes.filter(c => c.teacherId === currentTeacher.id).map(c => c.id));
+    const myClassIds = new Set(classes.map(c => c.id));
     const myTaskIds = new Set(tasks.filter(tk => myClassIds.has(tk.classId)).map(tk => tk.id));
     const rows = submissions.filter(s => myTaskIds.has(s.taskId));
     const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
@@ -249,6 +263,24 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault();
     if (creatingClass) return;
+
+    if (joinMode) {
+      if (!newClassCode.trim()) return;
+      setCreatingClass(true);
+      setCreateClassError(null);
+      const joinErr = await onJoinClass(newClassCode.trim());
+      setCreatingClass(false);
+      if (joinErr) {
+        setCreateClassError(joinErr);
+        return;
+      }
+      setNewClassCode("");
+      setShowCreateClass(false);
+      setJoinMode(false);
+      showNotification(t.joinedCommunity);
+      return;
+    }
+
     if (!newClassGrade.trim()) return;
 
     let finalClassName: string;
@@ -1647,7 +1679,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                 mails={mails}
                 contacts={[
                   ...allStudents.filter(s =>
-                    classes.some(c => c.teacherId === currentTeacher.id && c.studentIds.includes(s.id))
+                    classes.some(c => c.studentIds.includes(s.id))
                   ),
                   ...allTeachers.filter(te => te.id !== currentTeacher.id)
                 ]}
@@ -1679,12 +1711,20 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           </div>
           <p className="text-slate-700 dark:text-slate-300 font-bold text-sm">{t.noActiveClassroom}</p>
           <p className="text-slate-400 text-xs mt-1 max-w-xs">{t.noClassroomDesc}</p>
-          <button
-            onClick={() => openCreateClass(false)}
-            className="mt-5 inline-flex items-center gap-2 px-5 py-3 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md"
-          >
-            <Plus className="h-4 w-4" /> {t.createClassCommunity}
-          </button>
+          <div className="mt-5 flex items-center gap-2.5">
+            <button
+              onClick={() => openCreateClass(false)}
+              className="inline-flex items-center gap-2 px-5 py-3 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md"
+            >
+              <Plus className="h-4 w-4" /> {t.createClassCommunity}
+            </button>
+            <button
+              onClick={openJoinCommunity}
+              className="inline-flex items-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md"
+            >
+              <UserPlus className="h-4 w-4" /> {t.joinCommunity}
+            </button>
+          </div>
           <div className="mt-6 w-full max-w-sm text-left">
             <OnboardingChecklist
               hasCommunity={hasCommunity}
@@ -1703,39 +1743,63 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       {showCreateClass && (
         <div className="fixed inset-0 z-50 bg-[#06040f]/80 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="w-full max-w-md bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49]/80 rounded-2xl p-6 shadow-xl relative">
-            {/* Mode switch: add a subject inside the current community, or start a new one */}
-            {activeClass && (
-              <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-[#1c1836]/60 p-1.5 rounded-xl border border-slate-200 dark:border-[#2d2553]/50 mb-4">
+            {/* Mode switch: add a subject inside the current community, start
+                a new one, or join an existing one by its code */}
+            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-[#1c1836]/60 p-1.5 rounded-xl border border-slate-200 dark:border-[#2d2553]/50 mb-4">
+              {activeClass && (
                 <button
                   type="button"
-                  onClick={() => { setCreateInCommunity(true); setNewClassGrade(activeGrade); setCreateClassError(null); }}
+                  onClick={() => { setJoinMode(false); setCreateInCommunity(true); setNewClassGrade(activeGrade); setCreateClassError(null); }}
                   className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    createInCommunity ? "bg-emerald-600 text-white shadow-xs" : "text-slate-500 dark:text-slate-400"
+                    !joinMode && createInCommunity ? "bg-emerald-600 text-white shadow-xs" : "text-slate-500 dark:text-slate-400"
                   }`}
                 >
                   {t.addSubject}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => { setCreateInCommunity(false); setNewClassGrade(""); setCreateClassError(null); }}
-                  className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    !createInCommunity ? "bg-violet-600 text-white shadow-xs" : "text-slate-500 dark:text-slate-400"
-                  }`}
-                >
-                  {t.createClassCommunity}
-                </button>
-              </div>
-            )}
+              )}
+              <button
+                type="button"
+                onClick={() => { setJoinMode(false); setCreateInCommunity(false); setNewClassGrade(""); setCreateClassError(null); }}
+                className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  !joinMode && !createInCommunity ? "bg-violet-600 text-white shadow-xs" : "text-slate-500 dark:text-slate-400"
+                }`}
+              >
+                {t.createClassCommunity}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setJoinMode(true); setNewClassCode(""); setCreateClassError(null); }}
+                className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  joinMode ? "bg-indigo-600 text-white shadow-xs" : "text-slate-500 dark:text-slate-400"
+                }`}
+              >
+                {t.joinCommunity}
+              </button>
+            </div>
 
             <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm font-display mb-1">
-              {createInCommunity ? `${t.addSubject} — ${activeGrade}` : t.createClassCommunity}
+              {joinMode ? t.joinCommunity : createInCommunity ? `${t.addSubject} — ${activeGrade}` : t.createClassCommunity}
             </h3>
             <p className="text-slate-400 text-[11px] mb-4">
-              {createInCommunity ? t.addSubjectHint : t.createClassSubtitle}
+              {joinMode ? t.joinCommunityHint : createInCommunity ? t.addSubjectHint : t.createClassSubtitle}
             </p>
 
             <form onSubmit={handleCreateClass} className="space-y-4">
-              {createInCommunity ? (
+              {joinMode ? (
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t.classCode}</label>
+                  <input
+                    type="text"
+                    required
+                    autoFocus
+                    maxLength={20}
+                    placeholder={t.classCodePlaceholder}
+                    value={newClassCode}
+                    onChange={(e) => setNewClassCode(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-indigo-500 rounded-xl focus:outline-hidden text-xs dark:text-slate-200"
+                  />
+                </div>
+              ) : createInCommunity ? (
                 /* Subject mode: just the subject name — everything else is automatic */
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t.subject}</label>
@@ -1788,6 +1852,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                 </>
               )}
 
+              {!joinMode && (
               <div>
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t.themeColor}</label>
                 <div className="flex items-center gap-1.5 h-[34px]">
@@ -1812,12 +1877,13 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                   ))}
                 </div>
               </div>
+              )}
 
               {createClassError && (
                 <p className="text-red-500 text-xs font-semibold">{createClassError}</p>
               )}
 
-              {!createInCommunity && <p className="text-[10px] text-slate-400">{t.shareCodeHint}</p>}
+              {!createInCommunity && !joinMode && <p className="text-[10px] text-slate-400">{t.shareCodeHint}</p>}
 
               <div className="flex justify-end gap-2.5 pt-2">
                 <button
@@ -1831,7 +1897,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                   type="submit"
                   className="px-4.5 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-xs font-bold cursor-pointer"
                 >
-                  {t.createClassroom}
+                  {joinMode ? t.joinCommunity : t.createClassroom}
                 </button>
               </div>
             </form>

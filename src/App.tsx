@@ -232,20 +232,21 @@ export default function App() {
       .catch((err) => setAuthError(err.message));
   };
 
-  // Join a class community with its code
+  // Join a class community with its code (students enroll, teachers co-teach)
   const handleJoinClass = (code: string): Promise<string | null> => {
-    if (!currentUser || currentUser.role !== "student") return Promise.resolve("Not a student.");
+    if (!currentUser) return Promise.resolve("Not signed in.");
     return fetch(api("/api/classes/join"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ studentId: currentUser.id, code })
+      body: JSON.stringify({ userId: currentUser.id, code })
     })
       .then(async (res) => {
         const data = await res.json();
         if (!res.ok) return data.error || "Could not join class.";
         setStudents(data.allStudents);
+        if (data.allTeachers) setTeachers(data.allTeachers);
         setClasses(data.allClasses);
-        setCurrentUser(data.student);
+        setCurrentUser(data.user || data.student);
         return null;
       })
       .catch(() => "Connection error. Try again.");
@@ -580,8 +581,10 @@ export default function App() {
     );
   }
 
-  // Teacher Workspace — only this teacher's classes
-  const teacherClasses = classes.filter(c => c.teacherId === currentUser.id);
+  // Teacher Workspace — classes this teacher owns or joined as co-teacher
+  const teacherClasses = classes.filter(
+    c => c.teacherId === currentUser.id || (currentUser.joinedClasses ?? []).includes(c.id)
+  );
 
   return (
     <TeacherDashboard
@@ -598,6 +601,7 @@ export default function App() {
       notifications={myNotifications}
       onLogOut={handleLogOut}
       onCreateClass={handleCreateClass}
+      onJoinClass={handleJoinClass}
       onCreateLesson={handleCreateLesson}
       onUpdateLesson={handleUpdateLesson}
       onDeleteLesson={handleDeleteLesson}

@@ -680,46 +680,63 @@ app.use("/api/signup", authLimiter);
   });
 
   // Join a class community using its class code
+  // Join a community by code. Students enroll in every subject under it;
+  // teachers become co-teachers (member via joinedClasses, ownership unchanged).
   app.post("/api/classes/join", (req, res) => {
-    const { studentId, code } = req.body;
-    if (!studentId || !code) {
-      return res.status(400).json({ error: "studentId and code are required." });
+    const { studentId, userId, code } = req.body;
+    const uid = userId || studentId;
+    if (!uid || !code) {
+      return res.status(400).json({ error: "userId and code are required." });
     }
 
     const db = readDb();
-    const student = db.students.find(s => s.id === studentId);
-    if (!student) {
-      return res.status(404).json({ error: "Student not found." });
+    const user = db.students.find(s => s.id === uid) || db.teachers.find(t => t.id === uid);
+    if (!user) {
+      return res.status(404).json({ error: "User not found." });
     }
+    const isStudent = user.role === "student";
 
     const target = db.classes.find(c => c.code.toLowerCase() === String(code).trim().toLowerCase());
     if (!target) {
       return res.status(404).json({ error: "No class found with this code. Double-check with your teacher." });
     }
-    // Joining a community enrolls the student in every subject under it
+    // Joining a community enrolls the user in every subject under it
     const communityIds = siblingClassIds(db, target);
-    if (communityIds.every(id => student.joinedClasses.includes(id))) {
+    if (communityIds.every(id => user.joinedClasses.includes(id))) {
       return res.status(409).json({ error: "You are already a member of this community." });
     }
 
     const idSet = new Set(communityIds);
-    const updatedStudent = {
-      ...student,
-      joinedClasses: Array.from(new Set([...student.joinedClasses, ...communityIds]))
+    const updatedUser = {
+      ...user,
+      joinedClasses: Array.from(new Set([...user.joinedClasses, ...communityIds]))
     };
-    saveUser(db, updatedStudent);
-    db.classes = db.classes.map(c =>
-      idSet.has(c.id)
-        ? { ...c, studentIds: Array.from(new Set([...c.studentIds, studentId])) }
-        : c
-    );
+    saveUser(db, updatedUser);
+    if (isStudent) {
+      db.classes = db.classes.map(c =>
+        idSet.has(c.id)
+          ? { ...c, studentIds: Array.from(new Set([...c.studentIds, uid])) }
+          : c
+      );
+    }
 
-    notify(db, target.teacherId, "join", "New student joined", `${student.name} joined ${target.name}.`);
+    if (target.teacherId !== uid) {
+      notify(
+        db,
+        target.teacherId,
+        "join",
+        isStudent ? "New student joined" : "Teacher joined your community",
+        `${user.name} joined ${target.name}.`
+      );
+    }
 
     writeDb(db);
     res.json({
-      student: selfUser(updatedStudent),
+      // "student" kept for older deployed frontends; "user" is the same object
+      user: selfUser(updatedUser),
+      student: selfUser(updatedUser),
       allStudents: db.students.map(publicUser),
+      allTeachers: db.teachers.map(publicUser),
       allClasses: db.classes,
       joinedClass: db.classes.find(c => c.id === target.id)
     });

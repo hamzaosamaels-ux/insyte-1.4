@@ -71,7 +71,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.2, duration: 0.5 }}
-            className="text-slate-400 mt-2 text-sm max-w-md mx-auto"
+            className="text-slate-200 mt-2 text-[15px] font-medium leading-snug max-w-md mx-auto"
           >
             {t.welcomeTagline}
           </motion.p>
@@ -84,7 +84,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               mode === "login"
                 ? "bg-indigo-600 text-white shadow-sm"
-                : "text-slate-400 hover:text-slate-200"
+                : "text-slate-300 hover:text-white"
             }`}
           >
             <LogIn className="h-3.5 w-3.5" /> {t.logIn}
@@ -94,7 +94,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               mode === "signup"
                 ? "bg-violet-600 text-white shadow-sm"
-                : "text-slate-400 hover:text-slate-200"
+                : "text-slate-300 hover:text-white"
             }`}
           >
             <Sparkles className="h-3.5 w-3.5" /> {t.signUp}
@@ -117,7 +117,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                 >
                   <BookOpen className={`h-5 w-5 mb-2 ${role === "student" ? "text-indigo-400" : "text-slate-400"}`} />
                   <div className={`font-bold text-sm ${role === "student" ? "text-indigo-200" : "text-slate-300"}`}>{t.studentRole}</div>
-                  <p className="text-slate-500 text-[10px] mt-0.5">{t.studentEntryDesc}</p>
+                  <p className="text-slate-400 text-[11px] mt-0.5">{t.studentEntryDesc}</p>
                 </button>
                 <button
                   type="button"
@@ -130,13 +130,14 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                 >
                   <Award className={`h-5 w-5 mb-2 ${role === "teacher" ? "text-violet-400" : "text-slate-400"}`} />
                   <div className={`font-bold text-sm ${role === "teacher" ? "text-violet-200" : "text-slate-300"}`}>{t.teacherRole}</div>
-                  <p className="text-slate-500 text-[10px] mt-0.5">{t.teacherPortalDesc}</p>
+                  <p className="text-slate-400 text-[11px] mt-0.5">{t.teacherPortalDesc}</p>
                 </button>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">{t.name}</label>
+                <label htmlFor="auth-name" className="block text-xs font-medium text-slate-300 uppercase tracking-wider mb-1">{t.name}</label>
                 <input
+                  id="auth-name"
                   type="text"
                   required
                   placeholder={t.namePlaceholder}
@@ -149,8 +150,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           )}
 
           <div>
-            <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">{t.email}</label>
+            <label htmlFor="auth-email" className="block text-xs font-medium text-slate-300 uppercase tracking-wider mb-1">{t.email}</label>
             <input
+              id="auth-email"
               type="email"
               required
               autoComplete="email"
@@ -162,8 +164,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">{t.password}</label>
+            <label htmlFor="auth-password" className="block text-xs font-medium text-slate-300 uppercase tracking-wider mb-1">{t.password}</label>
             <input
+              id="auth-password"
               type="password"
               required
               autoComplete={mode === "signup" ? "new-password" : "current-password"}
@@ -181,19 +184,16 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             </div>
           )}
 
+          {/* One consistent, high-contrast primary CTA for both modes */}
           <button
             type="submit"
-            className={`w-full py-3 font-medium rounded-xl text-sm transition-all text-white shadow-lg cursor-pointer ${
-              mode === "signup"
-                ? "bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 shadow-violet-950/40"
-                : "bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 shadow-indigo-950/40"
-            }`}
+            className="w-full py-3.5 font-bold rounded-xl text-sm transition-all text-white shadow-xl shadow-indigo-950/50 cursor-pointer bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
           >
             {mode === "signup" ? `${t.createAccount} →` : `${t.logIn} →`}
           </button>
         </form>
 
-        <p className="text-center text-slate-500 text-[11px] mt-4">
+        <p className="text-center text-slate-400 text-[11px] mt-4">
           {mode === "login" ? t.noAccountYet : t.alreadyHaveAccount}{" "}
           <button
             onClick={() => setMode(mode === "login" ? "signup" : "login")}
