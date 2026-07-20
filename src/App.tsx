@@ -238,7 +238,8 @@ export default function App() {
     return fetch(api("/api/classes/join"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: currentUser.id, code })
+      // Both keys: stale backends only know studentId; new ones prefer userId
+      body: JSON.stringify({ userId: currentUser.id, studentId: currentUser.id, code })
     })
       .then(async (res) => {
         const data = await res.json();
