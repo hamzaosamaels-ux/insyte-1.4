@@ -17,6 +17,7 @@ import { SettingsTab } from "./SettingsTab";
 import { NavbarControls } from "./NavbarControls";
 import { NotificationBell, StreakBadge } from "./HeaderExtras";
 import { MailPanel } from "./MailPanel";
+import { OnboardingChecklist } from "./Onboarding";
 import { getClassColors } from "../utils/colorHelper";
 
 interface TeacherDashboardProps {
@@ -98,6 +99,13 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const [activeSection, setActiveSection] = useState<"lobby" | "lessons" | "tasks" | "grade" | "events" | "announcements" | "calendar" | "mail" | "settings">("lobby");
   // Mobile nav drawer (hamburger opens the left rail)
   const [menuOpen, setMenuOpen] = useState(false);
+
+  // Onboarding progress (persist "shared code" locally once they copy it)
+  const myClasses = classes.filter(c => c.teacherId === currentTeacher.id);
+  const hasCommunity = myClasses.length > 0;
+  const hasSubject = myClasses.some(c => c.name.includes(" - "));
+  const [hasShared, setHasShared] = useState(() => localStorage.getItem("insyte_shared_code") === "1");
+  const markShared = () => { localStorage.setItem("insyte_shared_code", "1"); setHasShared(true); };
 
   useEffect(() => {
     if (classes.length > 0) {
@@ -747,6 +755,21 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
             {/* STUDENT ROSTER VIEW */}
             {activeSection === "lobby" && (
               <div className="space-y-6">
+                <OnboardingChecklist
+                  hasCommunity={hasCommunity}
+                  hasSubject={hasSubject}
+                  hasShared={hasShared}
+                  onCreateCommunity={() => openCreateClass(false)}
+                  onAddSubject={() => openCreateClass(true)}
+                  onShareCode={() => {
+                    if (activeClass) {
+                      navigator.clipboard?.writeText(activeClass.code);
+                      showNotification(`${t.classCodeTaken} ${activeClass.code}`);
+                    }
+                    markShared();
+                  }}
+                  language={language}
+                />
                 <div className="p-5 bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49]/80 rounded-2xl">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
@@ -1661,6 +1684,17 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           >
             <Plus className="h-4 w-4" /> {t.createClassCommunity}
           </button>
+          <div className="mt-6 w-full max-w-sm text-left">
+            <OnboardingChecklist
+              hasCommunity={hasCommunity}
+              hasSubject={hasSubject}
+              hasShared={hasShared}
+              onCreateCommunity={() => openCreateClass(false)}
+              onAddSubject={() => openCreateClass(true)}
+              onShareCode={markShared}
+              language={language}
+            />
+          </div>
         </div>
       )}
 

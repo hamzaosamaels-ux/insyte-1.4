@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { UserProfile, ClassCommunity, Lesson, TaskItem, TaskSubmission, Announcement, ChatMessage, ClassEvent, Mail, AppNotification } from "./types";
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { StudentDashboard } from "./components/StudentDashboard";
@@ -38,7 +38,10 @@ export default function App() {
     return (localStorage.getItem("insyte_language") as Language) || "en";
   });
   const [theme, setThemeState] = useState<Theme>(() => {
-    return (localStorage.getItem("insyte_theme") as Theme) || "light";
+    const saved = localStorage.getItem("insyte_theme") as Theme | null;
+    if (saved) return saved;
+    // First visit: follow the device's system setting
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   });
 
   const setLanguage = (lang: Language) => {
@@ -95,10 +98,31 @@ export default function App() {
         if (!data || !getToken()) return; // ignore if logged out meanwhile
         setCurrentUser(data.user);
         setMails(data.myMails || []);
+        maybeNotify(data.myNotifications || []);
         setNotifications(data.myNotifications || []);
         mergeSubmissions(data.mySubmissions || []);
       })
       .catch((err) => console.error("Failed to load private user data:", err));
+  };
+
+  // Fire an OS/browser notification for genuinely-new items. The first load
+  // just records existing ids so we don't alert for the whole backlog.
+  const seenNotifIds = useRef<Set<string> | null>(null);
+  const maybeNotify = (incoming: AppNotification[]) => {
+    if (seenNotifIds.current === null) {
+      seenNotifIds.current = new Set(incoming.map(n => n.id));
+      return;
+    }
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") {
+      for (const n of incoming) seenNotifIds.current.add(n.id);
+      return;
+    }
+    for (const n of incoming) {
+      if (!seenNotifIds.current.has(n.id)) {
+        seenNotifIds.current.add(n.id);
+        try { new Notification(`insyte — ${n.title}`, { body: n.body }); } catch { /* ignore */ }
+      }
+    }
   };
 
   // Pull the shared (public) portal state: classes, lessons, tasks, chat, etc.

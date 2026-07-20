@@ -353,7 +353,15 @@ export const translations = {
     quizScore: "You scored",
     quizSubmit: "Submit Quiz",
     quizCorrect: "Correct!",
-    quizWrong: "Not quite"
+    quizWrong: "Not quite",
+    onbTitle: "Get started",
+    onbSubtitle: "Three quick steps to set up your first class.",
+    onbStep1: "Create your first community",
+    onbStep2: "Add a subject to it",
+    onbStep3: "Share the class code with students",
+    shareCode: "Share code",
+    enableNotifs: "Enable notifications",
+    notifsOn: "Notifications on"
   },
   ar: {
     lobby: "الرئيسية والترتيب",
@@ -709,7 +717,15 @@ export const translations = {
     quizScore: "نتيجتك",
     quizSubmit: "إرسال الاختبار",
     quizCorrect: "صحيح!",
-    quizWrong: "ليس تمامًا"
+    quizWrong: "ليس تمامًا",
+    onbTitle: "لنبدأ",
+    onbSubtitle: "ثلاث خطوات سريعة لإعداد فصلك الأول.",
+    onbStep1: "أنشئ مجتمعك الأول",
+    onbStep2: "أضف مادة إليه",
+    onbStep3: "شارك رمز الفصل مع الطلاب",
+    shareCode: "شارك الرمز",
+    enableNotifs: "تفعيل الإشعارات",
+    notifsOn: "الإشعارات مفعّلة"
   }
 };
 

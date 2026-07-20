@@ -57,6 +57,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const fileRef = useRef<HTMLInputElement>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [notifPerm, setNotifPerm] = useState<string>(
+    typeof Notification !== "undefined" ? Notification.permission : "denied"
+  );
 
   // Read the picked image, downscale it to a square ~256px, and upload as a
   // compressed JPEG data URL so the stored value stays small.
@@ -221,6 +224,20 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             );
           })}
         </div>
+
+        {/* Browser (OS) notifications opt-in */}
+        {typeof Notification !== "undefined" && (
+          <div className="mt-4 pt-4 border-t border-slate-100 dark:border-[#241c49]/80">
+            <button
+              onClick={() => Notification.requestPermission().then(p => setNotifPerm(p))}
+              disabled={notifPerm === "granted"}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold cursor-pointer disabled:cursor-default transition-all bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-950/50 disabled:opacity-60"
+            >
+              <Bell className="h-4 w-4" />
+              {notifPerm === "granted" ? t.notifsOn : t.enableNotifs}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Account */}
