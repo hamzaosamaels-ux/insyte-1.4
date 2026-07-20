@@ -361,7 +361,11 @@ export const translations = {
     onbStep3: "Share the class code with students",
     shareCode: "Share code",
     enableNotifs: "Enable notifications",
-    notifsOn: "Notifications on"
+    notifsOn: "Notifications on",
+    dayStreak: "day streak",
+    checkedInToday: "You're checked in today — daily XP earned!",
+    checkInPrompt: "Log in each day to keep your streak and earn XP.",
+    done: "Done"
   },
   ar: {
     lobby: "الرئيسية والترتيب",
@@ -725,7 +729,11 @@ export const translations = {
     onbStep3: "شارك رمز الفصل مع الطلاب",
     shareCode: "شارك الرمز",
     enableNotifs: "تفعيل الإشعارات",
-    notifsOn: "الإشعارات مفعّلة"
+    notifsOn: "الإشعارات مفعّلة",
+    dayStreak: "يوم متتالٍ",
+    checkedInToday: "سجّلت حضورك اليوم — حصلت على نقاط الخبرة اليومية!",
+    checkInPrompt: "سجّل الدخول يوميًا للحفاظ على سلسلتك وكسب النقاط.",
+    done: "تم"
   }
 };
 

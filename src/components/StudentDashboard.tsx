@@ -783,7 +783,27 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
             {/* LOBBY TAB */}
             {activeTab === "dashboard" && (
               <div className="space-y-6">
-                
+
+                {/* Daily check-in / streak card */}
+                <div className="p-4 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/20 dark:to-amber-950/10 border border-orange-200/70 dark:border-orange-500/20 rounded-2xl flex items-center gap-4">
+                  <div className="text-3xl">🔥</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                      {currentStudent.streak}-{t.dayStreak}
+                    </div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                      {currentStudent.lastActiveDate === new Date().toISOString().slice(0, 10)
+                        ? t.checkedInToday
+                        : t.checkInPrompt}
+                    </div>
+                  </div>
+                  {currentStudent.lastActiveDate === new Date().toISOString().slice(0, 10) && (
+                    <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 shrink-0">
+                      <CheckCircle2 className="h-4 w-4" /> {t.done}
+                    </span>
+                  )}
+                </div>
+
                 {/* Classroom Headline Banner */}
                 <div className="p-6 bg-radial from-slate-900 to-slate-950 text-white rounded-3xl border border-slate-800 shadow-xl relative overflow-hidden">
                   <div className="absolute top-[-30%] right-[-10%] w-60 h-60 bg-indigo-500/10 rounded-full blur-[80px]" />

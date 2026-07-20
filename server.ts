@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
-import { supabaseEnabled, loadFromSupabase, saveToSupabase } from "./supabase-store";
+import { supabaseEnabled, loadFromSupabase, saveToSupabase, uploadAvatar } from "./supabase-store";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 
@@ -286,6 +286,17 @@ function applyStreak(user: UserProfile): UserProfile {
   const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
   const streak = user.lastActiveDate === yesterday ? (user.streak || 0) + 1 : 1;
   return { ...user, streak, lastActiveDate: today };
+}
+
+// Add XP and recompute level + rank (single source of truth for the formula).
+function awardXp(user: UserProfile, amount: number): UserProfile {
+  const xp = user.xp + amount;
+  const level = Math.floor(xp / 1000) + 1;
+  let rank = "Freshman Scholar";
+  if (level >= 4) rank = "Elite Scholar";
+  else if (level >= 3) rank = "Advanced Scholar";
+  else if (level >= 2) rank = "Active Scholar";
+  return { ...user, xp, level, rank };
 }
 
 // Push an in-app notification for a user
@@ -595,7 +606,16 @@ app.use("/api/signup", authLimiter);
       return res.status(401).json({ error: "Wrong email or password." });
     }
 
-    const updated = applyStreak(found);
+    let updated = applyStreak(found);
+    // Daily attendance reward: first login of a new day gives students XP.
+    // Guarded by lastActiveDate, so it can't be farmed by re-logging in.
+    const isNewDay = updated.lastActiveDate !== found.lastActiveDate;
+    let dailyXp = 0;
+    if (isNewDay && updated.role === "student") {
+      dailyXp = 20 + Math.min(30, (updated.streak - 1) * 5); // grows with streak, capped
+      updated = awardXp(updated, dailyXp);
+      notify(db, updated.id, "event", "Daily check-in", `+${dailyXp} XP — ${updated.streak}-day streak!`);
+    }
     saveUser(db, updated);
     const token = newToken();
     db.sessions[token] = updated.id;
@@ -603,13 +623,14 @@ app.use("/api/signup", authLimiter);
     res.json({
       token,
       user: selfUser(updated),
+      dailyXp,
       allStudents: db.students.map(publicUser),
       allTeachers: db.teachers.map(publicUser)
     });
   });
 
   // Update the signed-in user's profile photo (uploaded image as a data URL)
-  app.post("/api/profile/avatar", (req, res) => {
+  app.post("/api/profile/avatar", async (req, res) => {
     const { avatar } = req.body;
     const db = readDb();
     const user = userFromToken(db, req);
@@ -624,7 +645,18 @@ app.use("/api/signup", authLimiter);
       return res.status(413).json({ error: "Image too large. Please use one under ~500KB." });
     }
 
-    const updated = { ...user, avatar };
+    // With Supabase, push the image to Storage and keep only its URL in the
+    // row (small + fast). Without it, fall back to storing the data URL inline.
+    let stored = avatar;
+    if (supabaseEnabled()) {
+      try {
+        stored = await uploadAvatar(user.id, avatar);
+      } catch (err) {
+        console.error("[Insyte] Avatar storage upload failed, keeping inline:", err);
+      }
+    }
+
+    const updated = { ...user, avatar: stored };
     saveUser(db, updated);
     writeDb(db);
     res.json({

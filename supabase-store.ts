@@ -207,6 +207,31 @@ async function syncTable(table: string, rows: any[], idField = "id") {
   if (error) throw new Error(`Supabase prune ${table}: ${error.message}`);
 }
 
+// Upload a profile photo (data URL) to Supabase Storage and return its public
+// URL, instead of storing the heavy base64 string in the database row.
+let avatarBucketReady = false;
+export async function uploadAvatar(userId: string, dataUrl: string): Promise<string> {
+  const m = /^data:image\/(png|jpe?g|webp|gif);base64,(.+)$/.exec(dataUrl);
+  if (!m) throw new Error("avatar must be a base64 image data URL");
+  const ext = m[1] === "jpeg" ? "jpg" : m[1];
+  const buffer = Buffer.from(m[2], "base64");
+
+  const bucket = "avatars";
+  if (!avatarBucketReady) {
+    // Create the public bucket once; ignore "already exists"
+    await db().storage.createBucket(bucket, { public: true }).catch(() => {});
+    avatarBucketReady = true;
+  }
+
+  const path = `${userId}-${Date.now()}.${ext}`;
+  const { error } = await db().storage.from(bucket).upload(path, buffer, {
+    contentType: `image/${m[1]}`,
+    upsert: true
+  });
+  if (error) throw new Error(`Supabase avatar upload: ${error.message}`);
+  return db().storage.from(bucket).getPublicUrl(path).data.publicUrl;
+}
+
 // Persist the whole in-memory schema back to Supabase.
 export async function saveToSupabase(data: StoreSchema): Promise<void> {
   const profileRows = [...data.students, ...data.teachers].map(profileToRow);
