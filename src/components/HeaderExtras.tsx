@@ -28,6 +28,9 @@ interface NotificationBellProps {
   emptyLabel: string;
   title: string;
   markReadLabel: string;
+  /* Inside the mobile drawer the panel must open toward the inline-start edge
+     and fit the 16rem drawer, or the drawer's overflow clipping hides it. */
+  inDrawer?: boolean;
 }
 
 export const NotificationBell: React.FC<NotificationBellProps> = ({
@@ -35,7 +38,8 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
   onMarkAllRead,
   emptyLabel,
   title,
-  markReadLabel
+  markReadLabel,
+  inDrawer
 }) => {
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -71,7 +75,9 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
             initial={{ opacity: 0, y: 8, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.97 }}
-            className="absolute end-0 top-12 w-80 max-h-96 overflow-y-auto bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49] rounded-2xl shadow-2xl z-50 p-2"
+            className={`absolute top-12 max-h-96 overflow-y-auto bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49] rounded-2xl shadow-2xl z-50 p-2 ${
+              inDrawer ? "start-0 w-[13rem]" : "end-0 w-80"
+            }`}
           >
             <div className="flex items-center justify-between px-3 py-2">
               <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{title}</span>

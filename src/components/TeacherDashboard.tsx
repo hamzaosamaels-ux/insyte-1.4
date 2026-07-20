@@ -611,6 +611,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
               </div>
               <div className="flex items-center gap-2">
                 <NotificationBell
+                  inDrawer
                   notifications={notifications}
                   onMarkAllRead={onMarkNotificationsRead}
                   emptyLabel={t.noNotifications}

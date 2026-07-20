@@ -592,6 +592,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
             {/* Mobile-only: bell + language/theme at the top of the drawer */}
             <div className="md:hidden flex items-center gap-2 pb-3 mb-1 border-b border-slate-200 dark:border-[#241c49]" onClick={(e) => e.stopPropagation()}>
               <NotificationBell
+                inDrawer
                 notifications={notifications}
                 onMarkAllRead={onMarkNotificationsRead}
                 emptyLabel={t.noNotifications}
@@ -1769,6 +1770,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
           >
             <div className="md:hidden flex items-center gap-2 pb-3 mb-1 border-b border-slate-200 dark:border-[#241c49]" onClick={(e) => e.stopPropagation()}>
               <NotificationBell
+                inDrawer
                 notifications={notifications}
                 onMarkAllRead={onMarkNotificationsRead}
                 emptyLabel={t.noNotifications}
