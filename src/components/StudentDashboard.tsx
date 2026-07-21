@@ -1140,7 +1140,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           {/* VIDEO PLAYER */}
                           {selectedLesson.videoUrl && (
-                            <div className="bg-slate-50 dark:bg-[#110d26] border border-slate-200 dark:border-[#2b244c] rounded-2xl p-4 shadow-inner flex flex-col justify-between">
+                            <div className="min-w-0 bg-slate-50 dark:bg-[#110d26] border border-slate-200 dark:border-[#2b244c] rounded-2xl p-4 shadow-inner flex flex-col justify-between">
                               <div>
                                 <span className="flex items-center gap-1.5 text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-2">
                                   <Video className="h-3.5 w-3.5 animate-pulse" /> {t.videoLectureDemo}
@@ -1160,7 +1160,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
 
                           {/* POWERPOINT / SLIDES SLIDESHOW */}
                           {selectedLesson.pptUrl && (
-                            <div className="bg-slate-50 dark:bg-[#110d26] border border-slate-200 dark:border-[#2b244c] rounded-2xl p-4 shadow-inner flex flex-col justify-between">
+                            <div className="min-w-0 bg-slate-50 dark:bg-[#110d26] border border-slate-200 dark:border-[#2b244c] rounded-2xl p-4 shadow-inner flex flex-col justify-between">
                               <div>
                                 <span className="flex items-center gap-1.5 text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-2">
                                   <Presentation className="h-3.5 w-3.5" /> {t.embeddedPowerpointSlides}
