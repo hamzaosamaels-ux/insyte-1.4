@@ -2,6 +2,11 @@
   "name": "insyte",
   "version": "1.0.0",
   "type": "module",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "engines": {
     "node": ">=18"
   },
