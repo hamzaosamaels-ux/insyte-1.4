@@ -7,7 +7,8 @@ import { StudentDashboard } from "./components/StudentDashboard";
 import { TeacherDashboard } from "./components/TeacherDashboard";
 import { DashboardSkeleton } from "./components/DashboardSkeleton";
 import { Language, Theme, getTranslation } from "./translations";
-import { api, authHeaders, getToken, setToken, clearToken } from "./api";
+import { api, authHeaders, getToken, setToken, clearToken, API_BASE } from "./api";
+import { login as sharedLogIn } from "@insyte/shared/auth";
 
 export default function App() {
   const [students, setStudents] = useState<UserProfile[]>([]);
@@ -219,14 +220,8 @@ export default function App() {
   // Log in with email + password
   const handleLogIn = (email: string, password: string) => {
     setAuthError(null);
-    fetch(api("/api/login"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password })
-    })
-      .then(async (res) => {
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Log in failed.");
+    sharedLogIn(API_BASE, email, password)
+      .then((data) => {
         setToken(data.token);
         setStudents(data.allStudents);
         setTeachers(data.allTeachers);

@@ -8,6 +8,7 @@
     "./types": "./src/types.ts",
     "./translations": "./src/translations.ts",
     "./api": "./src/api.ts",
-    "./storage": "./src/storage.ts"
+    "./storage": "./src/storage.ts",
+    "./auth": "./src/auth.ts"
   }
 }
