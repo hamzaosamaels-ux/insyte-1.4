@@ -257,6 +257,21 @@ export default function App() {
       .catch(() => "Connection error. Try again.");
   };
 
+  // Teacher resets a student's password (told to the student in person)
+  const handleResetStudentPassword = (studentId: string, newPassword: string): Promise<string | null> => {
+    return fetch(api("/api/students/reset-password"), {
+      method: "POST",
+      headers: authHeaders(true),
+      body: JSON.stringify({ studentId, newPassword })
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) return data.error || "Could not reset password.";
+        return null;
+      })
+      .catch(() => "Connection error. Try again.");
+  };
+
   // Classroom Peer Chat Broadcaster
   const handleSendMessage = (classId: string, text: string) => {
     if (!currentUser) return;
@@ -621,6 +636,7 @@ export default function App() {
       onLogOut={handleLogOut}
       onCreateClass={handleCreateClass}
       onJoinClass={handleJoinClass}
+      onResetStudentPassword={handleResetStudentPassword}
       onCreateLesson={handleCreateLesson}
       onUpdateLesson={handleUpdateLesson}
       onDeleteLesson={handleDeleteLesson}

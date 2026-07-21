@@ -1,0 +1,13 @@
+{
+  "name": "insyte — Intelligent Learning",
+  "short_name": "insyte",
+  "description": "Gamified classroom communities with XP, quests, chat and an AI tutor.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#6366f1",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

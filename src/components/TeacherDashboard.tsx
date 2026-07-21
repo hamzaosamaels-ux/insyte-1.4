@@ -4,7 +4,7 @@ import {
   Plus, BookOpen, Award, Megaphone, Calendar, Users,
   CheckSquare, LogOut, CheckCircle2, ChevronRight, Info,
   Trash2, Send, Clock, Sparkles, Settings, Edit, Check, Library, Video, Presentation, Globe,
-  Mail as MailLucide, Copy, Menu, Download, UserPlus
+  Mail as MailLucide, Copy, Menu, Download, UserPlus, KeyRound
 } from "lucide-react";
 import {
   UserProfile, ClassCommunity, Lesson, TaskItem,
@@ -17,6 +17,7 @@ import { SettingsTab } from "./SettingsTab";
 import { NavbarControls } from "./NavbarControls";
 import { NotificationBell, StreakBadge } from "./HeaderExtras";
 import { MailPanel } from "./MailPanel";
+import { Library as LibraryShelf } from "./Library";
 import { OnboardingChecklist } from "./Onboarding";
 import { getClassColors } from "../utils/colorHelper";
 
@@ -35,6 +36,7 @@ interface TeacherDashboardProps {
   onLogOut: () => void;
   onCreateClass: (name: string, code: string, description: string, color?: string) => Promise<string | null>;
   onJoinClass: (code: string) => Promise<string | null>;
+  onResetStudentPassword: (studentId: string, newPassword: string) => Promise<string | null>;
   onSendMail: (toId: string, subject: string, body: string) => Promise<string | null>;
   onMarkMailRead: (mailId: string) => void;
   onMarkNotificationsRead: () => void;
@@ -68,6 +70,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   onLogOut,
   onCreateClass,
   onJoinClass,
+  onResetStudentPassword,
   onSendMail,
   onMarkMailRead,
   onMarkNotificationsRead,
@@ -98,7 +101,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
   // Selection States
   const [activeClass, setActiveClass] = useState<ClassCommunity | null>(classes[0] || null);
-  const [activeSection, setActiveSection] = useState<"lobby" | "lessons" | "tasks" | "grade" | "events" | "announcements" | "calendar" | "mail" | "settings">("lobby");
+  const [activeSection, setActiveSection] = useState<"lobby" | "lessons" | "tasks" | "grade" | "events" | "announcements" | "calendar" | "mail" | "library" | "settings">("lobby");
   // Mobile nav drawer (hamburger opens the left rail)
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -220,6 +223,24 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
   // Join an existing community by its code (co-teaching)
   const [joinMode, setJoinMode] = useState(false);
+
+  // Reset a student's password (teacher tells them the new one in person)
+  const [resetPwdFor, setResetPwdFor] = useState<UserProfile | null>(null);
+  const [resetPwdVal, setResetPwdVal] = useState("");
+  const [resetPwdErr, setResetPwdErr] = useState<string | null>(null);
+  const [resettingPwd, setResettingPwd] = useState(false);
+
+  const handleResetPwd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetPwdFor || resettingPwd) return;
+    if (resetPwdVal.length < 6) { setResetPwdErr(t.passwordTooShort); return; }
+    setResettingPwd(true);
+    const err = await onResetStudentPassword(resetPwdFor.id, resetPwdVal);
+    setResettingPwd(false);
+    if (err) { setResetPwdErr(err); return; }
+    setResetPwdFor(null);
+    showNotification(t.resetPwdDone);
+  };
 
   const openCreateClass = (insideCommunity: boolean) => {
     setJoinMode(false);
@@ -731,6 +752,18 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
             </button>
 
             <button
+              onClick={() => { setActiveSection("library"); setSelectedSub(null); }}
+              className={`w-auto md:w-full shrink-0 flex items-center justify-start gap-2.5 px-3.5 md:px-4 py-2.5 md:py-3 rounded-xl text-xs font-bold transition-all ${
+                activeSection === "library"
+                  ? "bg-slate-100 dark:bg-[#1c1836] text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-[#2d2553]/50 shadow-xs"
+                  : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 hover:text-slate-800 dark:hover:text-slate-200 border border-transparent"
+              }`}
+            >
+              <Library className="h-4 w-4" />
+              <span>{t.libraryTab}</span>
+            </button>
+
+            <button
               onClick={() => { setActiveSection("calendar"); setSelectedSub(null); }}
               className={`w-auto md:w-full shrink-0 flex items-center justify-start gap-2.5 px-3.5 md:px-4 py-2.5 md:py-3 rounded-xl text-xs font-bold transition-all ${
                 activeSection === "calendar" 
@@ -871,6 +904,13 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                               title={t.plus100Xp}
                             >
                               +100
+                            </button>
+                            <button
+                              onClick={() => { setResetPwdFor(stud); setResetPwdVal(""); setResetPwdErr(null); }}
+                              className="px-2 py-0.5 rounded-md bg-slate-200 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 text-[10px] font-bold cursor-pointer hover:bg-slate-300 dark:hover:bg-slate-600/60 flex items-center gap-1"
+                              title={t.resetPassword}
+                            >
+                              <KeyRound className="h-3 w-3" />
                             </button>
                           </div>
                         </div>
@@ -1661,6 +1701,16 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
               </div>
             )}
 
+            {/* LIBRARY VIEW */}
+            {activeSection === "library" && (
+              <LibraryShelf
+                classes={classes}
+                lessons={lessons}
+                tasks={tasks}
+                language={language}
+              />
+            )}
+
             {/* CALENDAR VIEW */}
             {activeSection === "calendar" && (
               <InteractiveCalendar 
@@ -1898,6 +1948,47 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                   className="px-4.5 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-xs font-bold cursor-pointer"
                 >
                   {joinMode ? t.joinCommunity : t.createClassroom}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* RESET STUDENT PASSWORD DIALOG */}
+      {resetPwdFor && (
+        <div className="fixed inset-0 z-50 bg-[#06040f]/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-sm bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49]/80 rounded-2xl p-6 shadow-xl">
+            <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm font-display mb-1 flex items-center gap-2">
+              <KeyRound className="h-4 w-4 text-indigo-500" /> {t.resetPassword} — {resetPwdFor.name}
+            </h3>
+            <p className="text-slate-400 text-[11px] mb-4">{t.resetPwdHint}</p>
+            <form onSubmit={handleResetPwd} className="space-y-3">
+              <input
+                type="text"
+                required
+                autoFocus
+                minLength={6}
+                placeholder={t.passwordCreatePlaceholder}
+                value={resetPwdVal}
+                onChange={(e) => setResetPwdVal(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-indigo-500 rounded-xl focus:outline-hidden text-xs dark:text-slate-200"
+              />
+              {resetPwdErr && <p className="text-red-500 text-xs font-semibold">{resetPwdErr}</p>}
+              <div className="flex justify-end gap-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setResetPwdFor(null)}
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-xs font-semibold cursor-pointer"
+                >
+                  {t.cancel}
+                </button>
+                <button
+                  type="submit"
+                  disabled={resettingPwd}
+                  className="px-4.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-lg text-xs font-bold cursor-pointer"
+                >
+                  {t.resetPassword}
                 </button>
               </div>
             </form>

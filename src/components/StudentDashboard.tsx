@@ -4,7 +4,8 @@ import {
   BookOpen, Award, MessageSquare, Calendar, Sparkles, Send,
   ChevronRight, Trophy, Bell, Clock, LogOut, CheckCircle2,
   List, ShieldAlert, ArrowLeft, RefreshCw, Star, Info, Settings,
-  Video, Presentation, Globe, ExternalLink, Search, Mail as MailLucide, UserPlus, Menu
+  Video, Presentation, Globe, ExternalLink, Search, Mail as MailLucide, UserPlus, Menu,
+  Library as LibraryIcon
 } from "lucide-react";
 import {
   UserProfile, ClassCommunity, Lesson, TaskItem,
@@ -17,6 +18,7 @@ import { SettingsTab } from "./SettingsTab";
 import { NavbarControls } from "./NavbarControls";
 import { NotificationBell, StreakBadge } from "./HeaderExtras";
 import { MailPanel } from "./MailPanel";
+import { Library } from "./Library";
 import { XpBar, Confetti, LevelUpToast } from "./Gamify";
 import { getClassColors } from "../utils/colorHelper";
 import { api } from "../api";
@@ -147,7 +149,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   const activeGradeClasses = classesByGrade[activeGrade] || [];
 
   const activeColors = getClassColors(activeClass?.color);
-  const [activeTab, setActiveTab] = useState<"dashboard" | "lessons" | "tasks" | "chat" | "ai" | "calendar" | "mail" | "settings">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "lessons" | "tasks" | "chat" | "ai" | "calendar" | "mail" | "library" | "settings">("dashboard");
 
   // Join-class modal state
   const [joinOpen, setJoinOpen] = useState(false);
@@ -716,6 +718,18 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
               <Sparkles className="h-4 w-4" />
               <span>{t.aiTutor}</span>
               <span className={`absolute top-1 right-2 w-2 h-2 rounded-full bg-indigo-500 animate-ping`} />
+            </button>
+
+            <button
+              onClick={() => { setActiveTab("library"); setSelectedLesson(null); setSelectedTask(null); }}
+              className={`w-auto md:w-full shrink-0 flex items-center justify-start gap-2.5 px-3.5 md:px-4 py-2.5 md:py-3 rounded-xl text-xs font-bold transition-all ${
+                activeTab === "library"
+                  ? "bg-slate-100 dark:bg-[#1c1836] text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-[#2d2553]/50 shadow-xs"
+                  : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 hover:text-slate-800 dark:hover:text-slate-200 border border-transparent"
+              }`}
+            >
+              <LibraryIcon className="h-4 w-4" />
+              <span>{t.libraryTab}</span>
             </button>
 
             <button
@@ -1725,6 +1739,16 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                 </form>
 
               </div>
+            )}
+
+            {/* LIBRARY TAB */}
+            {activeTab === "library" && (
+              <Library
+                classes={studentClasses}
+                lessons={lessons}
+                tasks={tasks}
+                language={language}
+              />
             )}
 
             {/* CALENDAR TAB */}

@@ -7,9 +7,9 @@ export type LegalDoc = "privacy" | "terms" | "ip" | "data";
 // NOTE FOR THE OPERATOR: replace [Operator], [contact email], and [jurisdiction]
 // with your real details, and have a lawyer review before relying on these for
 // a live product. These are a solid starting template, not legal advice.
-const OPERATOR = "[Operator]";
-const CONTACT = "[contact email]";
-const UPDATED = "19 July 2026";
+const OPERATOR = "Insyte (Prof. Hamza)";
+const CONTACT = "insyte.startup@gmail.com";
+const UPDATED = "21 July 2026";
 
 const docs: Record<LegalDoc, { title: string; icon: React.ReactNode; body: React.ReactNode }> = {
   privacy: {
