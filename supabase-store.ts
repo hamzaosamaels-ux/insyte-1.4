@@ -30,15 +30,28 @@ export interface StoreSchema {
 
 let client: SupabaseClient | null = null;
 
+// Tolerate common env-var typos: trim whitespace/newlines, strip a trailing
+// slash, and add https:// if the scheme was left off. supabase-js otherwise
+// throws "Invalid supabaseUrl: Must be a valid HTTP or HTTPS URL".
+function normalizedSupabaseUrl(): string {
+  const raw = (process.env.SUPABASE_URL || "").trim().replace(/\/+$/, "");
+  if (!raw) return "";
+  return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+}
+
+function supabaseKey(): string {
+  return (process.env.SUPABASE_SERVICE_KEY || "").trim();
+}
+
 export function supabaseEnabled(): boolean {
-  return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY);
+  return Boolean(normalizedSupabaseUrl() && supabaseKey());
 }
 
 function db(): SupabaseClient {
   if (!client) {
     client = createClient(
-      process.env.SUPABASE_URL as string,
-      process.env.SUPABASE_SERVICE_KEY as string,
+      normalizedSupabaseUrl(),
+      supabaseKey(),
       { auth: { persistSession: false } }
     );
   }
