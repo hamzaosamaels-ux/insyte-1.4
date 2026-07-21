@@ -30,13 +30,17 @@ export interface StoreSchema {
 
 let client: SupabaseClient | null = null;
 
-// Tolerate common env-var typos: trim whitespace/newlines, strip a trailing
-// slash, and add https:// if the scheme was left off. supabase-js otherwise
-// throws "Invalid supabaseUrl: Must be a valid HTTP or HTTPS URL".
+// Bulletproof against messy env values (wrapping quotes, embedded spaces or
+// newlines, missing scheme, trailing junk). The Supabase host is always
+// <ref>.supabase.co — pull it out of whatever was pasted and rebuild a clean
+// URL. Falls back to light cleaning for non-standard hosts.
 function normalizedSupabaseUrl(): string {
-  const raw = (process.env.SUPABASE_URL || "").trim().replace(/\/+$/, "");
+  const raw = (process.env.SUPABASE_URL || "").trim().replace(/^['"]+|['"]+$/g, "");
   if (!raw) return "";
-  return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  const host = raw.match(/([a-z0-9-]+\.supabase\.(?:co|com|net|in))/i);
+  if (host) return `https://${host[1].toLowerCase()}`;
+  const cleaned = raw.replace(/\s+/g, "").replace(/\/+$/, "");
+  return /^https?:\/\//i.test(cleaned) ? cleaned : `https://${cleaned}`;
 }
 
 function supabaseKey(): string {
