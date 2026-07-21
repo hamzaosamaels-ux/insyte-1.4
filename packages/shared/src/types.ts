@@ -13,6 +13,7 @@ export interface UserProfile {
   joinedClasses: string[]; // List of classIds
   streak: number; // Consecutive-day login streak
   lastActiveDate: string; // YYYY-MM-DD
+  readLessons: string[]; // Lesson ids already marked read (each awards XP once)
 }
 
 export interface Mail {

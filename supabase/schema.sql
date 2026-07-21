@@ -17,12 +17,16 @@ create table if not exists public.profiles (
   joined_classes jsonb not null default '[]',
   streak         integer not null default 0,
   last_active_date text not null default '',
+  read_lessons   jsonb not null default '[]',
   -- Auth: only the server (service role) ever reads this. scrypt "salt:hash".
   password_hash  text,
   created_at     timestamptz not null default now()
 );
 create index if not exists profiles_email_idx on public.profiles (lower(email));
 create index if not exists profiles_role_idx  on public.profiles (role);
+-- Adds read_lessons to a profiles table created before this column existed;
+-- no-op if the table was just created above with it already.
+alter table public.profiles add column if not exists read_lessons jsonb not null default '[]';
 
 create table if not exists public.classes (
   id           text primary key,

@@ -999,6 +999,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                             onChange={(e) => setLessonPptUrl(e.target.value)}
                             className="w-full px-3 py-1.5 bg-white dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-lg focus:outline-hidden text-[11px] text-slate-700 dark:text-slate-200"
                           />
+                          <p className="text-[9px] text-slate-400 mt-1">{t.powerpointUrlHint}</p>
                         </div>
                       </div>
 

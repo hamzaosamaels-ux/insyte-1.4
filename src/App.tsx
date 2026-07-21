@@ -308,6 +308,23 @@ export default function App() {
       .catch((err) => console.error("Error rewarding study XP:", err));
   };
 
+  // Mark a lesson read — server enforces the +25 XP is only ever awarded once
+  // per lesson per student, no matter how many times this gets called.
+  const handleMarkLessonRead = (lessonId: string) => {
+    if (!currentUser || currentUser.role !== "student") return;
+    fetch(api("/api/lessons/mark-read"), {
+      method: "POST",
+      headers: authHeaders(true),
+      body: JSON.stringify({ lessonId })
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setStudents(data.allStudents);
+        setCurrentUser(data.student);
+      })
+      .catch((err) => console.error("Error marking lesson read:", err));
+  };
+
   // Leave a class (unenroll the current student)
   const handleLeaveClass = (classId: string) => {
     if (!currentUser || currentUser.role !== "student") return;
@@ -595,6 +612,7 @@ export default function App() {
         onLogOut={handleLogOut}
         onSendMessage={handleSendMessage}
         onAddXp={handleAddXp}
+        onMarkLessonRead={handleMarkLessonRead}
         onSubmitTask={handleSubmitTask}
         onLeaveClass={handleLeaveClass}
         onJoinClass={handleJoinClass}

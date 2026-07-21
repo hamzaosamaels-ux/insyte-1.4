@@ -77,6 +77,7 @@ interface UserProfile {
   joinedClasses: string[];
   streak: number;
   lastActiveDate: string; // YYYY-MM-DD
+  readLessons: string[]; // Lesson ids already marked read (each awards XP once)
   passwordHash?: string; // "salt:hash"; never sent to the client
 }
 
@@ -232,6 +233,7 @@ function normalize(db: any): DbSchema {
   for (const user of [...db.students, ...db.teachers]) {
     if (typeof user.streak !== "number") user.streak = 0;
     if (!user.lastActiveDate) user.lastActiveDate = "";
+    if (!Array.isArray(user.readLessons)) user.readLessons = [];
   }
   return db as DbSchema;
 }
@@ -598,6 +600,7 @@ app.use("/api/signup", authLimiter);
       joinedClasses: [], // Enrollment happens only via class code
       streak: 1,
       lastActiveDate: todayStr(),
+      readLessons: [],
       passwordHash: hashPassword(String(password))
     };
 
@@ -804,6 +807,49 @@ app.use("/api/signup", authLimiter);
 
     writeDb(db);
     res.json({ student: selfUser(updatedStudent), allStudents: db.students.map(publicUser) });
+  });
+
+  // Mark a lesson read (student's own session). Idempotent: awards +25 XP
+  // only the first time a given lesson id is marked for that student —
+  // repeat calls (reopening the same lesson) return the student unchanged.
+  app.post("/api/lessons/mark-read", (req, res) => {
+    const { lessonId } = req.body;
+    if (!lessonId) {
+      return res.status(400).json({ error: "lessonId is required." });
+    }
+
+    const db = readDb();
+    const requester = userFromToken(db, req);
+    if (!requester || requester.role !== "student") {
+      return res.status(401).json({ error: "Student session required." });
+    }
+
+    if (requester.readLessons.includes(lessonId)) {
+      return res.json({ student: selfUser(requester), allStudents: db.students.map(publicUser), alreadyRead: true });
+    }
+
+    const READ_XP = 25;
+    let updatedStudent: UserProfile | null = null;
+    db.students = db.students.map(stud => {
+      if (stud.id !== requester.id) return stud;
+      const updatedXp = stud.xp + READ_XP;
+      const updatedLvl = Math.floor(updatedXp / 1000) + 1;
+      let rank = "Freshman Scholar";
+      if (updatedLvl >= 4) rank = "Elite Scholar";
+      else if (updatedLvl >= 3) rank = "Advanced Scholar";
+      else if (updatedLvl >= 2) rank = "Active Scholar";
+      updatedStudent = {
+        ...stud,
+        xp: updatedXp,
+        level: updatedLvl,
+        rank,
+        readLessons: [...stud.readLessons, lessonId]
+      };
+      return updatedStudent;
+    });
+
+    writeDb(db);
+    res.json({ student: selfUser(updatedStudent!), allStudents: db.students.map(publicUser), alreadyRead: false });
   });
 
   // Self-service password change (student or teacher), requires proving the

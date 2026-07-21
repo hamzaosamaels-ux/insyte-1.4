@@ -68,12 +68,14 @@ const rowToProfile = (r: any) => ({
   id: r.id, name: r.name, email: r.email, role: r.role, avatar: r.avatar,
   xp: r.xp, level: r.level, rank: r.rank, joinedClasses: r.joined_classes || [],
   streak: r.streak, lastActiveDate: r.last_active_date || "",
+  readLessons: r.read_lessons || [],
   passwordHash: r.password_hash || undefined
 });
 const profileToRow = (p: any) => ({
   id: p.id, name: p.name, email: p.email, role: p.role, avatar: p.avatar,
   xp: p.xp, level: p.level, rank: p.rank, joined_classes: p.joinedClasses || [],
   streak: p.streak ?? 0, last_active_date: p.lastActiveDate || "",
+  read_lessons: p.readLessons || [],
   password_hash: p.passwordHash || null
 });
 

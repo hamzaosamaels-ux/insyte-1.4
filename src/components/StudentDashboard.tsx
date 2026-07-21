@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   BookOpen, Award, MessageSquare, Calendar, Sparkles, Send,
-  ChevronRight, Trophy, Bell, Clock, LogOut, CheckCircle2,
+  ChevronRight, ChevronLeft, Trophy, Bell, Clock, LogOut, CheckCircle2,
   List, ShieldAlert, ArrowLeft, RefreshCw, Star, Info, Settings,
   Video, Presentation, Globe, ExternalLink, Search, Mail as MailLucide, UserPlus, Menu,
   Library as LibraryIcon
@@ -39,6 +39,7 @@ interface StudentDashboardProps {
   onLogOut: () => void;
   onSendMessage: (classId: string, text: string) => void;
   onAddXp: (xpAmount: number) => void;
+  onMarkLessonRead: (lessonId: string) => void;
   onSubmitTask: (submission: Omit<TaskSubmission, "id" | "submittedAt">) => void;
   onLeaveClass: (classId: string) => void;
   onJoinClass: (code: string) => Promise<string | null>;
@@ -69,6 +70,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   onLogOut,
   onSendMessage,
   onAddXp,
+  onMarkLessonRead,
   onSubmitTask,
   onLeaveClass,
   onJoinClass,
@@ -93,6 +95,18 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     const match = url.match(regExp);
     if (match && match[1]) {
       return `https://www.youtube-nocookie.com/embed/${match[1]}`;
+    }
+    return url;
+  };
+
+  const getSlidesEmbedUrl = (url?: string) => {
+    if (!url) return "";
+    // Teachers naturally copy the normal "share"/"edit" Google Slides link,
+    // which Google blocks from loading in an iframe (blank box, no error
+    // shown to the student). Only the /embed path is actually embeddable.
+    const match = url.match(/docs\.google\.com\/presentation\/d\/([\w-]+)/);
+    if (match && match[1]) {
+      return `https://docs.google.com/presentation/d/${match[1]}/embed?start=false&loop=false&delayms=3000`;
     }
     return url;
   };
@@ -1167,7 +1181,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                                 </span>
                                 <div className="relative aspect-video rounded-xl overflow-hidden border border-slate-200 dark:border-[#2b244c] bg-[#1c1836]">
                                   <iframe
-                                    src={selectedLesson.pptUrl}
+                                    src={getSlidesEmbedUrl(selectedLesson.pptUrl)}
                                     title={t.lessonSlidesPresentation}
                                     className="absolute inset-0 w-full h-full"
                                     allowFullScreen
@@ -1212,20 +1226,52 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                       </div>
                     )}
 
-                    <div className="mt-8 pt-6 border-t border-slate-100 dark:border-[#251e40] flex justify-between items-center bg-slate-50 dark:bg-[#201b3a] -mx-6 -mb-6 p-6 rounded-b-3xl">
-                      <span className="text-xs text-slate-400">
-                        {t.publishedBy} {activeClass?.teacherName || t.classInstructor}
-                      </span>
-                      <button
-                        onClick={() => {
-                          onAddXp(25);
-                          showNotification(t.markReadNotify);
-                          setSelectedLesson(null);
-                        }}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-md shadow-indigo-100 flex items-center gap-1.5 transition-all"
-                      >
-                        <CheckCircle2 className="h-4 w-4" /> {t.markAsRead} (+25 XP)
-                      </button>
+                    <div className="mt-8 pt-6 border-t border-slate-100 dark:border-[#251e40] flex flex-col gap-4 bg-slate-50 dark:bg-[#201b3a] -mx-6 -mb-6 p-6 rounded-b-3xl">
+                      <div className="flex flex-wrap justify-between items-center gap-3">
+                        <span className="text-xs text-slate-400">
+                          {t.publishedBy} {activeClass?.teacherName || t.classInstructor}
+                        </span>
+                        {currentStudent.readLessons?.includes(selectedLesson.id) ? (
+                          <span className="px-4 py-2 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 font-bold text-xs rounded-xl flex items-center gap-1.5">
+                            <CheckCircle2 className="h-4 w-4" /> {t.alreadyRead}
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              onMarkLessonRead(selectedLesson.id);
+                              showNotification(t.markReadNotify);
+                            }}
+                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-md shadow-indigo-100 flex items-center gap-1.5 transition-all cursor-pointer"
+                          >
+                            <CheckCircle2 className="h-4 w-4" /> {t.markAsRead} (+25 XP)
+                          </button>
+                        )}
+                      </div>
+                      {classLessons.length > 1 && (() => {
+                        const idx = classLessons.findIndex(l => l.id === selectedLesson.id);
+                        const prevLesson = idx > 0 ? classLessons[idx - 1] : null;
+                        const nextLesson = idx >= 0 && idx < classLessons.length - 1 ? classLessons[idx + 1] : null;
+                        return (
+                          <div className="flex items-center justify-between gap-3 pt-1 border-t border-slate-200/60 dark:border-[#2c2452]/40">
+                            <button
+                              disabled={!prevLesson}
+                              onClick={() => prevLesson && setSelectedLesson(prevLesson)}
+                              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed enabled:hover:text-indigo-600 dark:enabled:hover:text-indigo-400 transition-colors"
+                            >
+                              <ChevronLeft className="h-4 w-4" />
+                              <span className="truncate max-w-[120px] sm:max-w-[220px]">{prevLesson?.title || t.previousLesson}</span>
+                            </button>
+                            <button
+                              disabled={!nextLesson}
+                              onClick={() => nextLesson && setSelectedLesson(nextLesson)}
+                              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed enabled:hover:text-indigo-600 dark:enabled:hover:text-indigo-400 transition-colors"
+                            >
+                              <span className="truncate max-w-[120px] sm:max-w-[220px]">{nextLesson?.title || t.nextLesson}</span>
+                              <ChevronRight className="h-4 w-4" />
+                            </button>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </motion.div>
                 )}
