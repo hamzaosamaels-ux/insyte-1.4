@@ -43,7 +43,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
             Something broke on this screen
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm mt-2 leading-relaxed">
-            The rest of insyte is fine — reloading usually fixes it. Nothing you
+            The rest of insyte is fine - reloading usually fixes it. Nothing you
             did was lost.
           </p>
           <button

@@ -806,37 +806,25 @@ app.use("/api/signup", authLimiter);
     res.json({ student: selfUser(updatedStudent), allStudents: db.students.map(publicUser) });
   });
 
-  // Teacher resets a student's password (no email service: the teacher tells
-  // the student the new password in person). Requires a session token from a
-  // teacher who shares a class with that student. Kills the student's sessions.
-  app.post("/api/students/reset-password", (req, res) => {
-    const { studentId, newPassword } = req.body;
-    if (!studentId || typeof newPassword !== "string" || newPassword.length < 6) {
-      return res.status(400).json({ error: "studentId and a password of at least 6 characters are required." });
+  // Self-service password change (student or teacher), requires proving the
+  // current password. No admin-reset path exists: a locked-out user with a
+  // truly forgotten password has no in-app recovery.
+  app.post("/api/change-password", (req, res) => {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || typeof newPassword !== "string" || newPassword.length < 6) {
+      return res.status(400).json({ error: "currentPassword and a new password of at least 6 characters are required." });
     }
 
     const db = readDb();
     const requester = userFromToken(db, req);
-    if (!requester || requester.role !== "teacher") {
-      return res.status(401).json({ error: "Teacher session required." });
+    if (!requester) {
+      return res.status(401).json({ error: "Session required." });
     }
-    const student = db.students.find(s => s.id === studentId);
-    if (!student) {
-      return res.status(404).json({ error: "Student not found." });
-    }
-    const sharesClass = db.classes.some(c =>
-      c.studentIds.includes(studentId) &&
-      (c.teacherId === requester.id || requester.joinedClasses.includes(c.id))
-    );
-    if (!sharesClass) {
-      return res.status(403).json({ error: "You can only reset passwords for students in your classes." });
+    if (!verifyPassword(currentPassword, requester.passwordHash || "")) {
+      return res.status(401).json({ error: "Current password is incorrect." });
     }
 
-    saveUser(db, { ...student, passwordHash: hashPassword(newPassword) });
-    // Invalidate the student's existing sessions
-    for (const [tok, uid] of Object.entries(db.sessions)) {
-      if (uid === studentId) delete db.sessions[tok];
-    }
+    saveUser(db, { ...requester, passwordHash: hashPassword(newPassword) });
     writeDb(db);
     res.json({ ok: true });
   });

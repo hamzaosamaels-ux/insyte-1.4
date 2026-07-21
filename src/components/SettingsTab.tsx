@@ -1,7 +1,8 @@
 import React, { useState, useRef } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { getTranslation, Language } from "../translations";
 import { UserProfile } from "../types";
-import { Settings, User, Mail, Bell, LogOut, ShieldCheck, Award, GraduationCap, Camera } from "lucide-react";
+import { Settings, User, Mail, Bell, LogOut, ShieldCheck, Award, GraduationCap, Camera, KeyRound, AlertTriangle } from "lucide-react";
 import { LegalFooter } from "./Legal";
 
 interface SettingsTabProps {
@@ -10,6 +11,7 @@ interface SettingsTabProps {
   userRole: "student" | "teacher";
   onLogOut: () => void;
   onUpdateAvatar?: (dataUrl: string) => Promise<string | null>;
+  onChangePassword: (currentPassword: string, newPassword: string) => Promise<string | null>;
 }
 
 /** Small controlled toggle switch persisted to localStorage. */
@@ -51,7 +53,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   user,
   userRole,
   onLogOut,
-  onUpdateAvatar
+  onUpdateAvatar,
+  onChangePassword
 }) => {
   const t = getTranslation(language);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -60,6 +63,27 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const [notifPerm, setNotifPerm] = useState<string>(
     typeof Notification !== "undefined" ? Notification.permission : "denied"
   );
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [curPwd, setCurPwd] = useState("");
+  const [newPwd, setNewPwd] = useState("");
+  const [pwdBusy, setPwdBusy] = useState(false);
+  const [pwdError, setPwdError] = useState<string | null>(null);
+  const [pwdDone, setPwdDone] = useState(false);
+
+  const submitChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pwdBusy) return;
+    if (newPwd.length < 6) { setPwdError(t.passwordTooShort); return; }
+    setPwdBusy(true);
+    setPwdError(null);
+    const err = await onChangePassword(curPwd, newPwd);
+    setPwdBusy(false);
+    if (err) { setPwdError(err); return; }
+    setCurPwd("");
+    setNewPwd("");
+    setPwdDone(true);
+    setTimeout(() => setPwdDone(false), 3000);
+  };
 
   // Read the picked image, downscale it to a square ~256px, and upload as a
   // compressed JPEG data URL so the stored value stays small.
@@ -240,6 +264,43 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         )}
       </div>
 
+      {/* Change Password (self-service) */}
+      <div className="bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49]/80 p-6 rounded-2xl shadow-xs">
+        <div className="flex items-center gap-2 mb-1">
+          <KeyRound className="h-4.5 w-4.5 text-indigo-500" />
+          <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100">{t.changePassword}</h4>
+        </div>
+        <p className="text-slate-400 text-[11px] mb-4">{t.changePasswordHint}</p>
+        <form onSubmit={submitChangePassword} className="space-y-3 max-w-sm">
+          <input
+            type="password"
+            required
+            placeholder={t.currentPassword}
+            value={curPwd}
+            onChange={(e) => setCurPwd(e.target.value)}
+            className="w-full px-3 py-2.5 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-indigo-500 rounded-xl focus:outline-hidden text-xs dark:text-slate-200"
+          />
+          <input
+            type="password"
+            required
+            minLength={6}
+            placeholder={t.newPassword}
+            value={newPwd}
+            onChange={(e) => setNewPwd(e.target.value)}
+            className="w-full px-3 py-2.5 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-indigo-500 rounded-xl focus:outline-hidden text-xs dark:text-slate-200"
+          />
+          {pwdError && <p className="text-red-500 text-[11px] font-semibold">{pwdError}</p>}
+          {pwdDone && <p className="text-emerald-500 text-[11px] font-semibold">{t.passwordChanged}</p>}
+          <button
+            type="submit"
+            disabled={pwdBusy}
+            className="px-4.5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-xl text-xs font-bold cursor-pointer"
+          >
+            {t.changePassword}
+          </button>
+        </form>
+      </div>
+
       {/* Account */}
       <div className="bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49]/80 p-6 rounded-2xl shadow-xs">
         <div className="flex items-center gap-2 mb-5">
@@ -250,7 +311,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         <div className="flex items-center justify-between gap-4">
           <p className="text-xs text-slate-500 dark:text-slate-400">{t.signOutDesc}</p>
           <button
-            onClick={onLogOut}
+            onClick={() => setLogoutConfirmOpen(true)}
             className="flex items-center gap-2 px-4 py-2.5 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-900/50 hover:bg-red-100 dark:hover:bg-red-900/40 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0"
           >
             <LogOut className="h-4 w-4" />
@@ -263,6 +324,49 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       <div className="pt-2">
         <LegalFooter />
       </div>
+
+      {/* Logout confirmation */}
+      <AnimatePresence>
+        {logoutConfirmOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-[#06040f]/80 backdrop-blur-xs flex items-center justify-center p-4"
+            onClick={() => setLogoutConfirmOpen(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-sm bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49]/80 rounded-2xl p-6 shadow-xl text-center"
+            >
+              <div className="inline-flex p-3 bg-red-50 dark:bg-red-950/30 text-red-500 rounded-2xl mb-3">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm font-display mb-1">
+                {t.logoutConfirmTitle}
+              </h3>
+              <p className="text-slate-400 text-xs mb-5">{t.logoutConfirmBody}</p>
+              <div className="flex gap-2.5">
+                <button
+                  onClick={() => setLogoutConfirmOpen(false)}
+                  className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold cursor-pointer"
+                >
+                  {t.cancel}
+                </button>
+                <button
+                  onClick={onLogOut}
+                  className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold cursor-pointer"
+                >
+                  {t.logout}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

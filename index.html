@@ -4,7 +4,10 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <meta name="theme-color" content="#6366f1" />
+    <!-- Match the installed-app status bar to the real header color instead
+         of a flat accent strip that clashes with the actual content below it -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#130f26" />
     <link rel="apple-touch-icon" href="/icon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     

@@ -21,7 +21,12 @@ export const Library: React.FC<LibraryProps> = ({ classes, lessons, tasks, langu
   const [q, setQ] = useState("");
 
   const classIds = useMemo(() => new Set(classes.map(c => c.id)), [classes]);
-  const className = (id: string) => classes.find(c => c.id === id)?.name || "";
+  // Class names are stored as "Class 2B - German"; the library only needs
+  // the subject ("German"), not the community/grade prefix.
+  const subjectName = (id: string) => {
+    const name = classes.find(c => c.id === id)?.name || "";
+    return name.includes(" - ") ? name.split(" - ")[1].trim() : name;
+  };
 
   const items = useMemo(() => {
     const myLessons = lessons.filter(l => classIds.has(l.classId));
@@ -61,7 +66,7 @@ export const Library: React.FC<LibraryProps> = ({ classes, lessons, tasks, langu
     return list
       .filter(it => kind === "all" || it.kinds.includes(kind))
       .filter(it => subjectId === "all" || it.classId === subjectId)
-      .filter(it => !needle || it.title.toLowerCase().includes(needle) || className(it.classId).toLowerCase().includes(needle))
+      .filter(it => !needle || it.title.toLowerCase().includes(needle) || subjectName(it.classId).toLowerCase().includes(needle))
       .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
   }, [lessons, tasks, classIds, kind, subjectId, q, classes]);
 
@@ -125,45 +130,38 @@ export const Library: React.FC<LibraryProps> = ({ classes, lessons, tasks, langu
         <p className="text-center text-slate-400 text-xs py-14">{t.libEmpty}</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {items.map(it => (
-            <div
-              key={it.key}
-              className="p-4 bg-white dark:bg-[#18142c] border border-slate-200 dark:border-[#2b244c] rounded-2xl hover:border-indigo-400/40 transition-colors"
-            >
-              <div className="flex items-start gap-3">
-                <div className="p-2 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-500 rounded-xl shrink-0">
-                  {kindIcon(it)}
+          {items.map(it => {
+            // One resource per card, priority video > slides > link. Homework
+            // has nothing to open — the whole card is just informational.
+            const openUrl = it.video || it.ppt || it.web;
+            const Wrapper: React.ElementType = openUrl ? "a" : "div";
+            const wrapperProps = openUrl
+              ? { href: openUrl, target: "_blank", rel: "noopener noreferrer" }
+              : {};
+            return (
+              <Wrapper
+                key={it.key}
+                {...wrapperProps}
+                className={`block p-4 bg-white dark:bg-[#18142c] border border-slate-200 dark:border-[#2b244c] rounded-2xl transition-colors ${
+                  openUrl ? "hover:border-indigo-400/40 cursor-pointer active:bg-slate-50 dark:active:bg-[#201b3a]" : ""
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-500 rounded-xl shrink-0">
+                    {kindIcon(it)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h4 className="font-bold text-xs text-slate-800 dark:text-slate-100 leading-snug break-words">{it.title}</h4>
+                    <p className="text-[10px] text-slate-400 mt-0.5 truncate">{subjectName(it.classId)}</p>
+                    <p className="text-[9px] text-slate-400 font-mono mt-1">
+                      {it.due ? `${t.libDue}: ${it.due}` : it.date ? new Date(it.date).toLocaleDateString() : ""}
+                      {typeof it.xp === "number" ? ` · +${it.xp} XP` : ""}
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <h4 className="font-bold text-xs text-slate-800 dark:text-slate-100 leading-snug break-words">{it.title}</h4>
-                  <p className="text-[10px] text-slate-400 mt-0.5 truncate">{className(it.classId)}</p>
-                  <p className="text-[9px] text-slate-400 font-mono mt-1">
-                    {it.due ? `${t.libDue}: ${it.due}` : it.date ? new Date(it.date).toLocaleDateString() : ""}
-                    {typeof it.xp === "number" ? ` · +${it.xp} XP` : ""}
-                  </p>
-                </div>
-              </div>
-              {(it.video || it.ppt || it.web) && (
-                <div className="flex items-center gap-1.5 mt-3 flex-wrap">
-                  {it.video && (
-                    <a href={it.video} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 px-2.5 py-1.5 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 rounded-lg text-[10px] font-bold hover:bg-red-100 dark:hover:bg-red-900/40">
-                      <Video className="h-3 w-3" /> {t.libOpenVideo}
-                    </a>
-                  )}
-                  {it.ppt && (
-                    <a href={it.ppt} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 px-2.5 py-1.5 bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 rounded-lg text-[10px] font-bold hover:bg-amber-100 dark:hover:bg-amber-900/40">
-                      <Presentation className="h-3 w-3" /> {t.libOpenSlides}
-                    </a>
-                  )}
-                  {it.web && (
-                    <a href={it.web} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 px-2.5 py-1.5 bg-sky-50 dark:bg-sky-950/30 text-sky-600 dark:text-sky-400 rounded-lg text-[10px] font-bold hover:bg-sky-100 dark:hover:bg-sky-900/40">
-                      <Globe className="h-3 w-3" /> {t.libOpenLink}
-                    </a>
-                  )}
-                </div>
-              )}
-            </div>
-          ))}
+              </Wrapper>
+            );
+          })}
         </div>
       )}
     </div>

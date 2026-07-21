@@ -125,7 +125,7 @@ export default function App() {
     for (const n of incoming) {
       if (!seenNotifIds.current.has(n.id)) {
         seenNotifIds.current.add(n.id);
-        try { new Notification(`insyte — ${n.title}`, { body: n.body }); } catch { /* ignore */ }
+        try { new Notification(`insyte - ${n.title}`, { body: n.body }); } catch { /* ignore */ }
       }
     }
   };
@@ -252,16 +252,16 @@ export default function App() {
       .catch(() => "Connection error. Try again.");
   };
 
-  // Teacher resets a student's password (told to the student in person)
-  const handleResetStudentPassword = (studentId: string, newPassword: string): Promise<string | null> => {
-    return fetch(api("/api/students/reset-password"), {
+  // Self-service: change your own password (needs the current one)
+  const handleChangePassword = (currentPassword: string, newPassword: string): Promise<string | null> => {
+    return fetch(api("/api/change-password"), {
       method: "POST",
       headers: authHeaders(true),
-      body: JSON.stringify({ studentId, newPassword })
+      body: JSON.stringify({ currentPassword, newPassword })
     })
       .then(async (res) => {
         const data = await res.json();
-        if (!res.ok) return data.error || "Could not reset password.";
+        if (!res.ok) return data.error || "Could not change password.";
         return null;
       })
       .catch(() => "Connection error. Try again.");
@@ -602,6 +602,7 @@ export default function App() {
         onMarkMailRead={handleMarkMailRead}
         onMarkNotificationsRead={handleMarkNotificationsRead}
         onUpdateAvatar={handleUpdateAvatar}
+        onChangePassword={handleChangePassword}
         language={language}
         setLanguage={setLanguage}
         theme={theme}
@@ -631,7 +632,6 @@ export default function App() {
       onLogOut={handleLogOut}
       onCreateClass={handleCreateClass}
       onJoinClass={handleJoinClass}
-      onResetStudentPassword={handleResetStudentPassword}
       onCreateLesson={handleCreateLesson}
       onUpdateLesson={handleUpdateLesson}
       onDeleteLesson={handleDeleteLesson}
@@ -644,6 +644,7 @@ export default function App() {
       onMarkMailRead={handleMarkMailRead}
       onMarkNotificationsRead={handleMarkNotificationsRead}
         onUpdateAvatar={handleUpdateAvatar}
+      onChangePassword={handleChangePassword}
       language={language}
       setLanguage={setLanguage}
       theme={theme}

@@ -46,6 +46,7 @@ interface StudentDashboardProps {
   onMarkMailRead: (mailId: string) => void;
   onMarkNotificationsRead: () => void;
   onUpdateAvatar: (dataUrl: string) => Promise<string | null>;
+  onChangePassword: (currentPassword: string, newPassword: string) => Promise<string | null>;
   language: Language;
   setLanguage: (lang: Language) => void;
   theme: Theme;
@@ -75,6 +76,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   onMarkMailRead,
   onMarkNotificationsRead,
   onUpdateAvatar,
+  onChangePassword,
   language,
   setLanguage,
   theme,
@@ -337,7 +339,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
       scoreXpEarned: xp
     });
     if (xp > 0) onAddXp(xp);
-    showNotification(`${t.quizScore} ${correct}/${qs.length} — +${xp} XP`);
+    showNotification(`${t.quizScore} ${correct}/${qs.length} - +${xp} XP`);
   };
 
   // Submit Text Homework Task
@@ -1377,10 +1379,13 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                                   key={dragVal}
                                   draggable={!isMatched}
                                   onDragStart={() => handleDragStart(dragVal)}
+                                  onClick={() => !isMatched && handleDragStart(dragVal)}
                                   className={`px-4 py-2.5 rounded-xl font-bold text-xs border transition-all select-none shadow-xs ${
-                                    isMatched 
-                                      ? "bg-slate-100 dark:bg-[#1c1836]/60 border-slate-200 dark:border-[#251e40] text-slate-400 dark:text-slate-600 cursor-not-allowed" 
-                                      : "bg-white dark:bg-[#1c1836] border-slate-200 dark:border-[#2b244c] text-slate-800 dark:text-slate-100 hover:border-indigo-400 hover:shadow-indigo-50 cursor-grab active:cursor-grabbing"
+                                    isMatched
+                                      ? "bg-slate-100 dark:bg-[#1c1836]/60 border-slate-200 dark:border-[#251e40] text-slate-400 dark:text-slate-600 cursor-not-allowed"
+                                      : draggedItem === dragVal
+                                        ? "bg-indigo-600 border-indigo-600 text-white shadow-md cursor-pointer scale-105"
+                                        : "bg-white dark:bg-[#1c1836] border-slate-200 dark:border-[#2b244c] text-slate-800 dark:text-slate-100 hover:border-indigo-400 hover:shadow-indigo-50 cursor-grab active:cursor-grabbing"
                                   }`}
                                 >
                                   {dragVal}
@@ -1401,10 +1406,13 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                                   key={zoneVal}
                                   onDragOver={(e) => e.preventDefault()}
                                   onDrop={() => handleDrop(zoneVal)}
+                                  onClick={() => !pairedVal && handleDrop(zoneVal)}
                                   className={`p-5 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center text-center gap-3 min-h-[120px] transition-all ${
-                                    pairedVal 
-                                      ? "bg-indigo-50/30 dark:bg-indigo-950/20 border-indigo-300 dark:border-indigo-500/30" 
-                                      : "bg-slate-50 dark:bg-[#201b3a] border-slate-200 dark:border-[#2b244c] hover:bg-slate-100/50 dark:hover:bg-[#282154] hover:border-slate-300 dark:hover:border-indigo-500/30"
+                                    pairedVal
+                                      ? "bg-indigo-50/30 dark:bg-indigo-950/20 border-indigo-300 dark:border-indigo-500/30"
+                                      : draggedItem
+                                        ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-500/40 cursor-pointer animate-pulse"
+                                        : "bg-slate-50 dark:bg-[#201b3a] border-slate-200 dark:border-[#2b244c] hover:bg-slate-100/50 dark:hover:bg-[#282154] hover:border-slate-300 dark:hover:border-indigo-500/30"
                                   }`}
                                 >
                                   <span className="text-[10px] text-slate-400 dark:text-slate-400 font-medium max-w-[150px]">
@@ -1528,7 +1536,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                         {quizResult ? (
                           <div className="p-4 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-500/30 rounded-2xl text-center">
                             <p className="text-sm font-bold text-indigo-700 dark:text-indigo-300">
-                              {t.quizScore} {quizResult.correct}/{quizResult.total} — +{quizResult.xp} XP 🎉
+                              {t.quizScore} {quizResult.correct}/{quizResult.total} - +{quizResult.xp} XP 🎉
                             </p>
                           </div>
                         ) : (
@@ -1789,6 +1797,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                 userRole="student"
                 onLogOut={onLogOut}
                 onUpdateAvatar={onUpdateAvatar}
+                onChangePassword={onChangePassword}
               />
             )}
 
@@ -1848,7 +1857,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                 language={language}
               />
             ) : noClassTab === "settings" ? (
-              <SettingsTab language={language} user={currentStudent} userRole="student" onLogOut={onLogOut} onUpdateAvatar={onUpdateAvatar} />
+              <SettingsTab language={language} user={currentStudent} userRole="student" onLogOut={onLogOut} onUpdateAvatar={onUpdateAvatar} onChangePassword={onChangePassword} />
             ) : (
               <div className="h-full flex items-center justify-center text-center">
                 <div>
