@@ -20,6 +20,15 @@ create table if not exists public.profiles (
   read_lessons   jsonb not null default '[]',
   -- Auth: only the server (service role) ever reads this. scrypt "salt:hash".
   password_hash  text,
+  -- Real-email verification: unverified accounts can't log in until the
+  -- link in their inbox is clicked. Token/expiry never reach the client.
+  email_verified boolean not null default true,
+  verification_token text,
+  verification_token_expires_at timestamptz,
+  -- Forgot-password: shorter-lived than email verification (1h vs 24h)
+  -- since a reset link is more sensitive if it leaks.
+  reset_token text,
+  reset_token_expires_at timestamptz,
   created_at     timestamptz not null default now()
 );
 create index if not exists profiles_email_idx on public.profiles (lower(email));
@@ -27,6 +36,15 @@ create index if not exists profiles_role_idx  on public.profiles (role);
 -- Adds read_lessons to a profiles table created before this column existed;
 -- no-op if the table was just created above with it already.
 alter table public.profiles add column if not exists read_lessons jsonb not null default '[]';
+-- Same idea for email verification — existing accounts are grandfathered as
+-- verified (default true) since they predate this feature and can't be
+-- retroactively re-verified; the server always sets an explicit value on
+-- every new signup going forward, so this default only ever backfills old rows.
+alter table public.profiles add column if not exists email_verified boolean not null default true;
+alter table public.profiles add column if not exists verification_token text;
+alter table public.profiles add column if not exists verification_token_expires_at timestamptz;
+alter table public.profiles add column if not exists reset_token text;
+alter table public.profiles add column if not exists reset_token_expires_at timestamptz;
 
 create table if not exists public.classes (
   id           text primary key,
@@ -145,8 +163,16 @@ create index if not exists notifications_user_idx on public.notifications (user_
 create table if not exists public.sessions (
   token      text primary key,
   user_id    text not null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- The app always sets this explicitly at mint time and re-sends the SAME
+  -- value on every later save (never recomputed), so a session's expiry
+  -- can't drift just because an unrelated write touched the table.
+  issued_at  timestamptz not null default now()
 );
+-- Adds issued_at to a sessions table created before this column existed.
+-- Existing live sessions get a fresh 30-day window from migration time
+-- rather than an unknown true age — a safe default, not a forced logout.
+alter table public.sessions add column if not exists issued_at timestamptz not null default now();
 
 -- ============================================================================
 -- Row Level Security

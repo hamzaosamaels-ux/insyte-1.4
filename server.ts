@@ -3,6 +3,7 @@ import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 import { supabaseEnabled, loadFromSupabase, saveToSupabase, uploadAvatar } from "./supabase-store";
+import { emailEnabled, sendVerificationEmail, sendPasswordResetEmail } from "./email-sender";
 import { GoogleGenAI } from "@google/genai";
 // NOTE: `vite` is imported lazily inside the dev branch below so the production
 // server (and Railway's build) never needs vite/tailwind installed.
@@ -31,6 +32,8 @@ function verifyPassword(pw: string, stored: string): boolean {
 function newToken(): string {
   return crypto.randomBytes(24).toString("hex");
 }
+
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 // ---- Per-IP rate limiting (in-memory, no dependencies) ----
 // Counts requests per IP inside a rolling window; over the cap -> 429.
@@ -79,6 +82,11 @@ interface UserProfile {
   lastActiveDate: string; // YYYY-MM-DD
   readLessons: string[]; // Lesson ids already marked read (each awards XP once)
   passwordHash?: string; // "salt:hash"; never sent to the client
+  emailVerified: boolean;
+  verificationToken?: string; // cleared once used; never sent to the client
+  verificationTokenExpiresAt?: string; // ISO timestamp
+  resetToken?: string; // password-reset link token; cleared once used
+  resetTokenExpiresAt?: string; // ISO timestamp — 1h, shorter than verification's 24h
 }
 
 interface Mail {
@@ -184,6 +192,11 @@ interface ClassEvent {
   time: string;
 }
 
+interface SessionEntry {
+  userId: string;
+  issuedAt: number; // epoch ms — always set explicitly by the app, never a DB default
+}
+
 interface DbSchema {
   students: UserProfile[];
   teachers: UserProfile[];
@@ -196,7 +209,7 @@ interface DbSchema {
   submissions: TaskSubmission[];
   mails: Mail[];
   notifications: AppNotification[];
-  sessions: Record<string, string>; // token -> userId
+  sessions: Record<string, SessionEntry>; // token -> { userId, issuedAt }
 }
 
 
@@ -226,6 +239,12 @@ function normalize(db: any): DbSchema {
   for (const key of Object.keys(seedData) as (keyof DbSchema)[]) {
     if (key === "sessions") {
       if (!db.sessions || typeof db.sessions !== "object") db.sessions = {};
+      // Old shape was token -> userId (a bare string). We can't know how old
+      // those tokens really are, so drop them rather than trust an unknown
+      // age — a one-time forced re-login for anyone signed in when this ships.
+      for (const [tok, val] of Object.entries(db.sessions)) {
+        if (typeof val !== "object" || val === null) delete db.sessions[tok];
+      }
     } else if (!Array.isArray(db[key])) {
       db[key] = [];
     }
@@ -234,6 +253,9 @@ function normalize(db: any): DbSchema {
     if (typeof user.streak !== "number") user.streak = 0;
     if (!user.lastActiveDate) user.lastActiveDate = "";
     if (!Array.isArray(user.readLessons)) user.readLessons = [];
+    // Grandfather every account that existed before email verification shipped —
+    // only ever fires for old records; new signups always set this explicitly.
+    if (typeof user.emailVerified !== "boolean") user.emailVerified = true;
   }
   return db as DbSchema;
 }
@@ -347,27 +369,35 @@ function findUserByEmail(db: DbSchema, email: string): UserProfile | undefined {
   return [...db.students, ...db.teachers].find(u => u.email.toLowerCase() === lower);
 }
 
+function findUserByVerificationToken(db: DbSchema, token: string): UserProfile | undefined {
+  return [...db.students, ...db.teachers].find(u => u.verificationToken === token);
+}
+
 // ---- Response shaping: never serialize private fields to other users ----
 
 // Public view of a user: no email, no password hash
-function publicUser(u: UserProfile): Omit<UserProfile, "email" | "passwordHash"> {
-  const { email, passwordHash, ...rest } = u;
+function publicUser(u: UserProfile): Omit<UserProfile, "email" | "passwordHash" | "verificationToken" | "verificationTokenExpiresAt" | "resetToken" | "resetTokenExpiresAt"> {
+  const { email, passwordHash, verificationToken, verificationTokenExpiresAt, resetToken, resetTokenExpiresAt, ...rest } = u;
   return rest;
 }
 
-// The signed-in user's own view: keeps email, drops the password hash
-function selfUser(u: UserProfile): Omit<UserProfile, "passwordHash"> {
-  const { passwordHash, ...rest } = u;
+// The signed-in user's own view: keeps email, drops the password hash and
+// verification/reset tokens (as security-sensitive as the hash — never sent to the client)
+function selfUser(u: UserProfile): Omit<UserProfile, "passwordHash" | "verificationToken" | "verificationTokenExpiresAt" | "resetToken" | "resetTokenExpiresAt"> {
+  const { passwordHash, verificationToken, verificationTokenExpiresAt, resetToken, resetTokenExpiresAt, ...rest } = u;
   return rest;
 }
 
 // Resolve the caller from their session token, or null if unauthenticated
+// or the token has aged past SESSION_TTL_MS.
+// ponytail: expired entries aren't actively pruned from db.sessions here —
+// this stays a pure read. Add a sweep if the map grows large in practice.
 function userFromToken(db: DbSchema, req: express.Request): UserProfile | null {
   const token = String(req.headers["x-auth-token"] || "");
   if (!token) return null;
-  const userId = db.sessions[token];
-  if (!userId) return null;
-  return [...db.students, ...db.teachers].find(u => u.id === userId) || null;
+  const entry = db.sessions[token];
+  if (!entry || typeof entry !== "object" || Date.now() - entry.issuedAt > SESSION_TTL_MS) return null;
+  return [...db.students, ...db.teachers].find(u => u.id === entry.userId) || null;
 }
 
 // Public view of a submission: status only, no homework content or private feedback
@@ -526,6 +556,13 @@ app.use("/api/", makeRateLimiter(5 * 60 * 1000, 300, "API"));
 const authLimiter = makeRateLimiter(10 * 60 * 1000, 10, "sign-in");
 app.use("/api/login", authLimiter);
 app.use("/api/signup", authLimiter);
+// Separate, tighter counter from login/signup: abuse here looks like
+// mail-bombing a victim's inbox, not password guessing.
+const resendLimiter = makeRateLimiter(10 * 60 * 1000, 5, "resend-verification");
+app.use("/api/resend-verification", resendLimiter);
+// Same abuse shape as resend-verification: mail-bombing a victim's inbox.
+const forgotPasswordLimiter = makeRateLimiter(10 * 60 * 1000, 5, "forgot-password");
+app.use("/api/forgot-password", forgotPasswordLimiter);
 
   // Load persisted state (Supabase or flat file) before serving
   await initStore();
@@ -570,8 +607,12 @@ app.use("/api/signup", authLimiter);
     });
   });
 
-  // Sign up: create a fresh student or teacher account with a password
-  app.post("/api/signup", (req, res) => {
+  // Sign up: create a fresh student or teacher account with a password.
+  // Account is NOT usable yet — no session token is minted here. A session
+  // token is only ever minted for a verified account (login, post-gate below,
+  // or /api/verify-email, post-verify) — every endpoint that trusts a token
+  // can rely on that invariant with zero changes of its own.
+  app.post("/api/signup", async (req, res) => {
     const { name, email, role, password } = req.body;
     if (!name || !email || !role || !password) {
       return res.status(400).json({ error: "Name, email, password, and role are required." });
@@ -580,14 +621,22 @@ app.use("/api/signup", authLimiter);
     if (trimmedName.length === 0 || trimmedName.length > 60) {
       return res.status(400).json({ error: "Name must be between 1 and 60 characters." });
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim())) {
-      return res.status(400).json({ error: "Enter a valid email address." });
-    }
     if (role !== "student" && role !== "teacher") {
       return res.status(400).json({ error: "Role must be 'student' or 'teacher'." });
     }
     if (String(password).length < 6) {
       return res.status(400).json({ error: "Password must be at least 6 characters." });
+    }
+    // Basic shape check — real deliverability is proven by clicking the
+    // verification link, not by this regex. Just stops obvious typos/garbage
+    // from wasting a Brevo send and landing the user on a dead "check your
+    // inbox" screen with nothing ever arriving.
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim())) {
+      return res.status(400).json({ error: "That doesn't look like a valid email address." });
+    }
+    if (!emailEnabled()) {
+      console.error("[Insyte] Signup rejected: BREVO_API_KEY is not configured — cannot verify real emails.");
+      return res.status(503).json({ error: "Sign-ups are temporarily unavailable. Try again soon." });
     }
 
     const db = readDb();
@@ -595,10 +644,12 @@ app.use("/api/signup", authLimiter);
       return res.status(409).json({ error: "An account with this email already exists. Log in instead." });
     }
 
+    const trimmedEmail = String(email).trim();
+    const verificationToken = newToken();
     const newUser: UserProfile = {
       id: `${role}-${Date.now()}`,
       name: trimmedName,
-      email: String(email).trim(),
+      email: trimmedEmail,
       role,
       avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(trimmedName)}`,
       xp: 0,
@@ -608,22 +659,25 @@ app.use("/api/signup", authLimiter);
       streak: 1,
       lastActiveDate: todayStr(),
       readLessons: [],
-      passwordHash: hashPassword(String(password))
+      passwordHash: hashPassword(String(password)),
+      emailVerified: false,
+      verificationToken,
+      verificationTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
     };
 
     if (role === "student") db.students.push(newUser);
     else db.teachers.push(newUser);
-
-    const token = newToken();
-    db.sessions[token] = newUser.id;
-
     writeDb(db);
-    res.status(201).json({
-      token,
-      user: selfUser(newUser),
-      allStudents: db.students.map(publicUser),
-      allTeachers: db.teachers.map(publicUser)
-    });
+
+    let emailWarning: string | undefined;
+    try {
+      await sendVerificationEmail(trimmedEmail, newUser.name, `${ALLOWED_ORIGINS[0]}/?verify=${verificationToken}`);
+    } catch (err) {
+      console.error("[Insyte] Verification email send failed:", err);
+      emailWarning = "We couldn't send the verification email right away — use Resend on the next screen.";
+    }
+
+    res.status(201).json({ verificationRequired: true, email: trimmedEmail, emailWarning });
   });
 
   // Log in with email + password; issues a session token and updates streak
@@ -640,6 +694,15 @@ app.use("/api/signup", authLimiter);
     if (!found || !found.passwordHash || !verifyPassword(String(password), found.passwordHash)) {
       return res.status(401).json({ error: "Wrong email or password." });
     }
+    // Password already proven correct, so confirming "unverified" here leaks
+    // nothing beyond what they just demonstrated they know.
+    if (!found.emailVerified) {
+      return res.status(403).json({
+        error: "Please verify your email before logging in.",
+        verificationRequired: true,
+        email: found.email
+      });
+    }
 
     let updated = applyStreak(found);
     // Daily attendance reward: first login of a new day gives students XP.
@@ -653,12 +716,165 @@ app.use("/api/signup", authLimiter);
     }
     saveUser(db, updated);
     const token = newToken();
-    db.sessions[token] = updated.id;
+    db.sessions[token] = { userId: updated.id, issuedAt: Date.now() };
     writeDb(db);
     res.json({
       token,
       user: selfUser(updated),
       dailyXp,
+      allStudents: db.students.map(publicUser),
+      allTeachers: db.teachers.map(publicUser)
+    });
+  });
+
+  // Click-through from the verification email. Clearing the token on success
+  // is what makes a repeat click on the same link naturally fall into the
+  // "not found" branch below, rather than needing a separate "already used" flag.
+  app.post("/api/verify-email", (req, res) => {
+    const { token } = req.body;
+    if (!token) {
+      return res.status(400).json({ error: "token is required." });
+    }
+
+    const db = readDb();
+    const user = findUserByVerificationToken(db, String(token));
+    if (!user) {
+      return res.status(404).json({ error: "Invalid or already-used verification link." });
+    }
+    if (user.verificationTokenExpiresAt && new Date(user.verificationTokenExpiresAt) < new Date()) {
+      return res.status(410).json({ error: "This verification link has expired. Request a new one.", expired: true });
+    }
+
+    const verified: UserProfile = {
+      ...user,
+      emailVerified: true,
+      verificationToken: undefined,
+      verificationTokenExpiresAt: undefined
+    };
+    saveUser(db, verified);
+    const authToken = newToken();
+    db.sessions[authToken] = { userId: verified.id, issuedAt: Date.now() };
+    writeDb(db);
+
+    res.json({
+      verified: true,
+      token: authToken,
+      user: selfUser(verified),
+      allStudents: db.students.map(publicUser),
+      allTeachers: db.teachers.map(publicUser)
+    });
+  });
+
+  // Resend a verification email. Always the same response regardless of
+  // whether the account exists / is already verified — same non-leaking
+  // discipline as login's identical wrong-email-or-password message.
+  app.post("/api/resend-verification", async (req, res) => {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: "email is required." });
+    }
+
+    const genericMessage = "If that account exists and isn't verified yet, a new email is on its way.";
+    if (!emailEnabled()) {
+      console.error("[Insyte] Resend-verification requested but BREVO_API_KEY is not configured.");
+      return res.json({ message: genericMessage });
+    }
+
+    const db = readDb();
+    const user = findUserByEmail(db, String(email));
+    if (user && !user.emailVerified) {
+      const verificationToken = newToken();
+      const refreshed: UserProfile = {
+        ...user,
+        verificationToken,
+        verificationTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      };
+      saveUser(db, refreshed);
+      writeDb(db);
+      try {
+        await sendVerificationEmail(refreshed.email, refreshed.name, `${ALLOWED_ORIGINS[0]}/?verify=${verificationToken}`);
+      } catch (err) {
+        console.error("[Insyte] Resend-verification email send failed:", err);
+      }
+    }
+    res.json({ message: genericMessage });
+  });
+
+  // Request a password reset link. Always the same generic response
+  // regardless of whether the account exists — same non-leaking discipline
+  // as login/resend-verification.
+  app.post("/api/forgot-password", async (req, res) => {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: "email is required." });
+    }
+
+    const genericMessage = "If that account exists, a password reset link is on its way.";
+    if (!emailEnabled()) {
+      console.error("[Insyte] Forgot-password requested but BREVO_API_KEY is not configured.");
+      return res.json({ message: genericMessage });
+    }
+
+    const db = readDb();
+    const user = findUserByEmail(db, String(email));
+    if (user) {
+      const resetToken = newToken();
+      const refreshed: UserProfile = {
+        ...user,
+        resetToken,
+        resetTokenExpiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString() // 1h
+      };
+      saveUser(db, refreshed);
+      writeDb(db);
+      try {
+        await sendPasswordResetEmail(refreshed.email, refreshed.name, `${ALLOWED_ORIGINS[0]}/?reset=${resetToken}`);
+      } catch (err) {
+        console.error("[Insyte] Forgot-password email send failed:", err);
+      }
+    }
+    res.json({ message: genericMessage });
+  });
+
+  // Click-through from the reset-password email: set a new password.
+  // One response shape for both "not found" and "expired" — unlike email
+  // verification, requesting another reset link is always free and doesn't
+  // require creating a duplicate account, so there's no UX value in telling
+  // the two cases apart here.
+  app.post("/api/reset-password", (req, res) => {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword) {
+      return res.status(400).json({ error: "token and newPassword are required." });
+    }
+    if (String(newPassword).length < 6) {
+      return res.status(400).json({ error: "Password must be at least 6 characters." });
+    }
+
+    const db = readDb();
+    const user = [...db.students, ...db.teachers].find(u => u.resetToken === String(token));
+    if (!user || !user.resetTokenExpiresAt || new Date(user.resetTokenExpiresAt) < new Date()) {
+      return res.status(400).json({ error: "This reset link is invalid or has expired. Request a new one." });
+    }
+
+    const updated: UserProfile = {
+      ...user,
+      passwordHash: hashPassword(String(newPassword)),
+      resetToken: undefined,
+      resetTokenExpiresAt: undefined
+    };
+    saveUser(db, updated);
+    // A password reset invalidates every other session for this account —
+    // if the reset was because of a compromised password, a stale session
+    // elsewhere shouldn't outlive it.
+    for (const [tok, entry] of Object.entries(db.sessions)) {
+      if (entry.userId === updated.id) delete db.sessions[tok];
+    }
+    const authToken = newToken();
+    db.sessions[authToken] = { userId: updated.id, issuedAt: Date.now() };
+    writeDb(db);
+
+    res.json({
+      token: authToken,
+      user: selfUser(updated),
       allStudents: db.students.map(publicUser),
       allTeachers: db.teachers.map(publicUser)
     });
@@ -1451,6 +1667,7 @@ app.use("/api/signup", authLimiter);
         : (supabaseReady ? "supabase (persistent)" : "supabase-configured-but-load-FAILED"),
       supabaseReady,
       supabaseBootError: supabaseBootError || undefined,
+      emailEnabled: emailEnabled(),
       timestamp: new Date().toISOString()
     });
   });

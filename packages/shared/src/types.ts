@@ -14,6 +14,7 @@ export interface UserProfile {
   streak: number; // Consecutive-day login streak
   lastActiveDate: string; // YYYY-MM-DD
   readLessons: string[]; // Lesson ids already marked read (each awards XP once)
+  emailVerified: boolean;
 }
 
 export interface Mail {

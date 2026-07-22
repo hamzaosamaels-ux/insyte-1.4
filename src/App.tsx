@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { UserProfile, ClassCommunity, Lesson, TaskItem, TaskSubmission, Announcement, ChatMessage, ClassEvent, Mail, AppNotification } from "./types";
 import { WelcomeScreen } from "./components/WelcomeScreen";
+import { ResetPasswordScreen } from "./components/ResetPasswordScreen";
 import { Landing } from "./components/Landing";
 import { AppIntro } from "./components/AppIntro";
 import { StudentDashboard } from "./components/StudentDashboard";
@@ -8,7 +9,7 @@ import { TeacherDashboard } from "./components/TeacherDashboard";
 import { DashboardSkeleton } from "./components/DashboardSkeleton";
 import { Language, Theme, getTranslation } from "./translations";
 import { api, authHeaders, getToken, setToken, clearToken, API_BASE } from "./api";
-import { login as sharedLogIn } from "@insyte/shared/auth";
+import { login as sharedLogIn, VerificationRequiredError } from "@insyte/shared/auth";
 
 export default function App() {
   const [students, setStudents] = useState<UserProfile[]>([]);
@@ -37,6 +38,14 @@ export default function App() {
   const [authError, setAuthError] = useState<string | null>(null);
   // Returning visitors (any stored token) skip the marketing landing page
   const [showAuth, setShowAuth] = useState<boolean>(() => Boolean(getToken()));
+  // Set right after signup, or after a login attempt hits the verification
+  // gate — WelcomeScreen shows a "check your inbox" card instead of the form
+  // whenever this is non-null. Same state covers both entry points.
+  const [pendingVerificationEmail, setPendingVerificationEmail] = useState<string | null>(null);
+  const [verifyState, setVerifyState] = useState<"idle" | "checking" | "success" | "expired" | "invalid" | "error">("idle");
+  // Captured from ?reset=<token> on mount — shows a "set new password" form
+  // instead of auto-calling the backend (unlike ?verify=, this needs input first)
+  const [resetToken, setResetToken] = useState<string | null>(null);
 
   // Theme & Language Settings State
   const [language, setLanguageState] = useState<Language>(() => {
@@ -208,11 +217,10 @@ export default function App() {
       .then(async (res) => {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Sign up failed.");
-        setToken(data.token);
-        setStudents(data.allStudents);
-        setTeachers(data.allTeachers);
-        setCurrentUser(data.user);
-        loadMe();
+        // Account isn't usable yet — no token is issued until the email link
+        // is clicked. Show the "check your inbox" card instead of logging in.
+        setPendingVerificationEmail(data.email);
+        if (data.emailWarning) setAuthError(data.emailWarning);
       })
       .catch((err) => setAuthError(err.message));
   };
@@ -228,8 +236,92 @@ export default function App() {
         setCurrentUser(data.user);
         loadMe();
       })
-      .catch((err) => setAuthError(err.message));
+      .catch((err) => {
+        setAuthError(err.message);
+        if (err instanceof VerificationRequiredError) setPendingVerificationEmail(err.email || email);
+      });
   };
+
+  // Resend the verification email from the "check your inbox" card
+  const handleResendVerification = (email: string): Promise<string | null> =>
+    fetch(api("/api/resend-verification"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email })
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        return res.ok ? null : (data.error || "Could not resend.");
+      })
+      .catch(() => "Connection error. Try again.");
+
+  // Click-through from the verification email: reads ?verify=<token> once on
+  // mount, calls the backend, then strips the param so a refresh can't
+  // resubmit. No-op for the overwhelming common case (no such param).
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get("verify");
+    if (!token) return;
+    setVerifyState("checking");
+    fetch(api("/api/verify-email"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token })
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) {
+          setVerifyState(data.expired ? "expired" : "invalid");
+          return;
+        }
+        setToken(data.token);
+        setStudents(data.allStudents);
+        setTeachers(data.allTeachers);
+        setCurrentUser(data.user);
+        setVerifyState("success");
+      })
+      .catch(() => setVerifyState("error"))
+      .finally(() => window.history.replaceState({}, "", window.location.pathname));
+  }, []);
+
+  // Same "?param on mount, strip URL" pattern as verify — but reset needs a
+  // new-password form filled in first, so this just captures the token.
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get("reset");
+    if (!token) return;
+    setResetToken(token);
+    window.history.replaceState({}, "", window.location.pathname);
+  }, []);
+
+  const handleForgotPassword = (email: string): Promise<string | null> =>
+    fetch(api("/api/forgot-password"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email })
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        return res.ok ? null : (data.error || "Could not send reset link.");
+      })
+      .catch(() => "Connection error. Try again.");
+
+  const handleResetPassword = (token: string, newPassword: string): Promise<string | null> =>
+    fetch(api("/api/reset-password"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, newPassword })
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) return data.error || "Could not reset password.";
+        setToken(data.token);
+        setStudents(data.allStudents);
+        setTeachers(data.allTeachers);
+        setCurrentUser(data.user);
+        setResetToken(null);
+        loadMe();
+        return null;
+      })
+      .catch(() => "Connection error. Try again.");
 
   // Join a class community with its code (students enroll, teachers co-teach)
   const handleJoinClass = (code: string): Promise<string | null> => {
@@ -564,10 +656,55 @@ export default function App() {
     return <DashboardSkeleton />;
   }
 
+  // Clicked a verification link: show a small result screen regardless of
+  // auth state ("success" also sets currentUser in the same effect, so the
+  // very next check below already routes straight into the dashboard).
+  if (verifyState === "checking" || verifyState === "expired" || verifyState === "invalid" || verifyState === "error") {
+    const t = getTranslation(language);
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[#0b081a] p-6">
+        <div className="max-w-sm w-full bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49] rounded-2xl p-6 text-center shadow-xl">
+          {verifyState === "checking" ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">{t.verifyChecking}</p>
+          ) : (
+            <>
+              <p className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-1">
+                {verifyState === "expired" ? t.verifyExpiredTitle : t.verifyInvalidTitle}
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+                {verifyState === "expired" ? t.verifyExpiredDesc : t.verifyInvalidDesc}
+              </p>
+              <button
+                onClick={() => setVerifyState("idle")}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold cursor-pointer"
+              >
+                {t.verifyGoToLogin}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Clicked a reset-password link: collect a new password before doing
+  // anything else, regardless of auth state (success clears resetToken and
+  // logs in, so the very next check below routes into the dashboard).
+  if (resetToken && !currentUser) {
+    return (
+      <ResetPasswordScreen
+        token={resetToken}
+        onSubmit={handleResetPassword}
+        onCancel={() => setResetToken(null)}
+        language={language}
+      />
+    );
+  }
+
   // First visit: phones get app-style onboarding slides, desktop gets the
   // marketing landing. Returning users (had a token) go straight to auth.
   if (!currentUser) {
-    if (!showAuth) {
+    if (!showAuth && !pendingVerificationEmail) {
       if (window.matchMedia("(max-width: 767px)").matches) {
         return <AppIntro language={language} onGetStarted={() => setShowAuth(true)} />;
       }
@@ -586,6 +723,10 @@ export default function App() {
         onLogIn={handleLogIn}
         authError={authError}
         language={language}
+        pendingVerificationEmail={pendingVerificationEmail}
+        onResendVerification={handleResendVerification}
+        onClearPendingVerification={() => { setPendingVerificationEmail(null); setAuthError(null); }}
+        onForgotPassword={handleForgotPassword}
       />
     );
   }

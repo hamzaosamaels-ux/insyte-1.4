@@ -12,6 +12,18 @@ export interface LoginResult {
   allTeachers: UserProfile[];
 }
 
+// Thrown when the backend rejects login because the account exists but its
+// email hasn't been verified yet — carries enough for the caller to offer a
+// resend, without the caller needing to string-match the message.
+export class VerificationRequiredError extends Error {
+  email?: string;
+  constructor(message: string, email?: string) {
+    super(message);
+    this.name = "VerificationRequiredError";
+    this.email = email;
+  }
+}
+
 export async function login(baseUrl: string, email: string, password: string): Promise<LoginResult> {
   const { api } = createApi(baseUrl);
   const res = await fetch(api("/api/login"), {
@@ -20,6 +32,9 @@ export async function login(baseUrl: string, email: string, password: string): P
     body: JSON.stringify({ email, password })
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Log in failed.");
+  if (!res.ok) {
+    if (data.verificationRequired) throw new VerificationRequiredError(data.error || "Log in failed.", data.email);
+    throw new Error(data.error || "Log in failed.");
+  }
   return data;
 }
