@@ -3,6 +3,7 @@ import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 import { supabaseEnabled, loadFromSupabase, saveToSupabase, uploadAvatar } from "./supabase-store";
+import { emailEnabled, sendVerificationEmail } from "./email-sender";
 import { GoogleGenAI } from "@google/genai";
 // NOTE: `vite` is imported lazily inside the dev branch below so the production
 // server (and Railway's build) never needs vite/tailwind installed.
@@ -1367,6 +1368,7 @@ app.use("/api/signup", authLimiter);
         : (supabaseReady ? "supabase (persistent)" : "supabase-configured-but-load-FAILED"),
       supabaseReady,
       supabaseBootError: supabaseBootError || undefined,
+      emailEnabled: emailEnabled(),
       timestamp: new Date().toISOString()
     });
   });
