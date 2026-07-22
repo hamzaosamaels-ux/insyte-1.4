@@ -236,9 +236,8 @@ export default function App() {
     if (!currentUser) return Promise.resolve("Not signed in.");
     return fetch(api("/api/classes/join"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      // Both keys: stale backends only know studentId; new ones prefer userId
-      body: JSON.stringify({ userId: currentUser.id, studentId: currentUser.id, code })
+      headers: authHeaders(true),
+      body: JSON.stringify({ code })
     })
       .then(async (res) => {
         const data = await res.json();
@@ -281,7 +280,7 @@ export default function App() {
 
     fetch(api("/api/classroom-chat"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders(true),
       body: JSON.stringify(payload)
     })
       .then((res) => res.json())
@@ -297,7 +296,7 @@ export default function App() {
 
     fetch(api("/api/students/add-xp"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders(true),
       body: JSON.stringify({ studentId: currentUser.id, xpAmount })
     })
       .then((res) => res.json())
@@ -331,8 +330,8 @@ export default function App() {
 
     fetch(api("/api/students/leave-class"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ studentId: currentUser.id, classId })
+      headers: authHeaders(true),
+      body: JSON.stringify({ classId })
     })
       .then((res) => res.json())
       .then((data) => {
@@ -347,7 +346,7 @@ export default function App() {
   const handleSubmitTask = (sub: Omit<TaskSubmission, "id" | "submittedAt">) => {
     fetch(api("/api/submissions"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders(true),
       body: JSON.stringify(sub)
     })
       .then((res) => res.json())
@@ -362,7 +361,7 @@ export default function App() {
     if (!currentUser || currentUser.role !== "teacher") return Promise.resolve("Not a teacher.");
     return fetch(api("/api/classes"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders(true),
       body: JSON.stringify({
         name,
         code,
@@ -390,7 +389,7 @@ export default function App() {
   const handleCreateLesson = (les: Omit<Lesson, "id" | "publishedAt">) => {
     fetch(api("/api/lessons"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders(true),
       body: JSON.stringify(les)
     })
       .then((res) => res.json())
@@ -403,7 +402,7 @@ export default function App() {
   const handleUpdateLesson = (id: string, updatedFields: Partial<Lesson>) => {
     fetch(api(`/api/lessons/${id}`), {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders(true),
       body: JSON.stringify(updatedFields)
     })
       .then((res) => res.json())
@@ -415,7 +414,8 @@ export default function App() {
 
   const handleDeleteLesson = (id: string) => {
     fetch(api(`/api/lessons/${id}`), {
-      method: "DELETE"
+      method: "DELETE",
+      headers: authHeaders()
     })
       .then((res) => res.json())
       .then(() => {
@@ -428,7 +428,7 @@ export default function App() {
   const handleCreateTask = (task: Omit<TaskItem, "id">) => {
     fetch(api("/api/tasks"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders(true),
       body: JSON.stringify(task)
     })
       .then((res) => res.json())
@@ -442,7 +442,7 @@ export default function App() {
   const handleAddAnnouncement = (ann: Omit<Announcement, "id" | "publishedAt">) => {
     fetch(api("/api/announcements"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders(true),
       body: JSON.stringify(ann)
     })
       .then((res) => res.json())
@@ -456,7 +456,7 @@ export default function App() {
   const handleAddEvent = (evt: Omit<ClassEvent, "id">) => {
     fetch(api("/api/events"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders(true),
       body: JSON.stringify(evt)
     })
       .then((res) => res.json())
@@ -470,7 +470,7 @@ export default function App() {
   const handleGradeSubmission = (submissionId: string, scoreXp: number, feedback: string) => {
     fetch(api("/api/submissions/grade"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders(true),
       body: JSON.stringify({ submissionId, scoreXp, feedback })
     })
       .then((res) => res.json())

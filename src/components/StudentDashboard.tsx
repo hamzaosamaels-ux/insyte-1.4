@@ -21,7 +21,7 @@ import { MailPanel } from "./MailPanel";
 import { Library } from "./Library";
 import { XpBar, Confetti, LevelUpToast } from "./Gamify";
 import { getClassColors } from "../utils/colorHelper";
-import { api } from "../api";
+import { api, authHeaders } from "../api";
 
 interface StudentDashboardProps {
   currentStudent: UserProfile;
@@ -428,7 +428,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
     try {
       const response = await fetch(api("/api/chat"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders(true),
         body: JSON.stringify({
           messages: [...aiChat, { role: "user", text: userMessage }].map(m => ({
             role: m.role,

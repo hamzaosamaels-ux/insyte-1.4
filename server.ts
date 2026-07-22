@@ -711,17 +711,17 @@ app.use("/api/signup", authLimiter);
   // Join a community by code. Students enroll in every subject under it;
   // teachers become co-teachers (member via joinedClasses, ownership unchanged).
   app.post("/api/classes/join", (req, res) => {
-    const { studentId, userId, code } = req.body;
-    const uid = userId || studentId;
-    if (!uid || !code) {
-      return res.status(400).json({ error: "userId and code are required." });
+    const { code } = req.body;
+    if (!code) {
+      return res.status(400).json({ error: "code is required." });
     }
 
     const db = readDb();
-    const user = db.students.find(s => s.id === uid) || db.teachers.find(t => t.id === uid);
+    const user = userFromToken(db, req);
     if (!user) {
-      return res.status(404).json({ error: "User not found." });
+      return res.status(401).json({ error: "Sign in required." });
     }
+    const uid = user.id;
     const isStudent = user.role === "student";
 
     const target = db.classes.find(c => c.code.toLowerCase() === String(code).trim().toLowerCase());
@@ -778,6 +778,13 @@ app.use("/api/signup", authLimiter);
     }
 
     const db = readDb();
+    const requester = userFromToken(db, req);
+    if (!requester) {
+      return res.status(401).json({ error: "Sign in required." });
+    }
+    if (requester.role !== "teacher" && requester.id !== studentId) {
+      return res.status(403).json({ error: "You can only award XP to yourself." });
+    }
     let updatedStudent: UserProfile | null = null;
 
     db.students = db.students.map(stud => {
@@ -877,12 +884,17 @@ app.use("/api/signup", authLimiter);
 
   // Leave a class (unenroll a student from a classroom)
   app.post("/api/students/leave-class", (req, res) => {
-    const { studentId, classId } = req.body;
-    if (!studentId || !classId) {
-      return res.status(400).json({ error: "studentId and classId are required." });
+    const { classId } = req.body;
+    if (!classId) {
+      return res.status(400).json({ error: "classId is required." });
     }
 
     const db = readDb();
+    const requester = userFromToken(db, req);
+    if (!requester || requester.role !== "student") {
+      return res.status(401).json({ error: "Student session required." });
+    }
+    const studentId = requester.id;
     let updatedStudent: UserProfile | null = null;
 
     db.students = db.students.map(stud => {
@@ -913,17 +925,17 @@ app.use("/api/signup", authLimiter);
 
   // Create a brand new Class Community
   app.post("/api/classes", (req, res) => {
-    const { name, code, description, teacherId, teacherName, color } = req.body;
+    const { name, code, description, color } = req.body;
     if (!name || !code) {
       return res.status(400).json({ error: "Class name and code are required." });
     }
 
-    if (!teacherId) {
-      return res.status(400).json({ error: "teacherId is required." });
-    }
-
     const db = readDb();
-    const teacher = db.teachers.find(t => t.id === teacherId);
+    const requester = userFromToken(db, req);
+    if (!requester || requester.role !== "teacher") {
+      return res.status(401).json({ error: "Teacher session required." });
+    }
+    const teacher = db.teachers.find(t => t.id === requester.id);
     if (!teacher) {
       return res.status(404).json({ error: "Teacher not found." });
     }
@@ -945,7 +957,7 @@ app.use("/api/signup", authLimiter);
       code: String(code).trim().toUpperCase(),
       description: description || "",
       teacherId: teacher.id,
-      teacherName: teacherName || teacher.name,
+      teacherName: teacher.name,
       studentIds: communityStudentIds,
       color: color || "indigo"
     };
@@ -990,6 +1002,14 @@ app.use("/api/signup", authLimiter);
     }
 
     const db = readDb();
+    const requester = userFromToken(db, req);
+    if (!requester || requester.role !== "teacher") {
+      return res.status(401).json({ error: "Teacher session required." });
+    }
+    const targetClass = db.classes.find(c => c.id === classId);
+    if (!targetClass || targetClass.teacherId !== requester.id) {
+      return res.status(403).json({ error: "You do not teach this class." });
+    }
     const newLesson: Lesson = {
       id: `lesson-${Date.now()}`,
       classId,
@@ -1021,9 +1041,17 @@ app.use("/api/signup", authLimiter);
     }
 
     const db = readDb();
+    const requester = userFromToken(db, req);
+    if (!requester || requester.role !== "teacher") {
+      return res.status(401).json({ error: "Teacher session required." });
+    }
     const index = db.lessons.findIndex(l => l.id === id);
     if (index === -1) {
       return res.status(404).json({ error: "Lesson not found." });
+    }
+    const ownerClass = db.classes.find(c => c.id === db.lessons[index].classId);
+    if (!ownerClass || ownerClass.teacherId !== requester.id) {
+      return res.status(403).json({ error: "You do not teach this class." });
     }
 
     db.lessons[index] = {
@@ -1044,12 +1072,19 @@ app.use("/api/signup", authLimiter);
   app.delete("/api/lessons/:id", (req, res) => {
     const { id } = req.params;
     const db = readDb();
-    const initialLength = db.lessons.length;
-    db.lessons = db.lessons.filter(l => l.id !== id);
-
-    if (db.lessons.length === initialLength) {
+    const requester = userFromToken(db, req);
+    if (!requester || requester.role !== "teacher") {
+      return res.status(401).json({ error: "Teacher session required." });
+    }
+    const existing = db.lessons.find(l => l.id === id);
+    if (!existing) {
       return res.status(404).json({ error: "Lesson not found." });
     }
+    const ownerClass = db.classes.find(c => c.id === existing.classId);
+    if (!ownerClass || ownerClass.teacherId !== requester.id) {
+      return res.status(403).json({ error: "You do not teach this class." });
+    }
+    db.lessons = db.lessons.filter(l => l.id !== id);
 
     writeDb(db);
     res.json({ success: true, message: "Lesson deleted successfully." });
@@ -1063,6 +1098,14 @@ app.use("/api/signup", authLimiter);
     }
 
     const db = readDb();
+    const requester = userFromToken(db, req);
+    if (!requester || requester.role !== "teacher") {
+      return res.status(401).json({ error: "Teacher session required." });
+    }
+    const taskClassCheck = db.classes.find(c => c.id === classId);
+    if (!taskClassCheck || taskClassCheck.teacherId !== requester.id) {
+      return res.status(403).json({ error: "You do not teach this class." });
+    }
     const newTask: TaskItem = {
       id: `task-${Date.now()}`,
       classId,
@@ -1091,12 +1134,20 @@ app.use("/api/signup", authLimiter);
 
   // Broadcast peer classroom chat logs
   app.post("/api/classroom-chat", (req, res) => {
-    const { classId, senderId, senderName, senderRole, senderAvatar, text } = req.body;
-    if (!classId || !senderId || !text) {
-      return res.status(400).json({ error: "classId, senderId, and text are required." });
+    const { classId, text } = req.body;
+    if (!classId || !text) {
+      return res.status(400).json({ error: "classId and text are required." });
     }
 
     const db = readDb();
+    const requester = userFromToken(db, req);
+    if (!requester) {
+      return res.status(401).json({ error: "Sign in required." });
+    }
+    const senderId = requester.id;
+    const senderName = requester.name;
+    const senderRole = requester.role;
+    const senderAvatar = requester.avatar;
     const newMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
       classId,
@@ -1115,18 +1166,26 @@ app.use("/api/signup", authLimiter);
 
   // Broadcast high priority Announcements bulletins
   app.post("/api/announcements", (req, res) => {
-    const { classId, title, content, authorName } = req.body;
+    const { classId, title, content } = req.body;
     if (!classId || !title || !content) {
       return res.status(400).json({ error: "classId, title, and content are required." });
     }
 
     const db = readDb();
+    const requester = userFromToken(db, req);
+    if (!requester || requester.role !== "teacher") {
+      return res.status(401).json({ error: "Teacher session required." });
+    }
+    const annClassCheck = db.classes.find(c => c.id === classId);
+    if (!annClassCheck || annClassCheck.teacherId !== requester.id) {
+      return res.status(403).json({ error: "You do not teach this class." });
+    }
     const newAnn: Announcement = {
       id: `ann-${Date.now()}`,
       classId,
       title,
       content,
-      authorName: authorName || db.classes.find(c => c.id === classId)?.teacherName || "Teacher",
+      authorName: requester.name,
       publishedAt: new Date().toISOString()
     };
 
@@ -1150,6 +1209,14 @@ app.use("/api/signup", authLimiter);
     }
 
     const db = readDb();
+    const requester = userFromToken(db, req);
+    if (!requester || requester.role !== "teacher") {
+      return res.status(401).json({ error: "Teacher session required." });
+    }
+    const evtClassCheck = db.classes.find(c => c.id === classId);
+    if (!evtClassCheck || evtClassCheck.teacherId !== requester.id) {
+      return res.status(403).json({ error: "You do not teach this class." });
+    }
     const newEvt: ClassEvent = {
       id: `evt-${Date.now()}`,
       classId,
@@ -1166,19 +1233,24 @@ app.use("/api/signup", authLimiter);
 
   // Submit student Homework essays or matcher games
   app.post("/api/submissions", (req, res) => {
-    const { taskId, taskTitle, studentId, studentName, studentAvatar, content } = req.body;
-    if (!taskId || !studentId || !content) {
-      return res.status(400).json({ error: "taskId, studentId, and content are required." });
+    const { taskId, taskTitle, content } = req.body;
+    if (!taskId || !content) {
+      return res.status(400).json({ error: "taskId and content are required." });
     }
 
     const db = readDb();
+    const requester = userFromToken(db, req);
+    if (!requester || requester.role !== "student") {
+      return res.status(401).json({ error: "Student session required." });
+    }
+    const studentId = requester.id;
     const newSubmission: TaskSubmission = {
       id: `sub-${Date.now()}`,
       taskId,
       taskTitle,
       studentId,
-      studentName,
-      studentAvatar,
+      studentName: requester.name,
+      studentAvatar: requester.avatar,
       content,
       submittedAt: new Date().toISOString(),
       isGraded: false,
@@ -1202,6 +1274,20 @@ app.use("/api/signup", authLimiter);
     }
 
     const db = readDb();
+    const requester = userFromToken(db, req);
+    if (!requester || requester.role !== "teacher") {
+      return res.status(401).json({ error: "Teacher session required." });
+    }
+    const targetSubmission = db.submissions.find(s => s.id === submissionId);
+    if (!targetSubmission) {
+      return res.status(404).json({ error: "Submission item not found." });
+    }
+    const gradeTask = db.tasks.find(t => t.id === targetSubmission.taskId);
+    const gradeClass = gradeTask ? db.classes.find(c => c.id === gradeTask.classId) : null;
+    if (!gradeClass || gradeClass.teacherId !== requester.id) {
+      return res.status(403).json({ error: "You do not teach this class." });
+    }
+
     let targetStudentId = "";
     let updatedSubmission: TaskSubmission | null = null;
 
@@ -1365,6 +1451,10 @@ app.use("/api/signup", authLimiter);
   // Gemini Study Buddy Chat endpoint (Securely Proxied)
   app.post("/api/chat", async (req, res) => {
     try {
+      const db0 = readDb();
+      if (!userFromToken(db0, req)) {
+        return res.status(401).json({ error: "Sign in required." });
+      }
       const key = process.env.GEMINI_API_KEY;
       if (!key) {
         return res.status(400).json({
