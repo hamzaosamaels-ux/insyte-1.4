@@ -25,7 +25,7 @@ export interface StoreSchema {
   submissions: any[];
   mails: any[];
   notifications: any[];
-  sessions: Record<string, string>;
+  sessions: Record<string, { userId: string; issuedAt: number }>;
 }
 
 let client: SupabaseClient | null = null;
@@ -197,8 +197,8 @@ export async function loadFromSupabase(): Promise<StoreSchema> {
     ]);
 
   const profileObjs = profiles.map(rowToProfile);
-  const sessionMap: Record<string, string> = {};
-  for (const s of sessions) sessionMap[s.token] = s.user_id;
+  const sessionMap: Record<string, { userId: string; issuedAt: number }> = {};
+  for (const s of sessions) sessionMap[s.token] = { userId: s.user_id, issuedAt: new Date(s.issued_at).getTime() };
 
   return {
     students: profileObjs.filter(p => p.role === "student"),
@@ -257,7 +257,12 @@ export async function uploadAvatar(userId: string, dataUrl: string): Promise<str
 // Persist the whole in-memory schema back to Supabase.
 export async function saveToSupabase(data: StoreSchema): Promise<void> {
   const profileRows = [...data.students, ...data.teachers].map(profileToRow);
-  const sessionRows = Object.entries(data.sessions || {}).map(([token, user_id]) => ({ token, user_id }));
+  // issued_at is always the ORIGINAL mint time, re-sent as-is on every save —
+  // never recomputed from Date.now() here — so a session's expiry can't get
+  // silently refreshed just because some unrelated write happened later.
+  const sessionRows = Object.entries(data.sessions || {}).map(([token, v]) => ({
+    token, user_id: v.userId, issued_at: new Date(v.issuedAt).toISOString()
+  }));
 
   await Promise.all([
     syncTable("profiles", profileRows),

@@ -157,8 +157,16 @@ create index if not exists notifications_user_idx on public.notifications (user_
 create table if not exists public.sessions (
   token      text primary key,
   user_id    text not null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- The app always sets this explicitly at mint time and re-sends the SAME
+  -- value on every later save (never recomputed), so a session's expiry
+  -- can't drift just because an unrelated write touched the table.
+  issued_at  timestamptz not null default now()
 );
+-- Adds issued_at to a sessions table created before this column existed.
+-- Existing live sessions get a fresh 30-day window from migration time
+-- rather than an unknown true age — a safe default, not a forced logout.
+alter table public.sessions add column if not exists issued_at timestamptz not null default now();
 
 -- ============================================================================
 -- Row Level Security

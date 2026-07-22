@@ -33,6 +33,8 @@ function newToken(): string {
   return crypto.randomBytes(24).toString("hex");
 }
 
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
 // ---- Per-IP rate limiting (in-memory, no dependencies) ----
 // Counts requests per IP inside a rolling window; over the cap -> 429.
 // Auth endpoints get a much tighter cap to slow password guessing.
@@ -188,6 +190,11 @@ interface ClassEvent {
   time: string;
 }
 
+interface SessionEntry {
+  userId: string;
+  issuedAt: number; // epoch ms — always set explicitly by the app, never a DB default
+}
+
 interface DbSchema {
   students: UserProfile[];
   teachers: UserProfile[];
@@ -200,7 +207,7 @@ interface DbSchema {
   submissions: TaskSubmission[];
   mails: Mail[];
   notifications: AppNotification[];
-  sessions: Record<string, string>; // token -> userId
+  sessions: Record<string, SessionEntry>; // token -> { userId, issuedAt }
 }
 
 
@@ -230,6 +237,12 @@ function normalize(db: any): DbSchema {
   for (const key of Object.keys(seedData) as (keyof DbSchema)[]) {
     if (key === "sessions") {
       if (!db.sessions || typeof db.sessions !== "object") db.sessions = {};
+      // Old shape was token -> userId (a bare string). We can't know how old
+      // those tokens really are, so drop them rather than trust an unknown
+      // age — a one-time forced re-login for anyone signed in when this ships.
+      for (const [tok, val] of Object.entries(db.sessions)) {
+        if (typeof val !== "object" || val === null) delete db.sessions[tok];
+      }
     } else if (!Array.isArray(db[key])) {
       db[key] = [];
     }
@@ -374,12 +387,15 @@ function selfUser(u: UserProfile): Omit<UserProfile, "passwordHash" | "verificat
 }
 
 // Resolve the caller from their session token, or null if unauthenticated
+// or the token has aged past SESSION_TTL_MS.
+// ponytail: expired entries aren't actively pruned from db.sessions here —
+// this stays a pure read. Add a sweep if the map grows large in practice.
 function userFromToken(db: DbSchema, req: express.Request): UserProfile | null {
   const token = String(req.headers["x-auth-token"] || "");
   if (!token) return null;
-  const userId = db.sessions[token];
-  if (!userId) return null;
-  return [...db.students, ...db.teachers].find(u => u.id === userId) || null;
+  const entry = db.sessions[token];
+  if (!entry || typeof entry !== "object" || Date.now() - entry.issuedAt > SESSION_TTL_MS) return null;
+  return [...db.students, ...db.teachers].find(u => u.id === entry.userId) || null;
 }
 
 // Public view of a submission: status only, no homework content or private feedback
@@ -602,6 +618,13 @@ app.use("/api/resend-verification", resendLimiter);
     if (String(password).length < 6) {
       return res.status(400).json({ error: "Password must be at least 6 characters." });
     }
+    // Basic shape check — real deliverability is proven by clicking the
+    // verification link, not by this regex. Just stops obvious typos/garbage
+    // from wasting a Brevo send and landing the user on a dead "check your
+    // inbox" screen with nothing ever arriving.
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim())) {
+      return res.status(400).json({ error: "That doesn't look like a valid email address." });
+    }
     if (!emailEnabled()) {
       console.error("[Insyte] Signup rejected: BREVO_API_KEY is not configured — cannot verify real emails.");
       return res.status(503).json({ error: "Sign-ups are temporarily unavailable. Try again soon." });
@@ -684,7 +707,7 @@ app.use("/api/resend-verification", resendLimiter);
     }
     saveUser(db, updated);
     const token = newToken();
-    db.sessions[token] = updated.id;
+    db.sessions[token] = { userId: updated.id, issuedAt: Date.now() };
     writeDb(db);
     res.json({
       token,
@@ -721,7 +744,7 @@ app.use("/api/resend-verification", resendLimiter);
     };
     saveUser(db, verified);
     const authToken = newToken();
-    db.sessions[authToken] = verified.id;
+    db.sessions[authToken] = { userId: verified.id, issuedAt: Date.now() };
     writeDb(db);
 
     res.json({
