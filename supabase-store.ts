@@ -69,14 +69,20 @@ const rowToProfile = (r: any) => ({
   xp: r.xp, level: r.level, rank: r.rank, joinedClasses: r.joined_classes || [],
   streak: r.streak, lastActiveDate: r.last_active_date || "",
   readLessons: r.read_lessons || [],
-  passwordHash: r.password_hash || undefined
+  passwordHash: r.password_hash || undefined,
+  emailVerified: r.email_verified !== false,
+  verificationToken: r.verification_token || undefined,
+  verificationTokenExpiresAt: r.verification_token_expires_at || undefined
 });
 const profileToRow = (p: any) => ({
   id: p.id, name: p.name, email: p.email, role: p.role, avatar: p.avatar,
   xp: p.xp, level: p.level, rank: p.rank, joined_classes: p.joinedClasses || [],
   streak: p.streak ?? 0, last_active_date: p.lastActiveDate || "",
   read_lessons: p.readLessons || [],
-  password_hash: p.passwordHash || null
+  password_hash: p.passwordHash || null,
+  email_verified: p.emailVerified !== false,
+  verification_token: p.verificationToken || null,
+  verification_token_expires_at: p.verificationTokenExpiresAt || null
 });
 
 const rowToClass = (r: any) => ({

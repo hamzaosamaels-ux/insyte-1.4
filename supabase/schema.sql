@@ -20,6 +20,11 @@ create table if not exists public.profiles (
   read_lessons   jsonb not null default '[]',
   -- Auth: only the server (service role) ever reads this. scrypt "salt:hash".
   password_hash  text,
+  -- Real-email verification: unverified accounts can't log in until the
+  -- link in their inbox is clicked. Token/expiry never reach the client.
+  email_verified boolean not null default true,
+  verification_token text,
+  verification_token_expires_at timestamptz,
   created_at     timestamptz not null default now()
 );
 create index if not exists profiles_email_idx on public.profiles (lower(email));
@@ -27,6 +32,13 @@ create index if not exists profiles_role_idx  on public.profiles (role);
 -- Adds read_lessons to a profiles table created before this column existed;
 -- no-op if the table was just created above with it already.
 alter table public.profiles add column if not exists read_lessons jsonb not null default '[]';
+-- Same idea for email verification — existing accounts are grandfathered as
+-- verified (default true) since they predate this feature and can't be
+-- retroactively re-verified; the server always sets an explicit value on
+-- every new signup going forward, so this default only ever backfills old rows.
+alter table public.profiles add column if not exists email_verified boolean not null default true;
+alter table public.profiles add column if not exists verification_token text;
+alter table public.profiles add column if not exists verification_token_expires_at timestamptz;
 
 create table if not exists public.classes (
   id           text primary key,

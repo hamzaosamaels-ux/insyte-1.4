@@ -79,6 +79,9 @@ interface UserProfile {
   lastActiveDate: string; // YYYY-MM-DD
   readLessons: string[]; // Lesson ids already marked read (each awards XP once)
   passwordHash?: string; // "salt:hash"; never sent to the client
+  emailVerified: boolean;
+  verificationToken?: string; // cleared once used; never sent to the client
+  verificationTokenExpiresAt?: string; // ISO timestamp
 }
 
 interface Mail {
@@ -234,6 +237,9 @@ function normalize(db: any): DbSchema {
     if (typeof user.streak !== "number") user.streak = 0;
     if (!user.lastActiveDate) user.lastActiveDate = "";
     if (!Array.isArray(user.readLessons)) user.readLessons = [];
+    // Grandfather every account that existed before email verification shipped —
+    // only ever fires for old records; new signups always set this explicitly.
+    if (typeof user.emailVerified !== "boolean") user.emailVerified = true;
   }
   return db as DbSchema;
 }
@@ -350,14 +356,15 @@ function findUserByEmail(db: DbSchema, email: string): UserProfile | undefined {
 // ---- Response shaping: never serialize private fields to other users ----
 
 // Public view of a user: no email, no password hash
-function publicUser(u: UserProfile): Omit<UserProfile, "email" | "passwordHash"> {
-  const { email, passwordHash, ...rest } = u;
+function publicUser(u: UserProfile): Omit<UserProfile, "email" | "passwordHash" | "verificationToken" | "verificationTokenExpiresAt"> {
+  const { email, passwordHash, verificationToken, verificationTokenExpiresAt, ...rest } = u;
   return rest;
 }
 
-// The signed-in user's own view: keeps email, drops the password hash
-function selfUser(u: UserProfile): Omit<UserProfile, "passwordHash"> {
-  const { passwordHash, ...rest } = u;
+// The signed-in user's own view: keeps email, drops the password hash and
+// verification token (as security-sensitive as the hash — never sent to the client)
+function selfUser(u: UserProfile): Omit<UserProfile, "passwordHash" | "verificationToken" | "verificationTokenExpiresAt"> {
+  const { passwordHash, verificationToken, verificationTokenExpiresAt, ...rest } = u;
   return rest;
 }
 
@@ -601,7 +608,9 @@ app.use("/api/signup", authLimiter);
       streak: 1,
       lastActiveDate: todayStr(),
       readLessons: [],
-      passwordHash: hashPassword(String(password))
+      passwordHash: hashPassword(String(password)),
+      // TODO(email-verify step 3): flip to false + generate token/expiry + send email
+      emailVerified: true
     };
 
     if (role === "student") db.students.push(newUser);
