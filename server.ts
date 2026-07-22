@@ -576,6 +576,13 @@ app.use("/api/signup", authLimiter);
     if (!name || !email || !role || !password) {
       return res.status(400).json({ error: "Name, email, password, and role are required." });
     }
+    const trimmedName = String(name).trim();
+    if (trimmedName.length === 0 || trimmedName.length > 60) {
+      return res.status(400).json({ error: "Name must be between 1 and 60 characters." });
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim())) {
+      return res.status(400).json({ error: "Enter a valid email address." });
+    }
     if (role !== "student" && role !== "teacher") {
       return res.status(400).json({ error: "Role must be 'student' or 'teacher'." });
     }
@@ -590,10 +597,10 @@ app.use("/api/signup", authLimiter);
 
     const newUser: UserProfile = {
       id: `${role}-${Date.now()}`,
-      name: String(name).trim(),
+      name: trimmedName,
       email: String(email).trim(),
       role,
-      avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(name)}`,
+      avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(trimmedName)}`,
       xp: 0,
       level: role === "teacher" ? 10 : 1,
       rank: role === "teacher" ? "Educator" : "Freshman Scholar",
@@ -789,7 +796,7 @@ app.use("/api/signup", authLimiter);
 
     db.students = db.students.map(stud => {
       if (stud.id === studentId) {
-        const updatedXp = stud.xp + xpAmount;
+        const updatedXp = Math.max(0, stud.xp + xpAmount);
         const updatedLvl = Math.floor(updatedXp / 1000) + 1;
 
         let rank = "Freshman Scholar";
@@ -1313,7 +1320,7 @@ app.use("/api/signup", authLimiter);
     if (targetStudentId) {
       db.students = db.students.map(stud => {
         if (stud.id === targetStudentId) {
-          const updatedXp = stud.xp + scoreXp;
+          const updatedXp = Math.max(0, stud.xp + scoreXp);
           const updatedLvl = Math.floor(updatedXp / 1000) + 1;
 
           let rank = "Freshman Scholar";
