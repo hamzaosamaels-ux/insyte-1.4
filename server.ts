@@ -3,7 +3,7 @@ import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 import { supabaseEnabled, loadFromSupabase, saveToSupabase, uploadAvatar } from "./supabase-store";
-import { emailEnabled, sendVerificationEmail } from "./email-sender";
+import { emailEnabled, sendVerificationEmail, sendPasswordResetEmail } from "./email-sender";
 import { GoogleGenAI } from "@google/genai";
 // NOTE: `vite` is imported lazily inside the dev branch below so the production
 // server (and Railway's build) never needs vite/tailwind installed.
@@ -85,6 +85,8 @@ interface UserProfile {
   emailVerified: boolean;
   verificationToken?: string; // cleared once used; never sent to the client
   verificationTokenExpiresAt?: string; // ISO timestamp
+  resetToken?: string; // password-reset link token; cleared once used
+  resetTokenExpiresAt?: string; // ISO timestamp — 1h, shorter than verification's 24h
 }
 
 interface Mail {
@@ -374,15 +376,15 @@ function findUserByVerificationToken(db: DbSchema, token: string): UserProfile |
 // ---- Response shaping: never serialize private fields to other users ----
 
 // Public view of a user: no email, no password hash
-function publicUser(u: UserProfile): Omit<UserProfile, "email" | "passwordHash" | "verificationToken" | "verificationTokenExpiresAt"> {
-  const { email, passwordHash, verificationToken, verificationTokenExpiresAt, ...rest } = u;
+function publicUser(u: UserProfile): Omit<UserProfile, "email" | "passwordHash" | "verificationToken" | "verificationTokenExpiresAt" | "resetToken" | "resetTokenExpiresAt"> {
+  const { email, passwordHash, verificationToken, verificationTokenExpiresAt, resetToken, resetTokenExpiresAt, ...rest } = u;
   return rest;
 }
 
 // The signed-in user's own view: keeps email, drops the password hash and
-// verification token (as security-sensitive as the hash — never sent to the client)
-function selfUser(u: UserProfile): Omit<UserProfile, "passwordHash" | "verificationToken" | "verificationTokenExpiresAt"> {
-  const { passwordHash, verificationToken, verificationTokenExpiresAt, ...rest } = u;
+// verification/reset tokens (as security-sensitive as the hash — never sent to the client)
+function selfUser(u: UserProfile): Omit<UserProfile, "passwordHash" | "verificationToken" | "verificationTokenExpiresAt" | "resetToken" | "resetTokenExpiresAt"> {
+  const { passwordHash, verificationToken, verificationTokenExpiresAt, resetToken, resetTokenExpiresAt, ...rest } = u;
   return rest;
 }
 
@@ -558,6 +560,9 @@ app.use("/api/signup", authLimiter);
 // mail-bombing a victim's inbox, not password guessing.
 const resendLimiter = makeRateLimiter(10 * 60 * 1000, 5, "resend-verification");
 app.use("/api/resend-verification", resendLimiter);
+// Same abuse shape as resend-verification: mail-bombing a victim's inbox.
+const forgotPasswordLimiter = makeRateLimiter(10 * 60 * 1000, 5, "forgot-password");
+app.use("/api/forgot-password", forgotPasswordLimiter);
 
   // Load persisted state (Supabase or flat file) before serving
   await initStore();
@@ -789,6 +794,86 @@ app.use("/api/resend-verification", resendLimiter);
       }
     }
     res.json({ message: genericMessage });
+  });
+
+  // Request a password reset link. Always the same generic response
+  // regardless of whether the account exists — same non-leaking discipline
+  // as login/resend-verification.
+  app.post("/api/forgot-password", async (req, res) => {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: "email is required." });
+    }
+
+    const genericMessage = "If that account exists, a password reset link is on its way.";
+    if (!emailEnabled()) {
+      console.error("[Insyte] Forgot-password requested but BREVO_API_KEY is not configured.");
+      return res.json({ message: genericMessage });
+    }
+
+    const db = readDb();
+    const user = findUserByEmail(db, String(email));
+    if (user) {
+      const resetToken = newToken();
+      const refreshed: UserProfile = {
+        ...user,
+        resetToken,
+        resetTokenExpiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString() // 1h
+      };
+      saveUser(db, refreshed);
+      writeDb(db);
+      try {
+        await sendPasswordResetEmail(refreshed.email, refreshed.name, `${ALLOWED_ORIGINS[0]}/?reset=${resetToken}`);
+      } catch (err) {
+        console.error("[Insyte] Forgot-password email send failed:", err);
+      }
+    }
+    res.json({ message: genericMessage });
+  });
+
+  // Click-through from the reset-password email: set a new password.
+  // One response shape for both "not found" and "expired" — unlike email
+  // verification, requesting another reset link is always free and doesn't
+  // require creating a duplicate account, so there's no UX value in telling
+  // the two cases apart here.
+  app.post("/api/reset-password", (req, res) => {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword) {
+      return res.status(400).json({ error: "token and newPassword are required." });
+    }
+    if (String(newPassword).length < 6) {
+      return res.status(400).json({ error: "Password must be at least 6 characters." });
+    }
+
+    const db = readDb();
+    const user = [...db.students, ...db.teachers].find(u => u.resetToken === String(token));
+    if (!user || !user.resetTokenExpiresAt || new Date(user.resetTokenExpiresAt) < new Date()) {
+      return res.status(400).json({ error: "This reset link is invalid or has expired. Request a new one." });
+    }
+
+    const updated: UserProfile = {
+      ...user,
+      passwordHash: hashPassword(String(newPassword)),
+      resetToken: undefined,
+      resetTokenExpiresAt: undefined
+    };
+    saveUser(db, updated);
+    // A password reset invalidates every other session for this account —
+    // if the reset was because of a compromised password, a stale session
+    // elsewhere shouldn't outlive it.
+    for (const [tok, entry] of Object.entries(db.sessions)) {
+      if (entry.userId === updated.id) delete db.sessions[tok];
+    }
+    const authToken = newToken();
+    db.sessions[authToken] = { userId: updated.id, issuedAt: Date.now() };
+    writeDb(db);
+
+    res.json({
+      token: authToken,
+      user: selfUser(updated),
+      allStudents: db.students.map(publicUser),
+      allTeachers: db.teachers.map(publicUser)
+    });
   });
 
   // Update the signed-in user's profile photo (uploaded image as a data URL)

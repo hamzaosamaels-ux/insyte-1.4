@@ -16,7 +16,7 @@ export function emailEnabled(): boolean {
   return Boolean((process.env.BREVO_API_KEY || "").trim());
 }
 
-export async function sendVerificationEmail(toEmail: string, toName: string, verifyUrl: string): Promise<void> {
+async function sendViaBrevo(toEmail: string, toName: string, subject: string, htmlContent: string): Promise<void> {
   const fromEmail = process.env.MAIL_FROM_EMAIL || "insyte.startup@gmail.com";
   const res = await fetch("https://api.brevo.com/v3/smtp/email", {
     method: "POST",
@@ -27,24 +27,42 @@ export async function sendVerificationEmail(toEmail: string, toName: string, ver
     body: JSON.stringify({
       sender: { email: fromEmail, name: "insyte" },
       to: [{ email: toEmail, name: toName }],
-      subject: "Verify your insyte account",
-      htmlContent: `
-        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
-          <h2 style="color: #4f46e5;">Welcome to insyte, ${escapeHtml(toName)}!</h2>
-          <p>Click the button below to verify your email and activate your account.</p>
-          <a href="${verifyUrl}" style="display: inline-block; margin: 16px 0; padding: 12px 24px; background: #4f46e5; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">
-            Verify my email
-          </a>
-          <p style="color: #64748b; font-size: 12px;">If the button doesn't work, copy this link: ${verifyUrl}</p>
-          <p style="color: #94a3b8; font-size: 11px;">This link expires in 24 hours. If you didn't sign up for insyte, ignore this email.</p>
-        </div>
-      `
+      subject,
+      htmlContent
     })
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new Error(`Brevo send failed: ${res.status} ${body}`);
   }
+}
+
+export async function sendVerificationEmail(toEmail: string, toName: string, verifyUrl: string): Promise<void> {
+  await sendViaBrevo(toEmail, toName, "Verify your insyte account", `
+    <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
+      <h2 style="color: #4f46e5;">Welcome to insyte, ${escapeHtml(toName)}!</h2>
+      <p>Click the button below to verify your email and activate your account.</p>
+      <a href="${verifyUrl}" style="display: inline-block; margin: 16px 0; padding: 12px 24px; background: #4f46e5; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">
+        Verify my email
+      </a>
+      <p style="color: #64748b; font-size: 12px;">If the button doesn't work, copy this link: ${verifyUrl}</p>
+      <p style="color: #94a3b8; font-size: 11px;">This link expires in 24 hours. If you didn't sign up for insyte, ignore this email.</p>
+    </div>
+  `);
+}
+
+export async function sendPasswordResetEmail(toEmail: string, toName: string, resetUrl: string): Promise<void> {
+  await sendViaBrevo(toEmail, toName, "Reset your insyte password", `
+    <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
+      <h2 style="color: #4f46e5;">Reset your password</h2>
+      <p>Hi ${escapeHtml(toName)}, click the button below to set a new password.</p>
+      <a href="${resetUrl}" style="display: inline-block; margin: 16px 0; padding: 12px 24px; background: #4f46e5; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">
+        Reset my password
+      </a>
+      <p style="color: #64748b; font-size: 12px;">If the button doesn't work, copy this link: ${resetUrl}</p>
+      <p style="color: #94a3b8; font-size: 11px;">This link expires in 1 hour. If you didn't request this, ignore this email — your password won't change.</p>
+    </div>
+  `);
 }
 
 function escapeHtml(s: string): string {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { UserProfile, ClassCommunity, Lesson, TaskItem, TaskSubmission, Announcement, ChatMessage, ClassEvent, Mail, AppNotification } from "./types";
 import { WelcomeScreen } from "./components/WelcomeScreen";
+import { ResetPasswordScreen } from "./components/ResetPasswordScreen";
 import { Landing } from "./components/Landing";
 import { AppIntro } from "./components/AppIntro";
 import { StudentDashboard } from "./components/StudentDashboard";
@@ -42,6 +43,9 @@ export default function App() {
   // whenever this is non-null. Same state covers both entry points.
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState<string | null>(null);
   const [verifyState, setVerifyState] = useState<"idle" | "checking" | "success" | "expired" | "invalid" | "error">("idle");
+  // Captured from ?reset=<token> on mount — shows a "set new password" form
+  // instead of auto-calling the backend (unlike ?verify=, this needs input first)
+  const [resetToken, setResetToken] = useState<string | null>(null);
 
   // Theme & Language Settings State
   const [language, setLanguageState] = useState<Language>(() => {
@@ -278,6 +282,46 @@ export default function App() {
       .catch(() => setVerifyState("error"))
       .finally(() => window.history.replaceState({}, "", window.location.pathname));
   }, []);
+
+  // Same "?param on mount, strip URL" pattern as verify — but reset needs a
+  // new-password form filled in first, so this just captures the token.
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get("reset");
+    if (!token) return;
+    setResetToken(token);
+    window.history.replaceState({}, "", window.location.pathname);
+  }, []);
+
+  const handleForgotPassword = (email: string): Promise<string | null> =>
+    fetch(api("/api/forgot-password"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email })
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        return res.ok ? null : (data.error || "Could not send reset link.");
+      })
+      .catch(() => "Connection error. Try again.");
+
+  const handleResetPassword = (token: string, newPassword: string): Promise<string | null> =>
+    fetch(api("/api/reset-password"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, newPassword })
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) return data.error || "Could not reset password.";
+        setToken(data.token);
+        setStudents(data.allStudents);
+        setTeachers(data.allTeachers);
+        setCurrentUser(data.user);
+        setResetToken(null);
+        loadMe();
+        return null;
+      })
+      .catch(() => "Connection error. Try again.");
 
   // Join a class community with its code (students enroll, teachers co-teach)
   const handleJoinClass = (code: string): Promise<string | null> => {
@@ -643,6 +687,20 @@ export default function App() {
     );
   }
 
+  // Clicked a reset-password link: collect a new password before doing
+  // anything else, regardless of auth state (success clears resetToken and
+  // logs in, so the very next check below routes into the dashboard).
+  if (resetToken && !currentUser) {
+    return (
+      <ResetPasswordScreen
+        token={resetToken}
+        onSubmit={handleResetPassword}
+        onCancel={() => setResetToken(null)}
+        language={language}
+      />
+    );
+  }
+
   // First visit: phones get app-style onboarding slides, desktop gets the
   // marketing landing. Returning users (had a token) go straight to auth.
   if (!currentUser) {
@@ -668,6 +726,7 @@ export default function App() {
         pendingVerificationEmail={pendingVerificationEmail}
         onResendVerification={handleResendVerification}
         onClearPendingVerification={() => { setPendingVerificationEmail(null); setAuthError(null); }}
+        onForgotPassword={handleForgotPassword}
       />
     );
   }

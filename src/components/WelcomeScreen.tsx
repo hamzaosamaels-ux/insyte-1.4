@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { motion } from "motion/react";
-import { GraduationCap, Award, BookOpen, Sparkles, LogIn, AlertCircle, MailCheck } from "lucide-react";
+import { GraduationCap, Award, BookOpen, Sparkles, LogIn, AlertCircle, MailCheck, KeyRound } from "lucide-react";
 import { getTranslation, Language } from "../translations";
 import { LegalFooter } from "./Legal";
 
@@ -12,6 +12,7 @@ interface WelcomeScreenProps {
   pendingVerificationEmail: string | null;
   onResendVerification: (email: string) => Promise<string | null>;
   onClearPendingVerification: () => void;
+  onForgotPassword: (email: string) => Promise<string | null>;
 }
 
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
@@ -22,6 +23,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   pendingVerificationEmail,
   onResendVerification,
   onClearPendingVerification,
+  onForgotPassword,
 }) => {
   const t = getTranslation(language);
   const [mode, setMode] = useState<"login" | "signup">("login");
@@ -32,6 +34,10 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   const [localError, setLocalError] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
   const [resendMessage, setResendMessage] = useState<string | null>(null);
+  const [forgotMode, setForgotMode] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSending, setForgotSending] = useState(false);
+  const [forgotMessage, setForgotMessage] = useState<string | null>(null);
 
   const handleResend = () => {
     if (!pendingVerificationEmail || resending) return;
@@ -40,6 +46,16 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     onResendVerification(pendingVerificationEmail)
       .then((err) => setResendMessage(err || t.verifyResendSent))
       .finally(() => setResending(false));
+  };
+
+  const handleForgotSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotEmail.trim() || forgotSending) return;
+    setForgotSending(true);
+    setForgotMessage(null);
+    onForgotPassword(forgotEmail.trim())
+      .then((err) => setForgotMessage(err || t.forgotPasswordSent))
+      .finally(() => setForgotSending(false));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -120,6 +136,43 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                 {t.verifyUseDifferentEmail}
               </button>
             </div>
+          </div>
+        ) : forgotMode ? (
+          <div>
+            <div className="text-center mb-5">
+              <div className="inline-flex p-3 bg-indigo-950/40 border border-indigo-500/30 rounded-2xl mb-4">
+                <KeyRound className="h-7 w-7 text-indigo-400" />
+              </div>
+              <p className="text-sm font-bold text-slate-100 mb-1.5">{t.forgotPasswordTitle}</p>
+              <p className="text-xs text-slate-300 leading-relaxed">{t.forgotPasswordDesc}</p>
+            </div>
+            <form onSubmit={handleForgotSubmit} className="space-y-3">
+              <input
+                type="email"
+                required
+                autoFocus
+                placeholder={t.emailPlaceholder}
+                value={forgotEmail}
+                onChange={(e) => setForgotEmail(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 focus:border-indigo-500 rounded-xl focus:outline-hidden text-sm"
+              />
+              {forgotMessage && <p className="text-xs text-indigo-300">{forgotMessage}</p>}
+              <button
+                type="submit"
+                disabled={forgotSending}
+                className="w-full py-3 font-bold rounded-xl text-sm transition-all text-white cursor-pointer bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {forgotSending ? t.verifyResending : t.forgotPasswordSendButton}
+              </button>
+            </form>
+            <p className="text-center mt-4">
+              <button
+                onClick={() => { setForgotMode(false); setForgotMessage(null); setForgotEmail(""); }}
+                className="text-xs text-slate-400 hover:text-white font-medium cursor-pointer"
+              >
+                {t.verifyGoToLogin}
+              </button>
+            </p>
           </div>
         ) : (
         <>
@@ -221,6 +274,15 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 focus:border-indigo-500 rounded-xl focus:outline-hidden text-sm"
             />
+            {mode === "login" && (
+              <button
+                type="button"
+                onClick={() => { setForgotMode(true); setForgotEmail(email); }}
+                className="mt-1.5 text-[11px] text-indigo-400 hover:underline font-medium cursor-pointer"
+              >
+                {t.forgotPasswordLink}
+              </button>
+            )}
           </div>
 
           {(authError || localError) && (
