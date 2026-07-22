@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { motion } from "motion/react";
-import { GraduationCap, Award, BookOpen, Sparkles, LogIn, AlertCircle } from "lucide-react";
+import { GraduationCap, Award, BookOpen, Sparkles, LogIn, AlertCircle, MailCheck } from "lucide-react";
 import { getTranslation, Language } from "../translations";
 import { LegalFooter } from "./Legal";
 
@@ -9,6 +9,9 @@ interface WelcomeScreenProps {
   onLogIn: (email: string, password: string) => void;
   authError: string | null;
   language: Language;
+  pendingVerificationEmail: string | null;
+  onResendVerification: (email: string) => Promise<string | null>;
+  onClearPendingVerification: () => void;
 }
 
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
@@ -16,6 +19,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onLogIn,
   authError,
   language,
+  pendingVerificationEmail,
+  onResendVerification,
+  onClearPendingVerification,
 }) => {
   const t = getTranslation(language);
   const [mode, setMode] = useState<"login" | "signup">("login");
@@ -24,6 +30,17 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"student" | "teacher">("student");
   const [localError, setLocalError] = useState<string | null>(null);
+  const [resending, setResending] = useState(false);
+  const [resendMessage, setResendMessage] = useState<string | null>(null);
+
+  const handleResend = () => {
+    if (!pendingVerificationEmail || resending) return;
+    setResending(true);
+    setResendMessage(null);
+    onResendVerification(pendingVerificationEmail)
+      .then((err) => setResendMessage(err || t.verifyResendSent))
+      .finally(() => setResending(false));
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,6 +94,35 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           </motion.p>
         </div>
 
+        {pendingVerificationEmail ? (
+          <div className="text-center">
+            <div className="inline-flex p-3 bg-indigo-950/40 border border-indigo-500/30 rounded-2xl mb-4">
+              <MailCheck className="h-7 w-7 text-indigo-400" />
+            </div>
+            <p className="text-sm font-bold text-slate-100 mb-1.5">{t.verifyCheckInboxTitle}</p>
+            <p className="text-xs text-slate-300 leading-relaxed mb-1">
+              {t.verifyCheckInboxDesc.replace("{email}", pendingVerificationEmail)}
+            </p>
+            {authError && <p className="text-xs text-amber-400 mt-2">{authError}</p>}
+            {resendMessage && <p className="text-xs text-indigo-300 mt-3">{resendMessage}</p>}
+            <div className="flex items-center justify-center gap-3 mt-5">
+              <button
+                onClick={handleResend}
+                disabled={resending}
+                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-xl text-xs font-bold cursor-pointer disabled:cursor-not-allowed transition-all"
+              >
+                {resending ? t.verifyResending : t.verifyResendButton}
+              </button>
+              <button
+                onClick={onClearPendingVerification}
+                className="text-xs text-slate-400 hover:text-white font-medium cursor-pointer"
+              >
+                {t.verifyUseDifferentEmail}
+              </button>
+            </div>
+          </div>
+        ) : (
+        <>
         {/* Mode Switch */}
         <div className="flex items-center gap-1.5 bg-slate-800/50 p-1.5 rounded-xl border border-slate-700/50 mb-6">
           <button
@@ -202,6 +248,8 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             {mode === "login" ? t.signUp : t.logIn}
           </button>
         </p>
+        </>
+        )}
 
         <div className="mt-6 pt-5 border-t border-slate-800/60">
           <LegalFooter dark />
