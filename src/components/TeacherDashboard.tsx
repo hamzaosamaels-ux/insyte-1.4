@@ -105,6 +105,17 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   // Mobile nav drawer (hamburger opens the left rail)
   const [menuOpen, setMenuOpen] = useState(false);
 
+  // Inline XP editor: click a student's XP number to type an exact value
+  const [editingXpId, setEditingXpId] = useState<string | null>(null);
+  const [xpDraft, setXpDraft] = useState("");
+  const commitXpEdit = (studentId: string, currentXp: number) => {
+    const newXp = Math.round(Number(xpDraft));
+    if (!Number.isNaN(newXp) && newXp !== currentXp) {
+      onAdjustStudentXp(studentId, newXp - currentXp);
+    }
+    setEditingXpId(null);
+  };
+
   // Onboarding progress (persist "shared code" locally once they copy it)
   // `classes` prop is already scoped to owned + joined communities (App.tsx)
   const myClasses = classes;
@@ -862,30 +873,44 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                             <span className="bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-350 px-1.5 py-0.5 rounded-md font-mono text-[9px] font-bold">
                               {t.level} {stud.level}
                             </span>
-                            <span className="text-amber-500 font-bold font-mono text-[10px]">{stud.xp} XP</span>
                           </div>
-                          {/* Manual XP adjust */}
-                          <div className="flex items-center gap-1 mt-2">
+                          {/* Manual XP adjust: step buttons + click the number to set an exact value */}
+                          <div className="flex items-center gap-1.5 mt-2">
                             <button
-                              onClick={() => onAdjustStudentXp(stud.id, -50)}
-                              className="px-2 py-0.5 rounded-md bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-[10px] font-bold cursor-pointer hover:bg-red-200 dark:hover:bg-red-900/50"
-                              title={t.minus50Xp}
+                              onClick={() => onAdjustStudentXp(stud.id, -10)}
+                              className="w-5 h-5 flex items-center justify-center rounded-md bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-xs font-bold cursor-pointer hover:bg-red-200 dark:hover:bg-red-900/50"
+                              title={t.decreaseXp}
                             >
-                              −50
+                              −
                             </button>
+                            {editingXpId === stud.id ? (
+                              <input
+                                type="number"
+                                autoFocus
+                                value={xpDraft}
+                                onChange={(e) => setXpDraft(e.target.value)}
+                                onBlur={() => commitXpEdit(stud.id, stud.xp)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") commitXpEdit(stud.id, stud.xp);
+                                  if (e.key === "Escape") setEditingXpId(null);
+                                }}
+                                className="w-16 px-1 py-0.5 text-[10px] font-mono font-bold text-amber-600 bg-white dark:bg-[#1c1836] border border-amber-300 dark:border-amber-500/40 rounded-md"
+                              />
+                            ) : (
+                              <button
+                                onClick={() => { setEditingXpId(stud.id); setXpDraft(String(stud.xp)); }}
+                                className="text-amber-500 font-bold font-mono text-[10px] cursor-pointer hover:underline"
+                                title={t.clickToSetXp}
+                              >
+                                {stud.xp} XP
+                              </button>
+                            )}
                             <button
-                              onClick={() => onAdjustStudentXp(stud.id, 50)}
-                              className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold cursor-pointer hover:bg-emerald-200 dark:hover:bg-emerald-900/50"
-                              title={t.plus50Xp}
+                              onClick={() => onAdjustStudentXp(stud.id, 10)}
+                              className="w-5 h-5 flex items-center justify-center rounded-md bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 text-xs font-bold cursor-pointer hover:bg-emerald-200 dark:hover:bg-emerald-900/50"
+                              title={t.increaseXp}
                             >
-                              +50
-                            </button>
-                            <button
-                              onClick={() => onAdjustStudentXp(stud.id, 100)}
-                              className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold cursor-pointer hover:bg-emerald-200 dark:hover:bg-emerald-900/50"
-                              title={t.plus100Xp}
-                            >
-                              +100
+                              +
                             </button>
                           </div>
                         </div>
