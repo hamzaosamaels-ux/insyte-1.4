@@ -406,6 +406,17 @@ function publicSubmission(s: TaskSubmission): Omit<TaskSubmission, "content" | "
   return rest;
 }
 
+// Public view of a task: no answer key. correctPairing and each quiz
+// question's correctIndex are graded server-side only (see /api/submissions/grade)
+// and must never reach an unauthenticated client.
+function publicTask(t: TaskItem) {
+  const { correctPairing, quizQuestions, ...rest } = t;
+  return {
+    ...rest,
+    ...(quizQuestions ? { quizQuestions: quizQuestions.map(({ question, options }) => ({ question, options })) } : {})
+  };
+}
+
 // Mails visible to one user: sent or received by them
 function mailsFor(db: DbSchema, userId: string): Mail[] {
   return db.mails.filter(m => m.fromId === userId || m.toId === userId);
@@ -577,14 +588,19 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
   // are served per-user by GET /api/me/:userId.
   app.get("/api/data", (req, res) => {
     const db = readDb();
+    // Chat is classroom-scoped, not public: only return messages for classes
+    // the caller has joined (or none, if unauthenticated). The client only
+    // ever displays messages for the caller's active class anyway.
+    const caller = userFromToken(db, req);
+    const visibleClassIds = new Set(caller ? caller.joinedClasses : []);
     res.json({
       students: db.students.map(publicUser),
       teachers: db.teachers.map(publicUser),
       classes: db.classes,
       lessons: db.lessons,
-      tasks: db.tasks,
+      tasks: db.tasks.map(publicTask),
       announcements: db.announcements,
-      chatMessages: db.chatMessages,
+      chatMessages: db.chatMessages.filter(m => visibleClassIds.has(m.classId)),
       events: db.events,
       submissions: db.submissions.map(publicSubmission)
     });
