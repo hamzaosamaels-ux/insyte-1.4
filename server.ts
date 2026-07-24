@@ -133,7 +133,10 @@ interface Lesson {
   pptUrl?: string;
   webUrl?: string;
   webUrlTitle?: string;
+  rewardXp?: number;
 }
+
+const DEFAULT_LESSON_READ_XP = 25;
 
 interface TaskItem {
   id: string;
@@ -1055,7 +1058,7 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
     res.json({ student: selfUser(updatedStudent), allStudents: db.students.map(publicUser) });
   });
 
-  // Mark a lesson read (student's own session). Idempotent: awards +25 XP
+  // Mark a lesson read (student's own session). Idempotent: awards XP
   // only the first time a given lesson id is marked for that student —
   // repeat calls (reopening the same lesson) return the student unchanged.
   app.post("/api/lessons/mark-read", (req, res) => {
@@ -1074,7 +1077,8 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
       return res.json({ student: selfUser(requester), allStudents: db.students.map(publicUser), alreadyRead: true });
     }
 
-    const READ_XP = 25;
+    const lesson = db.lessons.find(l => l.id === lessonId);
+    const READ_XP = lesson?.rewardXp ?? DEFAULT_LESSON_READ_XP;
     let updatedStudent: UserProfile | null = null;
     db.students = db.students.map(stud => {
       if (stud.id !== requester.id) return stud;
@@ -1231,7 +1235,7 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
 
   // Publish a new lesson guide
   app.post("/api/lessons", (req, res) => {
-    const { classId, title, content, videoUrl, pptUrl, webUrl, webUrlTitle } = req.body;
+    const { classId, title, content, videoUrl, pptUrl, webUrl, webUrlTitle, rewardXp } = req.body;
     if (!classId || !title || !content) {
       return res.status(400).json({ error: "classId, title, and content are required." });
     }
@@ -1249,6 +1253,7 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
     if (!targetClass || targetClass.teacherId !== requester.id) {
       return res.status(403).json({ error: "You do not teach this class." });
     }
+    const parsedXp = Number(rewardXp);
     const newLesson: Lesson = {
       id: `lesson-${Date.now()}`,
       classId,
@@ -1258,7 +1263,8 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
       videoUrl: videoUrl || "",
       pptUrl: pptUrl || "",
       webUrl: webUrl || "",
-      webUrlTitle: webUrlTitle || ""
+      webUrlTitle: webUrlTitle || "",
+      rewardXp: Number.isFinite(parsedXp) && parsedXp >= 0 ? parsedXp : DEFAULT_LESSON_READ_XP
     };
 
     db.lessons.unshift(newLesson); // Prepend so most recent appears first
@@ -1269,7 +1275,7 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
   // Update an existing lesson guide
   app.put("/api/lessons/:id", (req, res) => {
     const { id } = req.params;
-    const { title, content, videoUrl, pptUrl, webUrl, webUrlTitle } = req.body;
+    const { title, content, videoUrl, pptUrl, webUrl, webUrlTitle, rewardXp } = req.body;
 
     if (!title || !content) {
       return res.status(400).json({ error: "title and content are required." });
@@ -1293,6 +1299,7 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
       return res.status(403).json({ error: "You do not teach this class." });
     }
 
+    const parsedXp = Number(rewardXp);
     db.lessons[index] = {
       ...db.lessons[index],
       title,
@@ -1300,7 +1307,8 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
       videoUrl: videoUrl || "",
       pptUrl: pptUrl || "",
       webUrl: webUrl || "",
-      webUrlTitle: webUrlTitle || ""
+      webUrlTitle: webUrlTitle || "",
+      rewardXp: Number.isFinite(parsedXp) && parsedXp >= 0 ? parsedXp : (db.lessons[index].rewardXp ?? DEFAULT_LESSON_READ_XP)
     };
 
     writeDb(db);

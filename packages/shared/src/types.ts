@@ -63,6 +63,7 @@ export interface Lesson {
   pptUrl?: string;         // Presentation link (Google Slides embed, Office Live embed, or general)
   webUrl?: string;         // General external web link
   webUrlTitle?: string;    // Label for the web link
+  rewardXp?: number;       // XP a student earns for reading this lesson (defaults to 25)
 }
 
 export type TaskType = 'text' | 'dragdrop' | 'quiz';

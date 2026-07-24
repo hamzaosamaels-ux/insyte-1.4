@@ -103,12 +103,12 @@ const classToRow = (c: any) => ({
 const rowToLesson = (r: any) => ({
   id: r.id, classId: r.class_id, title: r.title, content: r.content,
   publishedAt: r.published_at, videoUrl: r.video_url || "", pptUrl: r.ppt_url || "",
-  webUrl: r.web_url || "", webUrlTitle: r.web_url_title || ""
+  webUrl: r.web_url || "", webUrlTitle: r.web_url_title || "", rewardXp: r.reward_xp ?? 25
 });
 const lessonToRow = (l: any) => ({
   id: l.id, class_id: l.classId, title: l.title, content: l.content,
   published_at: l.publishedAt, video_url: l.videoUrl || "", ppt_url: l.pptUrl || "",
-  web_url: l.webUrl || "", web_url_title: l.webUrlTitle || ""
+  web_url: l.webUrl || "", web_url_title: l.webUrlTitle || "", reward_xp: l.rewardXp ?? 25
 });
 
 const rowToTask = (r: any) => ({

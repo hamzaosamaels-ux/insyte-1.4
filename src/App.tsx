@@ -399,8 +399,8 @@ export default function App() {
       .catch((err) => console.error("Error rewarding study XP:", err));
   };
 
-  // Mark a lesson read — server enforces the +25 XP is only ever awarded once
-  // per lesson per student, no matter how many times this gets called.
+  // Mark a lesson read — server enforces the lesson's XP reward is only ever
+  // awarded once per lesson per student, no matter how many times this gets called.
   const handleMarkLessonRead = (lessonId: string) => {
     if (!currentUser || currentUser.role !== "student") return;
     fetch(api("/api/lessons/mark-read"), {
@@ -784,11 +784,13 @@ export default function App() {
       announcements={announcements}
       events={events}
       submissions={submissions}
+      chatMessages={chatMessages}
       allStudents={students}
       allTeachers={teachers}
       mails={myMails}
       notifications={myNotifications}
       onLogOut={handleLogOut}
+      onSendMessage={handleSendMessage}
       onCreateClass={handleCreateClass}
       onJoinClass={handleJoinClass}
       onCreateLesson={handleCreateLesson}

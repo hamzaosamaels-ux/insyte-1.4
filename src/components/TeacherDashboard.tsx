@@ -1,15 +1,15 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Plus, BookOpen, Award, Megaphone, Calendar, Users,
   CheckSquare, LogOut, CheckCircle2, ChevronRight, Info,
   Trash2, Send, Clock, Sparkles, Settings, Edit, Check, Library, Video, Presentation, Globe,
-  Mail as MailLucide, Copy, Menu, Download, UserPlus
+  Mail as MailLucide, Copy, Menu, Download, UserPlus, MessageSquare
 } from "lucide-react";
 import {
   UserProfile, ClassCommunity, Lesson, TaskItem,
   TaskSubmission, Announcement, ClassEvent,
-  Mail, AppNotification
+  Mail, AppNotification, ChatMessage
 } from "../types";
 import { Language, Theme, getTranslation } from "../translations";
 import { InteractiveCalendar } from "./InteractiveCalendar";
@@ -29,11 +29,13 @@ interface TeacherDashboardProps {
   announcements: Announcement[];
   events: ClassEvent[];
   submissions: TaskSubmission[];
+  chatMessages: ChatMessage[];
   allStudents: UserProfile[];
   allTeachers: UserProfile[];
   mails: Mail[];
   notifications: AppNotification[];
   onLogOut: () => void;
+  onSendMessage: (classId: string, text: string) => void;
   onCreateClass: (name: string, code: string, description: string, color?: string) => Promise<string | null>;
   onJoinClass: (code: string) => Promise<string | null>;
   onSendMail: (toId: string, subject: string, body: string) => Promise<string | null>;
@@ -63,11 +65,13 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   announcements,
   events,
   submissions,
+  chatMessages,
   allStudents,
   allTeachers,
   mails,
   notifications,
   onLogOut,
+  onSendMessage,
   onCreateClass,
   onJoinClass,
   onSendMail,
@@ -101,7 +105,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
   // Selection States
   const [activeClass, setActiveClass] = useState<ClassCommunity | null>(classes[0] || null);
-  const [activeSection, setActiveSection] = useState<"lobby" | "lessons" | "tasks" | "grade" | "events" | "announcements" | "calendar" | "mail" | "library" | "settings">("lobby");
+  const [activeSection, setActiveSection] = useState<"lobby" | "lessons" | "tasks" | "grade" | "events" | "announcements" | "chat" | "calendar" | "mail" | "library" | "settings">("lobby");
   // Mobile nav drawer (hamburger opens the left rail)
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -114,6 +118,21 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       onAdjustStudentXp(studentId, newXp - currentXp);
     }
     setEditingXpId(null);
+  };
+
+  // Classroom chat: mirrors the student side's peer discuss room
+  const [chatInput, setChatInput] = useState("");
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (activeSection === "chat") {
+      chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [activeSection, chatMessages]);
+  const handleSendChat = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeClass || !chatInput.trim()) return;
+    onSendMessage(activeClass.id, chatInput.trim());
+    setChatInput("");
   };
 
   // Onboarding progress (persist "shared code" locally once they copy it)
@@ -162,6 +181,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const [lessonPptUrl, setLessonPptUrl] = useState("");
   const [lessonWebUrl, setLessonWebUrl] = useState("");
   const [lessonWebUrlTitle, setLessonWebUrlTitle] = useState("");
+  const [lessonRewardXp, setLessonRewardXp] = useState("25");
   const [editingLessonId, setEditingLessonId] = useState<string | null>(null);
 
   // Create Task states
@@ -346,7 +366,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       videoUrl: lessonVideoUrl.trim() || undefined,
       pptUrl: lessonPptUrl.trim() || undefined,
       webUrl: lessonWebUrl.trim() || undefined,
-      webUrlTitle: (lessonWebUrl.trim() && lessonWebUrlTitle.trim()) ? lessonWebUrlTitle.trim() : undefined
+      webUrlTitle: (lessonWebUrl.trim() && lessonWebUrlTitle.trim()) ? lessonWebUrlTitle.trim() : undefined,
+      rewardXp: Math.max(0, Math.round(Number(lessonRewardXp)) || 25)
     };
 
     if (editingLessonId) {
@@ -363,6 +384,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     setLessonPptUrl("");
     setLessonWebUrl("");
     setLessonWebUrlTitle("");
+    setLessonRewardXp("25");
     setEditingLessonId(null);
   };
 
@@ -373,6 +395,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     setLessonPptUrl(lesson.pptUrl || "");
     setLessonWebUrl(lesson.webUrl || "");
     setLessonWebUrlTitle(lesson.webUrlTitle || "");
+    setLessonRewardXp(String(lesson.rewardXp ?? 25));
     setEditingLessonId(lesson.id);
     setActiveSection("lessons");
   };
@@ -384,6 +407,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     setLessonPptUrl("");
     setLessonWebUrl("");
     setLessonWebUrlTitle("");
+    setLessonRewardXp("25");
     setEditingLessonId(null);
   };
 
@@ -502,6 +526,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const classEvents = events.filter(e => e.classId === activeClass?.id);
   const classSubmissions = submissions.filter(s => classTasks.some(t => t.id === s.taskId));
   const classStudents = allStudents.filter(s => activeClass?.studentIds?.includes(s.id) ?? false);
+  const classMessages = chatMessages.filter(m => m.classId === activeClass?.id);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#0b081a] text-slate-800 dark:text-slate-100 flex flex-col transition-colors duration-200">
@@ -742,6 +767,18 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
             >
               <Megaphone className="h-4 w-4" />
               <span>{t.announcements}</span>
+            </button>
+
+            <button
+              onClick={() => { setActiveSection("chat"); setSelectedSub(null); }}
+              className={`w-auto md:w-full shrink-0 flex items-center justify-start gap-2.5 px-3.5 md:px-4 py-2.5 md:py-3 rounded-xl text-xs font-bold transition-all ${
+                activeSection === "chat"
+                  ? "bg-slate-100 dark:bg-[#1c1836] text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-[#2d2553]/50 shadow-xs"
+                  : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 hover:text-slate-800 dark:hover:text-slate-200 border border-transparent"
+              }`}
+            >
+              <MessageSquare className="h-4 w-4" />
+              <span>{t.peerDiscuss}</span>
             </button>
 
             <button
@@ -994,6 +1031,19 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                         value={lessonContent}
                         onChange={(e) => setLessonContent(e.target.value)}
                         className="w-full p-4 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-xl focus:outline-hidden text-xs text-slate-700 dark:text-slate-200 leading-relaxed font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">{t.xpReward}</label>
+                      <input
+                        type="number"
+                        required
+                        min={0}
+                        max={1000}
+                        value={lessonRewardXp}
+                        onChange={(e) => setLessonRewardXp(e.target.value)}
+                        className="w-full sm:w-40 px-4 py-2.5 bg-slate-50 dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-violet-500 rounded-xl focus:outline-hidden text-xs text-slate-700 dark:text-slate-200"
                       />
                     </div>
 
@@ -1697,6 +1747,96 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                     className="px-5 py-2.5 bg-violet-600 hover:bg-violet-500 text-white font-bold text-xs rounded-xl shadow-md shadow-violet-100 dark:shadow-none transition-all cursor-pointer"
                   >
                     {t.broadcastNews}
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* CLASSROOM PEER CHAT — same room students post in, teacher can read + join in */}
+            {activeSection === "chat" && activeClass && (
+              <div className="bg-white dark:bg-[#18142c] border border-slate-200 dark:border-[#2b244c] rounded-3xl flex flex-col h-[70vh] md:h-[calc(100vh-160px)]">
+
+                <div className="p-4 border-b border-slate-100 dark:border-[#251e40] flex items-center justify-between bg-slate-50/50 dark:bg-[#201b3a]/50 rounded-t-3xl">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <div>
+                      <h3 className="font-bold text-xs text-slate-800 dark:text-slate-200">#{activeClass.code}-community-chat</h3>
+                      <p className="text-[10px] text-slate-400 mt-0.5">{t.chatChannelDesc}</p>
+                    </div>
+                  </div>
+                  <span className="text-[9px] font-bold text-slate-400 font-mono">{classStudents.length} {t.activePeers}</span>
+                </div>
+
+                <div className="flex-1 p-4 overflow-y-auto bg-slate-100/70 dark:bg-[#120f22]">
+                  {classMessages.map((msg, i) => {
+                    const isSelf = msg.senderId === currentTeacher.id;
+                    const isTeacher = msg.senderRole === 'teacher';
+                    const prev = classMessages[i - 1];
+                    const newDay = !prev || new Date(prev.timestamp).toDateString() !== new Date(msg.timestamp).toDateString();
+                    const grouped = !newDay && prev && prev.senderId === msg.senderId;
+                    const d = new Date(msg.timestamp);
+                    const today = new Date();
+                    const yest = new Date(Date.now() - 864e5);
+                    const dayLabel = d.toDateString() === today.toDateString() ? t.chatToday
+                      : d.toDateString() === yest.toDateString() ? t.chatYesterday
+                      : d.toLocaleDateString();
+                    const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    return (
+                      <React.Fragment key={msg.id}>
+                        {newDay && (
+                          <div className="flex justify-center py-2.5">
+                            <span className="px-3 py-1 bg-white dark:bg-[#251e40] text-slate-500 dark:text-slate-400 text-[9px] font-bold rounded-lg shadow-xs">
+                              {dayLabel}
+                            </span>
+                          </div>
+                        )}
+                        <div className={`flex items-end gap-2 ${isSelf ? "justify-end" : "justify-start"} ${grouped ? "mt-0.5" : "mt-3"}`}>
+                          {!isSelf && (grouped ? (
+                            <div className="w-7 shrink-0" />
+                          ) : (
+                            <img
+                              src={msg.senderAvatar}
+                              alt={msg.senderName}
+                              className="w-7 h-7 rounded-full bg-slate-100 shrink-0 border border-slate-200 dark:border-[#2b244c]"
+                            />
+                          ))}
+                          <div className={`max-w-[75%] px-3 py-2 text-xs leading-relaxed shadow-xs ${
+                            isSelf
+                              ? "bg-indigo-600 text-white rounded-2xl rounded-br-md"
+                              : "bg-white dark:bg-[#221c3f] text-slate-800 dark:text-slate-200 rounded-2xl rounded-bl-md"
+                          }`}>
+                            {!isSelf && !grouped && (
+                              <div className={`text-[10px] font-bold mb-0.5 ${isTeacher ? "text-violet-500" : "text-indigo-400"}`}>
+                                {msg.senderName}{isTeacher ? ` · ${t.teacherRole}` : ""}
+                              </div>
+                            )}
+                            <span className="break-words">{msg.text}</span>
+                            <span className={`text-[8px] font-mono ms-2 whitespace-nowrap ${isSelf ? "text-indigo-200" : "text-slate-400"}`}>
+                              {time}
+                            </span>
+                          </div>
+                        </div>
+                      </React.Fragment>
+                    );
+                  })}
+                  <div ref={chatBottomRef} />
+                </div>
+
+                <form onSubmit={handleSendChat} className="p-4 border-t border-slate-100 dark:border-[#251e40] bg-slate-50/50 dark:bg-[#201b3a]/50 rounded-b-3xl flex gap-2">
+                  <input
+                    type="text"
+                    required
+                    placeholder={`${t.messageChannelPrefix} #${activeClass.code}-community-chat...`}
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    className="flex-1 px-4 py-2.5 bg-white dark:bg-[#1c1836] border border-slate-200 dark:border-[#2b244c] focus:border-indigo-500 rounded-full focus:outline-hidden text-xs text-slate-700 dark:text-slate-200"
+                  />
+                  <button
+                    type="submit"
+                    aria-label={t.messageChannelPrefix}
+                    className="p-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full shadow-md shadow-indigo-100 dark:shadow-none transition-all flex items-center justify-center cursor-pointer"
+                  >
+                    <Send className="h-4 w-4" />
                   </button>
                 </form>
               </div>

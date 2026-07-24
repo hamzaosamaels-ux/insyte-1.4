@@ -68,7 +68,8 @@ create table if not exists public.lessons (
   video_url     text default '',
   ppt_url       text default '',
   web_url       text default '',
-  web_url_title text default ''
+  web_url_title text default '',
+  reward_xp     integer not null default 25
 );
 create index if not exists lessons_class_idx on public.lessons (class_id);
 
