@@ -1,0 +1,44 @@
+import "../global.css";
+import React from "react";
+import { Stack } from "expo-router";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { useFonts } from "expo-font";
+import { Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from "@expo-google-fonts/inter";
+import { SpaceGrotesk_700Bold } from "@expo-google-fonts/space-grotesk";
+import { JetBrainsMono_400Regular } from "@expo-google-fonts/jetbrains-mono";
+import { ThemeProvider } from "../src/context/ThemeContext";
+import { LanguageProvider } from "../src/context/LanguageContext";
+import { ErrorBoundary } from "../src/components/ErrorBoundary";
+
+export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    Inter_400Regular,
+    Inter_600SemiBold,
+    Inter_700Bold,
+    SpaceGrotesk_700Bold,
+    JetBrainsMono_400Regular
+  });
+
+  // Blank until fonts resolve — matches web's font class names now actually
+  // rendering the real typefaces instead of silently falling back to system.
+  if (!fontsLoaded) return null;
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <ErrorBoundary>
+          <ThemeProvider>
+            <LanguageProvider>
+              <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="(auth)" />
+                <Stack.Screen name="(student)" />
+                <Stack.Screen name="(teacher)" />
+              </Stack>
+            </LanguageProvider>
+          </ThemeProvider>
+        </ErrorBoundary>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
+  );
+}
