@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { GraduationCap, BookOpen, Award, MailCheck } from "lucide-react-native";
 import { router } from "expo-router";
 import { useAuth, VerificationRequiredError } from "../../src/context/AuthContext";
 import { useLanguage } from "../../src/context/LanguageContext";
@@ -69,7 +70,10 @@ export default function Welcome() {
   if (pendingEmail) {
     return (
       <View className="flex-1 items-center justify-center bg-slate-950 p-6">
-        <View className="w-full max-w-sm">
+        <View className="w-full max-w-sm items-center">
+          <View className="p-3 bg-indigo-950/40 border border-indigo-500/30 rounded-2xl mb-4">
+            <MailCheck size={28} color="#818cf8" />
+          </View>
           <Text className="text-base font-bold text-slate-100 font-display text-center mb-1.5">
             {t.verifyCheckInboxTitle}
           </Text>
@@ -115,7 +119,7 @@ export default function Welcome() {
             end={{ x: 1, y: 0 }}
             style={{ padding: 16, borderRadius: 20, marginBottom: 16 }}
           >
-            <Text className="text-3xl">🎓</Text>
+            <GraduationCap size={40} color="#ffffff" />
           </LinearGradient>
           <Text className="text-4xl font-extrabold text-white font-display text-center tracking-tight">insyte</Text>
         </View>
@@ -142,13 +146,15 @@ export default function Welcome() {
               onPress={() => setRole("student")}
               className={`flex-1 p-3 rounded-xl border items-center ${role === "student" ? "border-indigo-500 bg-indigo-950/40" : "border-slate-700 bg-slate-800/30"}`}
             >
-              <Text className={`text-xs font-bold ${role === "student" ? "text-indigo-200" : "text-slate-300"}`}>{t.studentRole}</Text>
+              <BookOpen size={20} color={role === "student" ? "#818cf8" : "#94a3b8"} />
+              <Text className={`text-xs font-bold mt-1.5 ${role === "student" ? "text-indigo-200" : "text-slate-300"}`}>{t.studentRole}</Text>
             </Pressable>
             <Pressable
               onPress={() => setRole("teacher")}
               className={`flex-1 p-3 rounded-xl border items-center ${role === "teacher" ? "border-violet-500 bg-violet-950/40" : "border-slate-700 bg-slate-800/30"}`}
             >
-              <Text className={`text-xs font-bold ${role === "teacher" ? "text-violet-200" : "text-slate-300"}`}>{t.teacherRole}</Text>
+              <Award size={20} color={role === "teacher" ? "#a78bfa" : "#94a3b8"} />
+              <Text className={`text-xs font-bold mt-1.5 ${role === "teacher" ? "text-violet-200" : "text-slate-300"}`}>{t.teacherRole}</Text>
             </Pressable>
           </View>
         )}
