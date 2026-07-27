@@ -532,7 +532,11 @@ const PORT = 3000;
 const ALLOWED_ORIGINS = [
   "https://insyte-1-4.vercel.app",
   "http://localhost:3000",
-  "http://localhost:5173"
+  "http://localhost:5173",
+  // Expo's web dev server (`expo start --web`), so the native app's screens can
+  // be exercised in a browser during development. Native builds don't need this
+  // — RN's fetch isn't subject to CORS — it's purely a dev-preview affordance.
+  "http://localhost:8081"
 ];
 app.use((req, res, next) => {
   // CORS

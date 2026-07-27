@@ -1,0 +1,14 @@
+{
+  "name": "insyte-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Root convenience scripts only. The real projects are website/ (Vite + Express, deployed to Vercel + Railway) and app/ (Expo native). Each installs its own dependencies independently — deliberately NOT npm workspaces, so a native-only dependency can never leak into the deployed website build.",
+  "scripts": {
+    "website": "npm --prefix website run dev",
+    "website:build": "npm --prefix website run build",
+    "app": "npm --prefix app run start",
+    "app:web": "npm --prefix app run web",
+    "app:android": "npm --prefix app run android",
+    "typecheck": "npm --prefix website exec tsc -- --noEmit && npm --prefix app exec tsc -- --noEmit"
+  }
+}

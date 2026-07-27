@@ -4,8 +4,14 @@
     {
       "name": "insyte-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "website"],
+      "runtimeArgs": ["run", "website"],
       "port": 3000
+    },
+    {
+      "name": "insyte-app-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "app:web"],
+      "port": 8081
     }
   ]
 }
