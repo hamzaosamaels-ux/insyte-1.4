@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, Animated, Easing } from "react-native";
+import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, Animated, Easing, Linking } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { GraduationCap, BookOpen, Award, MailCheck, KeyRound, LogIn, Sparkles, AlertCircle } from "lucide-react-native";
 import { router } from "expo-router";
@@ -114,9 +114,17 @@ export default function Welcome() {
 
   return (
     <View className="flex-1 bg-slate-950">
-      {/* Ambient glows, matching web's decorative background */}
-      <View pointerEvents="none" className="absolute -top-[10%] -left-[10%] w-[50%] h-[50%] rounded-full bg-indigo-500/10" />
-      <View pointerEvents="none" className="absolute -bottom-[10%] -right-[10%] w-[50%] h-[50%] rounded-full bg-violet-600/10" />
+      {/* Web gets its depth from a blurred radial glow. RN can't blur a View,
+          so circles here render hard-edged and look worse than nothing —
+          a soft full-screen gradient gives the same impression cleanly. */}
+      <LinearGradient
+        colors={["#1e1b4b", "#020617", "#000000"]}
+        locations={[0, 0.55, 1]}
+        start={{ x: 0.1, y: 0 }}
+        end={{ x: 0.9, y: 1 }}
+        style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+        pointerEvents="none"
+      />
 
       <ScrollView
         contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: 24 }}
@@ -345,6 +353,19 @@ export default function Welcome() {
               </View>
             </>
           )}
+
+          {/* Legal footer, matching web. The documents themselves live on the
+              site — porting all four into the app is its own task, so these
+              hand off rather than duplicating the text (and risking drift). */}
+          <View className="mt-6 pt-5 border-t border-slate-800/60">
+            <View className="flex-row flex-wrap items-center justify-center gap-x-3 gap-y-1.5">
+              {["Privacy Policy", "Terms of Use", "Intellectual Property & Infringement", "Data & Compliance"].map(label => (
+                <Pressable key={label} onPress={() => Linking.openURL("https://insyte-1-4.vercel.app")}>
+                  <Text className="text-[10px] text-slate-400">{label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
         </View>
       </ScrollView>
     </View>

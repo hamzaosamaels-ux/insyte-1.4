@@ -72,9 +72,16 @@ export default function Onboarding() {
 
   return (
     <View className="flex-1 bg-slate-950">
-      {/* Ambient glows matching web's AppIntro */}
-      <View pointerEvents="none" className="absolute -top-[15%] -left-[20%] w-[70%] h-[50%] rounded-full bg-indigo-500/15" />
-      <View pointerEvents="none" className="absolute -bottom-[15%] -right-[20%] w-[70%] h-[50%] rounded-full bg-violet-600/15" />
+      {/* Soft gradient instead of blurred circles — RN can't blur a View, so
+          circles render hard-edged. Same depth, no ugly seams. */}
+      <LinearGradient
+        colors={["#1e1b4b", "#020617", "#000000"]}
+        locations={[0, 0.55, 1]}
+        start={{ x: 0.1, y: 0 }}
+        end={{ x: 0.9, y: 1 }}
+        style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+        pointerEvents="none"
+      />
 
       <View className="flex-row items-center justify-between px-5 pt-16">
         <Text className="text-lg font-extrabold text-indigo-300 font-display">insyte</Text>
