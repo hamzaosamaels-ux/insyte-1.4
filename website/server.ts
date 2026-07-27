@@ -582,6 +582,25 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
   await initStore();
   readDb();
 
+  // If Supabase is configured but its initial load hasn't succeeded yet, the
+  // in-memory cache is an EMPTY seed — not the real data. Serving from it would
+  // make /api/me answer "not signed in" (a 401), which the client correctly
+  // reads as "your session is invalid" and reacts to by clearing the token —
+  // silently logging every active user out on a redeploy that had a slow or
+  // flaky first Supabase load. Answer "not ready yet" instead so clients retry
+  // rather than log out. The 15s retry loop in initStore heals this by itself.
+  app.use("/api/", (req, res, next) => {
+    if (req.path === "/health") return next(); // must stay reachable for diagnosis
+    if (supabaseEnabled() && !supabaseReady) {
+      res.setHeader("Retry-After", "15");
+      return res.status(503).json({
+        error: "Server is still starting up. Try again in a moment.",
+        starting: true
+      });
+    }
+    next();
+  });
+
   // -----------------------------------------------------
   // REST BACKEND API ENDPOINTS
   // -----------------------------------------------------

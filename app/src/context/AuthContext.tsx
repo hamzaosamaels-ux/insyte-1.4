@@ -46,8 +46,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       try {
         const res = await fetch(api("/api/me"), { headers: await authHeaders() });
-        if (!res.ok) {
+        if (res.status === 401) {
+          // Genuinely rejected (expired/invalid token) — sign out cleanly.
           await nativeStorage.clearToken();
+          setCurrentUser(null);
+        } else if (!res.ok) {
+          // Server not ready (503 while Supabase loads) or any other transient
+          // failure — KEEP the token. Clearing it here would log the user out
+          // for a server-side hiccup they had nothing to do with.
           setCurrentUser(null);
         } else {
           const data = await res.json();
