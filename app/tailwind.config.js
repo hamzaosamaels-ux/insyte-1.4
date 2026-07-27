@@ -10,10 +10,16 @@ module.exports = {
   darkMode: "class",
   theme: {
     extend: {
+      // These MUST match the exact keys passed to useFonts() in app/_layout.tsx.
+      // expo-font registers each weight under its own family name, so "Inter"
+      // or "Space Grotesk" resolve to nothing and silently fall back to the
+      // system serif — which is exactly what happened before this was fixed.
       fontFamily: {
-        sans: ["Inter"],
-        display: ["Space Grotesk"],
-        mono: ["JetBrains Mono"]
+        sans: ["Inter_400Regular"],
+        "sans-semibold": ["Inter_600SemiBold"],
+        "sans-bold": ["Inter_700Bold"],
+        display: ["SpaceGrotesk_700Bold"],
+        mono: ["JetBrainsMono_400Regular"]
       }
     }
   },

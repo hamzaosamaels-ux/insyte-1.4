@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useAuth, VerificationRequiredError } from "../../src/context/AuthContext";
 import { useLanguage } from "../../src/context/LanguageContext";
@@ -102,9 +103,23 @@ export default function Welcome() {
       contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: 24 }}
       keyboardShouldPersistTaps="handled"
     >
+      {/* Ambient glows, mirroring web's radial background treatment */}
+      <View pointerEvents="none" className="absolute -top-24 -left-24 w-72 h-72 rounded-full bg-indigo-500/20" />
+      <View pointerEvents="none" className="absolute -bottom-24 -right-24 w-72 h-72 rounded-full bg-violet-600/20" />
+
       <View className="w-full max-w-sm self-center">
-        <Text className="text-3xl font-extrabold text-white font-display text-center mb-1.5">insyte</Text>
-        <Text className="text-slate-300 text-sm text-center mb-8">{t.welcomeTagline}</Text>
+        <View className="items-center mb-6">
+          <LinearGradient
+            colors={["#6366f1", "#7c3aed"]}
+            start={{ x: 0, y: 1 }}
+            end={{ x: 1, y: 0 }}
+            style={{ padding: 16, borderRadius: 20, marginBottom: 16 }}
+          >
+            <Text className="text-3xl">🎓</Text>
+          </LinearGradient>
+          <Text className="text-4xl font-extrabold text-white font-display text-center tracking-tight">insyte</Text>
+        </View>
+        <Text className="text-slate-200 text-sm text-center leading-relaxed mb-8">{t.welcomeTagline}</Text>
 
         <View className="flex-row items-center gap-1.5 bg-slate-800/50 p-1.5 rounded-xl border border-slate-700/50 mb-6">
           <Pressable
@@ -186,18 +201,23 @@ export default function Welcome() {
 
         {error && <Text className="text-xs text-red-400 mt-3">{error}</Text>}
 
-        <Pressable
-          onPress={handleSubmit}
-          disabled={submitting}
-          className="mt-5 py-3.5 rounded-xl items-center bg-indigo-600 active:bg-indigo-500 disabled:opacity-60"
-        >
-          {submitting ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text className="text-white text-sm font-bold">
-              {mode === "signup" ? t.createAccount : t.logIn}
-            </Text>
-          )}
+        {/* One consistent high-contrast gradient CTA for both modes, matching
+            the web app's own login/signup button treatment. */}
+        <Pressable onPress={handleSubmit} disabled={submitting} className="mt-5 active:opacity-90 disabled:opacity-60">
+          <LinearGradient
+            colors={["#4f46e5", "#7c3aed"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={{ paddingVertical: 15, borderRadius: 14, alignItems: "center" }}
+          >
+            {submitting ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text className="text-white text-sm font-bold">
+                {mode === "signup" ? t.createAccount : t.logIn}
+              </Text>
+            )}
+          </LinearGradient>
         </Pressable>
       </View>
     </ScrollView>
