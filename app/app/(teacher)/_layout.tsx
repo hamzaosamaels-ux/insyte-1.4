@@ -1,8 +1,9 @@
 import { Drawer } from "expo-router/drawer";
+import { HeaderLogoutButton } from "../../src/components/HeaderLogoutButton";
 
 export default function TeacherLayout() {
   return (
-    <Drawer screenOptions={{ headerShown: true }}>
+    <Drawer screenOptions={{ headerShown: true, headerRight: () => <HeaderLogoutButton /> }}>
       <Drawer.Screen name="lobby" options={{ title: "Roster & Lobby" }} />
       <Drawer.Screen name="lessons" options={{ title: "Lessons" }} />
       <Drawer.Screen name="tasks" options={{ title: "Tasks & Quizzes" }} />
