@@ -3,9 +3,6 @@
   "version": "1.0.0",
   "type": "module",
   "private": true,
-  "workspaces": [
-    "packages/*"
-  ],
   "engines": {
     "node": ">=18"
   },
@@ -17,6 +14,7 @@
   },
   "dependencies": {
     "@google/genai": "latest",
+    "@insyte/shared": "file:../packages/shared",
     "@sentry/react": "^10.66.0",
     "@supabase/supabase-js": "^2.110.7",
     "@tailwindcss/vite": "^4.0.0-alpha.30",
