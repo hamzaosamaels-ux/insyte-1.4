@@ -398,6 +398,8 @@ export const translations = {
     // Create class extras
     classCodeTaken: "Class code shown to students to join:",
     shareCodeHint: "Share this code with your students so they can join.",
+    copyCode: "Copy",
+    copied: "Copied",
     addSubject: "Add Subject",
     addSubjectHint: "New subject class inside this community - grade stays the same.",
     communityName: "Community Name",
@@ -843,6 +845,8 @@ export const translations = {
     // Create class extras
     classCodeTaken: "رمز الفصل الذي يستخدمه الطلاب للانضمام:",
     shareCodeHint: "شارك هذا الرمز مع طلابك ليتمكنوا من الانضمام.",
+    copyCode: "نسخ",
+    copied: "تم النسخ",
     addSubject: "إضافة مادة",
     addSubjectHint: "مادة جديدة داخل هذا المجتمع - يبقى الصف كما هو.",
     communityName: "اسم المجتمع",

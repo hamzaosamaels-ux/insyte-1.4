@@ -9,6 +9,7 @@ import { JetBrainsMono_400Regular } from "@expo-google-fonts/jetbrains-mono";
 import { ThemeProvider } from "../src/context/ThemeContext";
 import { LanguageProvider } from "../src/context/LanguageContext";
 import { AuthProvider } from "../src/context/AuthContext";
+import { AppDataProvider } from "../src/context/AppDataContext";
 import { ErrorBoundary } from "../src/components/ErrorBoundary";
 import { RootNavigator } from "../src/components/RootNavigator";
 
@@ -32,7 +33,9 @@ export default function RootLayout() {
           <ThemeProvider>
             <LanguageProvider>
               <AuthProvider>
-                <RootNavigator />
+                <AppDataProvider>
+                  <RootNavigator />
+                </AppDataProvider>
               </AuthProvider>
             </LanguageProvider>
           </ThemeProvider>

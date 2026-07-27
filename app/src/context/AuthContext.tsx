@@ -17,6 +17,9 @@ import { api, authHeaders } from "../api";
 
 interface AuthContextValue {
   currentUser: UserProfile | null;
+  // Lets AppDataContext refresh the signed-in profile (XP/streak changes etc.)
+  // without duplicating session ownership — auth still owns the token.
+  setCurrentUser: (u: UserProfile | null) => void;
   booting: boolean; // true while checking for a stored session on cold start
   login: (email: string, password: string) => Promise<void>; // throws VerificationRequiredError
   signup: (name: string, email: string, role: "student" | "teacher", password: string) => Promise<{ email: string; emailWarning?: string }>;
@@ -111,7 +114,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider
-      value={{ currentUser, booting, login, signup, logout, verifyEmail, resendVerification, forgotPassword, resetPassword }}
+      value={{ currentUser, setCurrentUser, booting, login, signup, logout, verifyEmail, resendVerification, forgotPassword, resetPassword }}
     >
       {children}
     </AuthContext.Provider>
