@@ -549,7 +549,9 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
   const handleGradeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedSub) return;
+    // Same ownership rule the publish handlers follow — the server rejects a
+    // grade for someone else's class with a 403, so don't send it at all.
+    if (!selectedSub || !activeClass || !iOwn(activeClass)) return;
     onGradeSubmission(selectedSub.id, gradeXp, gradeFeedback.trim());
     setSelectedSub(null);
     setGradeFeedback("");
