@@ -1552,8 +1552,42 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
       return res.status(401).json({ error: "Student session required." });
     }
     const studentId = requester.id;
+    const task = db.tasks.find(t => t.id === taskId);
+
+    // Auto-gradeable task types are graded HERE, not on the client. The client
+    // can't grade a quiz correctly anyway — publicTask deliberately strips
+    // correctIndex, so the old client-side comparison scored every honest
+    // answer wrong (and scored a blank submission perfect, since
+    // undefined === undefined). Grading server-side also removes the need for
+    // the client to self-report XP, and stops these landing in the teacher's
+    // "needs review" queue where re-grading would pay the student twice.
+    let autoScore: number | null = null;
+    if (task && task.type === "quiz" && Array.isArray(task.quizQuestions)) {
+      const answers = Array.isArray(req.body.answers) ? req.body.answers : null;
+      if (answers) {
+        const correct = task.quizQuestions.reduce(
+          (n, q, i) => n + (answers[i] === q.correctIndex ? 1 : 0), 0
+        );
+        autoScore = Math.round((correct / task.quizQuestions.length) * (task.rewardXp || 0));
+      }
+    } else if (task && task.type === "dragdrop" && task.correctPairing) {
+      const pairing = req.body.pairing && typeof req.body.pairing === "object" ? req.body.pairing : null;
+      if (pairing) {
+        const entries = Object.entries(task.correctPairing);
+        const correct = entries.reduce((n, [item, zone]) => n + (pairing[item] === zone ? 1 : 0), 0);
+        autoScore = entries.length ? Math.round((correct / entries.length) * (task.rewardXp || 0)) : 0;
+      }
+    }
+
+    // One submission per student per task: re-submitting replaces the old one
+    // rather than stacking duplicates that could each be graded for XP.
+    const already = db.submissions.find(s => s.taskId === taskId && s.studentId === studentId);
+    if (already?.isGraded) {
+      return res.status(409).json({ error: "You've already completed this task." });
+    }
+
     const newSubmission: TaskSubmission = {
-      id: `sub-${Date.now()}`,
+      id: already?.id || `sub-${Date.now()}`,
       taskId,
       taskTitle,
       studentId,
@@ -1561,15 +1595,28 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
       studentAvatar: requester.avatar,
       content,
       submittedAt: new Date().toISOString(),
-      isGraded: false,
-      scoreXpEarned: 0
+      isGraded: autoScore !== null,
+      scoreXpEarned: autoScore ?? 0
     };
 
-    db.submissions.push(newSubmission);
+    db.submissions = already
+      ? db.submissions.map(s => (s.id === already.id ? newSubmission : s))
+      : [...db.submissions, newSubmission];
+
+    // Award the auto-graded XP in the same write, so it can't be farmed by
+    // replaying the separate add-xp endpoint.
+    if (autoScore && autoScore > 0) {
+      const student = db.students.find(s => s.id === studentId);
+      if (student) saveUser(db, awardXp(student, autoScore));
+    }
+
     writeDb(db);
     // Return only the submitting student's own submissions
     res.status(201).json({
       submission: newSubmission,
+      autoGraded: autoScore !== null,
+      scoreXpEarned: autoScore ?? 0,
+      allStudents: db.students.map(publicUser),
       mySubmissions: db.submissions.filter(s => s.studentId === studentId)
     });
   });
@@ -1594,6 +1641,15 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
     const gradeClass = gradeTask ? db.classes.find(c => c.id === gradeTask.classId) : null;
     if (!gradeClass || gradeClass.teacherId !== requester.id) {
       return res.status(403).json({ error: "You do not teach this class." });
+    }
+    // Grading ADDS XP, so grading the same submission twice paid the student
+    // twice while the displayed score looked correct. A double-click or a
+    // retried request was enough to trigger it.
+    if (targetSubmission.isGraded) {
+      return res.status(409).json({ error: "This submission has already been graded." });
+    }
+    if (!Number.isFinite(scoreXp) || scoreXp < 0 || scoreXp > 1000) {
+      return res.status(400).json({ error: "scoreXp must be between 0 and 1000." });
     }
 
     let targetStudentId = "";

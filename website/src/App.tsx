@@ -445,18 +445,31 @@ export default function App() {
   };
 
   // Submit student homework task
-  const handleSubmitTask = (sub: Omit<TaskSubmission, "id" | "submittedAt">) => {
+  // Returns the server's grading result for auto-graded tasks (quiz/dragdrop),
+  // so the UI shows the real awarded XP rather than a self-computed guess.
+  const handleSubmitTask = (
+    sub: Omit<TaskSubmission, "id" | "submittedAt" | "isGraded" | "scoreXpEarned">
+      & { answers?: (number | undefined)[]; pairing?: Record<string, string> }
+  ): Promise<{ scoreXpEarned: number; autoGraded: boolean } | null> =>
     fetch(api("/api/submissions"), {
       method: "POST",
       headers: authHeaders(true),
       body: JSON.stringify(sub)
     })
-      .then((res) => res.json())
-      .then((data) => {
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) return null;
         mergeSubmissions(data.mySubmissions || []);
+        // Server awards auto-graded XP itself, so refresh the roster to pick
+        // up the new totals instead of tracking them client-side.
+        if (data.allStudents) setStudents(data.allStudents);
+        if (data.autoGraded) loadMe();
+        return { scoreXpEarned: data.scoreXpEarned ?? 0, autoGraded: Boolean(data.autoGraded) };
       })
-      .catch((err) => console.error("Error submitting homework assignment:", err));
-  };
+      .catch((err) => {
+        console.error("Error submitting homework assignment:", err);
+        return null;
+      });
 
   // 1. Create Classroom Community
   const handleCreateClass = (name: string, code: string, description: string, color?: string): Promise<string | null> => {

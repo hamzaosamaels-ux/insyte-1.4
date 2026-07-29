@@ -40,7 +40,12 @@ interface StudentDashboardProps {
   onSendMessage: (classId: string, text: string) => void;
   onAddXp: (xpAmount: number) => void;
   onMarkLessonRead: (lessonId: string) => void;
-  onSubmitTask: (submission: Omit<TaskSubmission, "id" | "submittedAt">) => void;
+  // Auto-graded types send raw answers/pairing; the server scores them and
+  // returns the awarded XP, so the client never decides its own reward.
+  onSubmitTask: (
+    submission: Omit<TaskSubmission, "id" | "submittedAt" | "isGraded" | "scoreXpEarned">
+      & { answers?: (number | undefined)[]; pairing?: Record<string, string> }
+  ) => Promise<{ scoreXpEarned: number; autoGraded: boolean } | null>;
   onLeaveClass: (classId: string) => void;
   onJoinClass: (code: string) => Promise<string | null>;
   onSendMail: (toId: string, subject: string, body: string) => Promise<string | null>;
@@ -300,12 +305,11 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     }
 
     if (allCorrect) {
-      setDragDropFeedback({
-        success: true,
-        text: `${t.dragMatchSuccess} +${selectedTask.rewardXp} XP!`
-      });
-      
-      // Submit submission
+      // matchedPairings is zone -> item; the server's correctPairing is
+      // item -> zone, so invert before sending for server-side scoring.
+      const pairing: Record<string, string> = {};
+      for (const [zone, item] of Object.entries(matchedPairings)) pairing[item] = zone;
+
       onSubmitTask({
         taskId: selectedTask.id,
         taskTitle: selectedTask.title,
@@ -313,10 +317,11 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
         studentName: currentStudent.name,
         studentAvatar: currentStudent.avatar,
         content: JSON.stringify(matchedPairings),
-        isGraded: true,
-        scoreXpEarned: selectedTask.rewardXp
+        pairing
+      }).then((result) => {
+        const xp = result?.scoreXpEarned ?? 0;
+        setDragDropFeedback({ success: true, text: `${t.dragMatchSuccess} +${xp} XP!` });
       });
-      onAddXp(selectedTask.rewardXp);
     } else {
       setDragDropFeedback({
         success: false,
@@ -334,25 +339,28 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     setQuizResult(null);
   }, [selectedTask?.id]);
 
-  const handleSubmitQuiz = () => {
+  const handleSubmitQuiz = async () => {
     if (!selectedTask?.quizQuestions) return;
     const qs = selectedTask.quizQuestions;
-    let correct = 0;
-    qs.forEach((q, i) => { if (quizAnswers[i] === q.correctIndex) correct++; });
-    const xp = Math.round((correct / qs.length) * selectedTask.rewardXp);
-    setQuizResult({ correct, total: qs.length, xp });
-
-    onSubmitTask({
+    // The client CANNOT grade this: publicTask strips correctIndex before the
+    // task reaches a student, so any comparison here is meaningless. Send the
+    // raw answers and let the server (which has the real answers) score it.
+    const answers = qs.map((_, i) => quizAnswers[i]);
+    const result = await onSubmitTask({
       taskId: selectedTask.id,
       taskTitle: selectedTask.title,
       studentId: currentStudent.id,
       studentName: currentStudent.name,
       studentAvatar: currentStudent.avatar,
-      content: `Quiz: ${correct}/${qs.length} correct`,
-      isGraded: true,
-      scoreXpEarned: xp
+      content: `Quiz submitted (${qs.length} questions)`,
+      answers
     });
-    if (xp > 0) onAddXp(xp);
+
+    const xp = result?.scoreXpEarned ?? 0;
+    const correct = selectedTask.rewardXp > 0
+      ? Math.round((xp / selectedTask.rewardXp) * qs.length)
+      : 0;
+    setQuizResult({ correct, total: qs.length, xp });
     showNotification(`${t.quizScore} ${correct}/${qs.length} - +${xp} XP`);
   };
 
@@ -370,8 +378,9 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
         studentId: currentStudent.id,
         studentName: currentStudent.name,
         studentAvatar: currentStudent.avatar,
-        content: homeworkText.trim(),
-        isGraded: false // Teacher needs to grade text submissions
+        // No answers/pairing sent, so the server leaves this ungraded for the
+        // teacher to review — which is the correct flow for a written essay.
+        content: homeworkText.trim()
       });
 
       setHomeworkText("");
