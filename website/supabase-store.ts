@@ -224,7 +224,17 @@ export async function loadFromSupabase(): Promise<StoreSchema> {
 // delete any row whose id is no longer present. Keeps Supabase in sync with the
 // in-memory object without tracking per-field deltas.
 async function syncTable(table: string, rows: any[], idField = "id") {
-  if (rows.length === 0) return; // SAFE-PRUNE
+  // Deliberately NOT returning early on an empty array. That looked like a
+  // safety guard but meant deleting a table's LAST row never reached Supabase:
+  // the row survived and reappeared on the next restart, undoing the delete.
+  // Emptiness is only ever reached by really deleting everything, and writeDb
+  // already refuses to persist at all until a successful load — which is the
+  // real protection against wiping live rows with a cold cache.
+  if (rows.length === 0) {
+    const { error: delAllErr } = await db().from(table).delete().not(idField, "is", null);
+    if (delAllErr) throw new Error(`Supabase clear ${table}: ${delAllErr.message}`);
+    return;
+  }
   const { error: upErr } = await db().from(table).upsert(rows);
   if (upErr) throw new Error(`Supabase upsert ${table}: ${upErr.message}`);
   const keep = rows.map(r => r[idField]);

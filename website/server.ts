@@ -271,6 +271,12 @@ let memCache: DbSchema | null = null;
 // True once Supabase data is loaded; the last boot error (surfaced in /health).
 let supabaseReady = false;
 let supabaseBootError = "";
+// Whether the most recent persist attempt succeeded. Loading fine but failing
+// to SAVE is the dangerous state: everything looks healthy while new data
+// exists only in memory and dies on the next restart.
+let lastSaveOk = true;
+let lastSaveError = "";
+let lastSaveFailedAt = "";
 
 // Try to load Supabase data into the cache. On failure, stay UP (a crash-loop
 // would just 502 the whole app) and DON'T persist writes until a load succeeds
@@ -511,9 +517,23 @@ function writeDb(data: DbSchema) {
     // Only persist once the initial load has succeeded. Writing while the real
     // rows aren't loaded could push a partial cache over the top of live data.
     if (supabaseReady) {
-      saveToSupabase(data as any).catch(err =>
-        console.error("[Insyte] Supabase save failed (data kept in memory):", err)
-      );
+      saveToSupabase(data as any)
+        .then(() => {
+          lastSaveOk = true;
+          lastSaveError = "";
+        })
+        .catch(err => {
+          // This used to only console.error. That made a real incident
+          // invisible: a schema column the code expected was missing, so every
+          // profile upsert threw, new accounts lived only in memory, and the
+          // app looked completely healthy right up until a redeploy would have
+          // dropped them. Surfacing it in /api/health means "saves are broken"
+          // is now checkable without reading platform logs.
+          lastSaveOk = false;
+          lastSaveError = err?.message || String(err);
+          lastSaveFailedAt = new Date().toISOString();
+          console.error("[Insyte] Supabase save failed (data kept in memory):", err);
+        });
     }
     return;
   }
@@ -619,10 +639,16 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
     // ever displays messages for the caller's active class anyway.
     const caller = userFromToken(db, req);
     const visibleClassIds = new Set(caller ? caller.joinedClasses : []);
+    // A class's `code` is the ONLY secret guarding enrollment, and this route
+    // needs no auth — so returning classes raw let anyone on the internet read
+    // every join code and enroll themselves. Only ever expose a code to someone
+    // already in that class (or the teacher who owns it).
+    const canSeeCode = (c: ClassCommunity) =>
+      Boolean(caller) && (visibleClassIds.has(c.id) || c.teacherId === caller!.id);
     res.json({
       students: db.students.map(publicUser),
       teachers: db.teachers.map(publicUser),
-      classes: db.classes,
+      classes: db.classes.map(c => (canSeeCode(c) ? c : { ...c, code: "" })),
       lessons: db.lessons,
       tasks: db.tasks.map(publicTask),
       announcements: db.announcements,
@@ -1049,6 +1075,18 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
     }
     if (requester.role !== "teacher" && requester.id !== studentId) {
       return res.status(403).json({ error: "You can only award XP to yourself." });
+    }
+    // The amount is client-supplied, so it has to be bounded here or a student
+    // can call this endpoint directly in a loop and mint unlimited XP (the UI
+    // only ever sends a task's real reward). Infinity/NaN also have to be
+    // rejected explicitly — `typeof Infinity === "number"` is true, and
+    // JSON.stringify(Infinity) is "null", which corrupts the stored profile.
+    if (!Number.isFinite(xpAmount)) {
+      return res.status(400).json({ error: "xpAmount must be a finite number." });
+    }
+    const MAX_SINGLE_AWARD = 1000;
+    if (Math.abs(xpAmount) > MAX_SINGLE_AWARD) {
+      return res.status(400).json({ error: `xpAmount cannot exceed ${MAX_SINGLE_AWARD} in a single change.` });
     }
     let updatedStudent: UserProfile | null = null;
 
@@ -1714,6 +1752,11 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
         : (supabaseReady ? "supabase (persistent)" : "supabase-configured-but-load-FAILED"),
       supabaseReady,
       supabaseBootError: supabaseBootError || undefined,
+      // "persisting" is the field to watch: false means writes are silently
+      // living in memory only and will be lost on the next restart.
+      persisting: !supabaseEnabled() ? "n/a (file mode)" : lastSaveOk,
+      lastSaveError: lastSaveError || undefined,
+      lastSaveFailedAt: lastSaveFailedAt || undefined,
       emailEnabled: emailEnabled(),
       timestamp: new Date().toISOString()
     });
