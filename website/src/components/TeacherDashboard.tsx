@@ -57,6 +57,33 @@ interface TeacherDashboardProps {
   setTheme: (th: Theme) => void;
 }
 
+// Matching-game submissions are a JSON object of pairs; text homework is
+// whatever the student typed — which can legitimately start with "{" and not
+// be JSON at all. Returns the pairs only when it really parses to a flat
+// object, so a stray brace renders as plain text instead of throwing.
+// XP delta for an inline edit, or null to leave the student untouched.
+// Number("") is 0, not NaN — so a blank field must be rejected explicitly,
+// otherwise clearing the box and clicking away reads as "set XP to 0".
+export const xpEditDelta = (draft: string, currentXp: number): number | null => {
+  const raw = draft.trim();
+  if (raw === "") return null;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return null;
+  const newXp = Math.max(0, Math.round(parsed));
+  return newXp === currentXp ? null : newXp - currentXp;
+};
+
+const matchedPairs = (content: string): [string, string][] | null => {
+  if (!content.startsWith("{")) return null;
+  try {
+    const parsed = JSON.parse(content);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    return Object.entries(parsed).map(([k, v]) => [k, String(v)]);
+  } catch {
+    return null;
+  }
+};
+
 export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   currentTeacher,
   classes,
@@ -113,9 +140,9 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const [editingXpId, setEditingXpId] = useState<string | null>(null);
   const [xpDraft, setXpDraft] = useState("");
   const commitXpEdit = (studentId: string, currentXp: number) => {
-    const newXp = Math.round(Number(xpDraft));
-    if (!Number.isNaN(newXp) && newXp !== currentXp) {
-      onAdjustStudentXp(studentId, newXp - currentXp);
+    const delta = xpEditDelta(xpDraft, currentXp);
+    if (delta !== null) {
+      onAdjustStudentXp(studentId, delta);
     }
     setEditingXpId(null);
   };
@@ -144,12 +171,16 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const markShared = () => { localStorage.setItem("insyte_shared_code", "1"); setHasShared(true); };
 
   useEffect(() => {
-    if (classes.length > 0) {
-      if (!activeClass || !classes.some(c => c.id === activeClass.id)) {
-        setActiveClass(classes[0]);
-      }
-    } else {
+    if (classes.length === 0) {
       setActiveClass(null);
+      return;
+    }
+    // Land on a class this teacher owns where possible — a co-taught class
+    // can be read but never published to, so it makes a poor default.
+    const mine = classes.filter(c => c.teacherId === currentTeacher.id);
+    const stillListed = activeClass && classes.some(c => c.id === activeClass.id);
+    if (!stillListed) {
+      setActiveClass(mine[0] ?? classes[0]);
     }
   }, [classes]);
 
@@ -162,9 +193,15 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     classesByGrade[grade].push(cl);
   });
 
+  // Only the owning teacher may publish to a class — the server enforces this
+  // on every write. Joining a community as a co-teacher enrols you in all its
+  // sibling subjects (server: siblingClassIds), so without this the subject
+  // row offers colleagues' subjects that every upload then 403s on.
+  const iOwn = (cl: ClassCommunity) => cl.teacherId === currentTeacher.id;
+
   const grades = Object.keys(classesByGrade);
   const activeGrade = activeClass ? getGradeAndSubject(activeClass.name).grade : (grades[0] || "");
-  const activeGradeClasses = classesByGrade[activeGrade] || [];
+  const activeGradeClasses = (classesByGrade[activeGrade] || []).filter(iOwn);
 
   // Creation Forms State toggles
   const [showCreateClass, setShowCreateClass] = useState(false);
@@ -357,7 +394,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
   const handleCreateLesson = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeClass || !lessonTitle.trim() || !lessonContent.trim()) return;
+    if (!activeClass || !iOwn(activeClass) || !lessonTitle.trim() || !lessonContent.trim()) return;
 
     const lessonData = {
       classId: activeClass.id,
@@ -413,7 +450,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
   const handleCreateTask = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeClass || !taskTitle.trim() || !taskDesc.trim()) return;
+    if (!activeClass || !iOwn(activeClass) || !taskTitle.trim() || !taskDesc.trim()) return;
 
     if (taskType === "dragdrop") {
       // Build the matcher from the teacher's own pairs
@@ -483,7 +520,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
   const handleAddAnnouncement = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeClass || !annTitle.trim() || !annContent.trim()) return;
+    if (!activeClass || !iOwn(activeClass) || !annTitle.trim() || !annContent.trim()) return;
     onAddAnnouncement({
       classId: activeClass.id,
       title: annTitle.trim(),
@@ -497,7 +534,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
   const handleAddEvent = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeClass || !evtTitle.trim()) return;
+    if (!activeClass || !iOwn(activeClass) || !evtTitle.trim()) return;
     onAddEvent({
       classId: activeClass.id,
       title: evtTitle.trim(),
@@ -579,7 +616,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                     <button
                       key={grade}
                       onClick={() => {
-                        const firstCl = classesByGrade[grade]?.[0];
+                        const inGrade = classesByGrade[grade] ?? [];
+                        // Same reason as the mount default: prefer a subject
+                        // this teacher owns, so the section opens publishable.
+                        const firstCl = inGrade.find(iOwn) ?? inGrade[0];
                         if (firstCl) {
                           setActiveClass(firstCl);
                           setSelectedSub(null);
@@ -1584,15 +1624,13 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                     <div className="my-6 p-4 bg-slate-50 dark:bg-[#1c1836] border border-slate-100 dark:border-[#2b244c]/60 rounded-xl">
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-1.5">{t.submittedContent}</span>
                       <p className="text-slate-750 dark:text-slate-200 text-xs leading-relaxed whitespace-pre-wrap font-mono">
-                        {(selectedSub.content ?? "").startsWith("{") ? (
+                        {matchedPairs(selectedSub.content ?? "")?.map(([key, val]) => (
                           // Renders nicely if matching cards JSON format
-                          Object.entries(JSON.parse(selectedSub.content!)).map(([key, val]) => (
-                            <div key={key} className="py-1">
-                              <strong>{key}:</strong> {val as string} ✅
-                            </div>
-                          ))
-                        ) : (
-                          // content is absent until private data loads
+                          <div key={key} className="py-1">
+                            <strong>{key}:</strong> {val} ✅
+                          </div>
+                        )) ?? (
+                          // Plain text, or absent until private data loads
                           selectedSub.content ?? "…"
                         )}
                       </p>
