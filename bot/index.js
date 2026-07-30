@@ -67,13 +67,136 @@ async function checkSite() {
 
 async function checkDeploys() {
   try {
-    const j = await (await fetch(`https://api.github.com/repos/${REPO}/commits/main/status`)).json();
-    const parts = (j.statuses || []).map(s =>
+    const r = await fetch(`https://api.github.com/repos/${REPO}/commits/main/status`, {
+      headers: { "User-Agent": "insyte-status-bot" }
+    });
+    const j = await r.json();
+    // GitHub answers errors (notably rate limiting, which shared hosting IPs
+    // hit easily) with 200-shaped JSON carrying `message` and no `statuses`.
+    // Reporting that as "no deploys yet" would be a lie — it means we failed
+    // to look, which is a different thing and must read differently.
+    if (!r.ok || j.message) {
+      return `⚪ Couldn't check deploys — ${esc(j.message || r.status)}`;
+    }
+    if (!Array.isArray(j.statuses) || j.statuses.length === 0) {
+      return "⚪ No deploy has reported on the latest commit yet";
+    }
+    const sha = (j.sha || "").slice(0, 7);
+    const lines = j.statuses.map(s =>
       `${s.state === "success" ? "✅" : s.state === "pending" ? "⏳" : "🔴"} ${esc(s.context)}`
     );
-    return parts.length ? parts.join("\n") : "⚪ No deploy status reported yet";
+    return `commit <code>${esc(sha)}</code>\n${lines.join("\n")}`;
+  } catch (e) {
+    return `⚪ Couldn't check deploys — ${esc(e.message)}`;
+  }
+}
+
+// Actively probe that protected things are actually protected, rather than
+// assuming. Each expects a specific rejection; anything else is a finding.
+async function checkSecurity() {
+  const findings = [];
+  const probe = async (label, path, opts, expected) => {
+    try {
+      const r = await fetch(API + path, opts);
+      if (!expected.includes(r.status)) {
+        findings.push(`🔴 ${label} returned ${r.status}, expected ${expected.join("/")}`);
+      }
+    } catch (e) {
+      findings.push(`⚪ ${label} — couldn't check (${esc(e.message)})`);
+    }
+  };
+
+  // Private data must require a session.
+  await probe("Profile endpoint without a login", "/api/me", {}, [401]);
+  // Writes must require a session, not just a body with an id in it.
+  await probe("Awarding XP without a login", "/api/students/add-xp", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ studentId: "x", xpAmount: 1 })
+  }, [401]);
+  await probe("Creating a class without a login", "/api/classes", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "x", code: "x" })
+  }, [401]);
+  await probe("Joining a class without a login", "/api/classes/join", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code: "x" })
+  }, [401]);
+
+  // Nothing public should ever carry a secret field.
+  try {
+    const raw = await (await fetch(`${API}/api/data`)).text();
+    for (const field of ["passwordHash", "password_hash", "verificationToken", "resetToken"]) {
+      if (raw.includes(field)) findings.push(`🔴 Public data exposes <code>${field}</code>`);
+    }
+  } catch { /* the data check already reports unreachability */ }
+
+  return findings.length ? findings.join("\n") : "✅ Login required everywhere it should be, no secrets exposed";
+}
+
+// Per-service view. Each third party is judged only by what it's actually
+// responsible for, so a problem points at the right dashboard instead of
+// "something is broken somewhere".
+async function checkServices() {
+  const lines = [];
+  let health = null;
+  try {
+    health = await (await fetch(`${API}/api/health`)).json();
+  } catch { /* handled below */ }
+
+  // Railway runs the backend process. If /api/health answers at all, it's up.
+  lines.push(health
+    ? "🚂 <b>Railway</b> (backend) — ✅ online"
+    : "🚂 <b>Railway</b> (backend) — 🔴 not responding. Everything else fails while this is down");
+
+  // Vercel only serves the frontend.
+  try {
+    const r = await fetch(SITE, { redirect: "follow" });
+    lines.push(r.ok
+      ? "▲ <b>Vercel</b> (website) — ✅ serving"
+      : `▲ <b>Vercel</b> (website) — 🔴 returned ${r.status}`);
   } catch {
-    return "⚪ Couldn't read deploy status";
+    lines.push("▲ <b>Vercel</b> (website) — 🔴 unreachable");
+  }
+
+  // Supabase holds the data. Reachable is not the same as writable, and the
+  // difference is exactly what has cost this project data before.
+  if (!health) {
+    lines.push("🗄 <b>Supabase</b> (database) — ⚪ can't tell, backend is down");
+  } else if (!health.supabaseReady) {
+    lines.push("🗄 <b>Supabase</b> (database) — 🔴 unreachable from the backend");
+  } else if (health.persisting !== true) {
+    lines.push(
+      "🗄 <b>Supabase</b> (database) — 🔴 <b>connected but NOT saving</b>. New signups and " +
+      "changes exist only in memory and are lost on the next restart" +
+      (health.lastSaveError ? `\n     ${esc(health.lastSaveError)}` : "")
+    );
+  } else if (health.schemaProblems?.length) {
+    lines.push(`🗄 <b>Supabase</b> (database) — 🔴 missing columns:\n     ${health.schemaProblems.map(esc).join("\n     ")}`);
+  } else {
+    lines.push("🗄 <b>Supabase</b> (database) — ✅ connected and saving");
+  }
+
+  // Brevo sends the verification email, without which nobody can sign up.
+  lines.push(health && health.emailEnabled
+    ? "✉️ <b>Brevo</b> (email) — ✅ configured"
+    : health
+      ? "✉️ <b>Brevo</b> (email) — 🔴 not configured, so every signup fails"
+      : "✉️ <b>Brevo</b> (email) — ⚪ can't tell, backend is down");
+
+  return lines.join("\n");
+}
+
+// A backend that answers but takes 8s is failing in a way "up" doesn't capture.
+async function checkSpeed() {
+  const t0 = Date.now();
+  try {
+    await fetch(`${API}/api/health`);
+    const ms = Date.now() - t0;
+    if (ms > 3000) return `🔴 Backend slow to answer: ${ms}ms`;
+    if (ms > 1200) return `⚠️ Backend a bit slow: ${ms}ms`;
+    return `✅ Backend responded in ${ms}ms`;
+  } catch {
+    return "🔴 Backend didn't respond at all";
   }
 }
 
@@ -95,18 +218,30 @@ async function checkDataAndLeaks() {
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 async function buildReport() {
-  const [backend, site, deploys, data] = await Promise.all([
-    checkBackend(), checkSite(), checkDeploys(), checkDataAndLeaks()
+  const [services, backend, deploys, data, security, speed] = await Promise.all([
+    checkServices(), checkBackend(), checkDeploys(), checkDataAndLeaks(),
+    checkSecurity(), checkSpeed()
   ]);
   const stamp = new Date().toISOString().replace("T", " ").slice(0, 16);
-  return [
+  const body = [
     `<b>insyte status</b> — ${stamp} UTC`,
     "",
-    "<b>Backend</b>", backend,
-    "", "<b>Website</b>", site,
+    "<b>Services</b>", services,
+    "", "<b>Backend detail</b>", backend, speed,
+    "", "<b>Security</b>", security,
     "", "<b>Last deploy</b>", deploys,
     "", "<b>Data</b>", data
   ].join("\n");
+
+  // Lead with the verdict so nobody has to read the whole thing to know
+  // whether to worry.
+  const red = (body.match(/🔴/g) || []).length;
+  const warn = (body.match(/⚠️/g) || []).length;
+  const verdict = red
+    ? `🔴 <b>${red} problem${red > 1 ? "s" : ""} need attention</b>`
+    : warn ? `⚠️ <b>Running, ${warn} thing${warn > 1 ? "s" : ""} to watch</b>`
+    : "✅ <b>All good</b>";
+  return `${verdict}\n\n${body}`;
 }
 
 const HELP = [
@@ -115,6 +250,7 @@ const HELP = [
   "/status — full report",
   "/health — backend only",
   "/deploys — last deploy result",
+  "/security — permission and secret-exposure probes",
   "",
   "Anything else I don't understand — ask in Claude Code, it has the full context."
 ].join("\n");
@@ -134,6 +270,7 @@ async function handle(msg) {
   const text = (msg.text || "").trim().toLowerCase();
   if (text.startsWith("/health")) return send(chatId, await checkBackend());
   if (text.startsWith("/deploys")) return send(chatId, await checkDeploys());
+  if (text.startsWith("/security")) return send(chatId, await checkSecurity());
   if (text.startsWith("/start") || text.startsWith("/help")) return send(chatId, HELP);
   // Anything else, including "hi", gets the full report — that's the point.
   return send(chatId, await buildReport());
