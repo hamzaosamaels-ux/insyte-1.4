@@ -131,20 +131,16 @@ export const Library: React.FC<LibraryProps> = ({ classes, lessons, tasks, langu
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {items.map(it => {
-            // One resource per card, priority video > slides > link. Homework
-            // has nothing to open — the whole card is just informational.
-            const openUrl = it.video || it.ppt || it.web;
-            const Wrapper: React.ElementType = openUrl ? "a" : "div";
-            const wrapperProps = openUrl
-              ? { href: openUrl, target: "_blank", rel: "noopener noreferrer" }
-              : {};
+            // A lesson can carry a video AND slides AND a link at once — each
+            // is its own row so opening one doesn't hide the others.
+            const openLinks: { key: string; href: string; label: string; icon: React.ReactNode }[] = [];
+            if (it.video) openLinks.push({ key: "video", href: it.video, label: t.libVideos, icon: <Video className="h-3 w-3" /> });
+            if (it.ppt) openLinks.push({ key: "ppt", href: it.ppt, label: t.libSlides, icon: <Presentation className="h-3 w-3" /> });
+            if (it.web) openLinks.push({ key: "web", href: it.web, label: t.libLinks, icon: <Globe className="h-3 w-3" /> });
             return (
-              <Wrapper
+              <div
                 key={it.key}
-                {...wrapperProps}
-                className={`block p-4 bg-white dark:bg-[#18142c] border border-slate-200 dark:border-[#2b244c] rounded-2xl transition-colors ${
-                  openUrl ? "hover:border-indigo-400/40 cursor-pointer active:bg-slate-50 dark:active:bg-[#201b3a]" : ""
-                }`}
+                className="p-4 bg-white dark:bg-[#18142c] border border-slate-200 dark:border-[#2b244c] rounded-2xl"
               >
                 <div className="flex items-start gap-3">
                   <div className="p-2 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-500 rounded-xl shrink-0">
@@ -159,7 +155,22 @@ export const Library: React.FC<LibraryProps> = ({ classes, lessons, tasks, langu
                     </p>
                   </div>
                 </div>
-              </Wrapper>
+                {openLinks.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-3">
+                    {openLinks.map(l => (
+                      <a
+                        key={l.key}
+                        href={l.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 px-2.5 py-1 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 rounded-lg text-[10px] font-bold transition-colors cursor-pointer"
+                      >
+                        {l.icon} {l.label}
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>

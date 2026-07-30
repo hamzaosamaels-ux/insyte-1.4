@@ -566,7 +566,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
             <div className="text-center hidden sm:block">
               <div className="text-xs font-bold text-slate-800 dark:text-slate-100">{currentStudent.name}</div>
               <div className="text-[9px] text-amber-500 font-bold uppercase tracking-wider font-mono">
-                {t.level} {currentStudent.level} • {currentStudent.xp} XP
+                {currentStudent.xp} XP
               </div>
             </div>
           </button>
@@ -878,8 +878,8 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                             strokeLinecap="round"
                           />
                         </svg>
-                        <div className="absolute font-mono font-bold text-xs text-indigo-400">
-                          {t.lvlPrefix}{currentStudent.level}
+                        <div className="absolute font-mono font-bold text-[10px] text-indigo-400">
+                          {Math.round(((currentStudent.xp % 1000) / 1000) * 100)}%
                         </div>
                       </div>
                       <div>

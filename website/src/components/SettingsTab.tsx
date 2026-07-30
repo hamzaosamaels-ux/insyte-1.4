@@ -203,10 +203,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           <div className="bg-slate-50 dark:bg-[#1c1836] border border-slate-100 dark:border-[#2b244c] rounded-xl p-3.5">
             <div className="flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500 font-mono">
               <Award className="h-3.5 w-3.5" />
-              {userRole === "teacher" ? t.standing : t.level}
+              {t.standing}
             </div>
             <div className="text-sm font-bold text-slate-700 dark:text-slate-200 mt-1 truncate">
-              {userRole === "teacher" ? user.rank : `${t.level} ${user.level}`}
+              {user.rank}
             </div>
           </div>
 

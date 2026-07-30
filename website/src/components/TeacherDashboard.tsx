@@ -4,7 +4,7 @@ import {
   Plus, BookOpen, Award, Megaphone, Calendar, Users,
   CheckSquare, LogOut, CheckCircle2, ChevronRight, Info,
   Trash2, Send, Clock, Sparkles, Settings, Edit, Check, Library, Video, Presentation, Globe,
-  Mail as MailLucide, Copy, Menu, Download, UserPlus, MessageSquare
+  Mail as MailLucide, Copy, Menu, Download, UserPlus, MessageSquare, Trophy
 } from "lucide-react";
 import {
   UserProfile, ClassCommunity, Lesson, TaskItem,
@@ -1308,7 +1308,12 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                 <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 font-display mb-1 flex items-center gap-2">
                   <Award className="h-5 w-5 text-violet-600 dark:text-violet-450" /> {t.publishHomeworkTask}
                 </h2>
-                <p className="text-slate-400 text-xs mb-6">{t.publishTaskSubtitle}</p>
+                <p className="text-slate-400 text-xs mb-1">{t.publishTaskSubtitle}</p>
+                {activeClass && (
+                  <p className="text-[11px] font-bold text-violet-600 dark:text-violet-400 mb-5">
+                    {t.publishingTo} {getGradeAndSubject(activeClass.name).subject}
+                  </p>
+                )}
 
                 <form onSubmit={handleCreateTask} className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1555,6 +1560,48 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                           </button>
                         );
                       })}
+                    </div>
+                  </div>
+                )}
+
+                {!selectedSub && activeClass && (
+                  <div className="bg-white dark:bg-[#130f26] border border-slate-200 dark:border-[#241c49]/80 rounded-2xl p-5 shadow-xs">
+                    <h3 className="text-sm font-bold font-display text-slate-800 dark:text-indigo-100 flex items-center gap-2 mb-4">
+                      <Trophy className="h-4.5 w-4.5 text-amber-500" /> {t.leaderboard}
+                    </h3>
+                    <div className="space-y-2.5">
+                      {allStudents
+                        .filter(s => activeClass.studentIds?.includes(s.id))
+                        .sort((a, b) => b.xp - a.xp)
+                        .map((stud, idx) => (
+                          <div
+                            key={stud.id}
+                            className="flex items-center justify-between p-3 rounded-xl border bg-slate-50/50 dark:bg-[#201b3a] border-slate-100 dark:border-[#2d2553]/50"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-6 text-center font-mono font-black text-xs text-slate-400">
+                                {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `${idx + 1}`}
+                              </div>
+                              <img
+                                src={stud.avatar}
+                                alt={stud.name}
+                                className="w-8 h-8 rounded-full bg-white dark:bg-slate-700 p-0.5 border border-slate-200 dark:border-slate-600"
+                              />
+                              <div className="text-left">
+                                <div className="text-xs font-bold text-slate-800 dark:text-slate-200">{stud.name}</div>
+                                <div className="text-[9px] text-slate-400 dark:text-slate-500 uppercase tracking-wide font-mono mt-0.5">
+                                  {stud.rank}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-right font-mono text-xs font-bold text-slate-700 dark:text-[#ece9f6] bg-white dark:bg-[#1c1836] border border-slate-200/50 dark:border-[#2d2553]/50 px-2.5 py-1 rounded-lg">
+                              {stud.xp} XP
+                            </div>
+                          </div>
+                        ))}
+                      {(!activeClass.studentIds || activeClass.studentIds.length === 0) && (
+                        <p className="text-slate-400 text-xs text-center py-4">{t.noSubmissionsFound}</p>
+                      )}
                     </div>
                   </div>
                 )}

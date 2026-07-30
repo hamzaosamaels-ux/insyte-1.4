@@ -2,15 +2,14 @@ import React, { useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { UserProfile } from "../types";
 
-// Thin XP-to-next-level bar. XP resets visually every 1000 (one level).
+// Thin XP progress bar. Fills every 1000 XP earned.
 export const XpBar: React.FC<{ user: UserProfile; className?: string }> = ({ user, className }) => {
   const into = user.xp % 1000;
   const pct = Math.min(100, Math.round((into / 1000) * 100));
   return (
     <div className={`w-28 sm:w-36 ${className || ""}`}>
-      <div className="flex items-center justify-between text-[9px] font-mono font-bold mb-0.5">
-        <span className="text-indigo-500 dark:text-indigo-400">LV {user.level}</span>
-        <span className="text-slate-400">{into}/1000</span>
+      <div className="flex items-center justify-end text-[9px] font-mono font-bold mb-0.5">
+        <span className="text-slate-400">{into}/1000 XP</span>
       </div>
       <div className="h-1.5 rounded-full bg-slate-200 dark:bg-[#241c49] overflow-hidden">
         <motion.div
