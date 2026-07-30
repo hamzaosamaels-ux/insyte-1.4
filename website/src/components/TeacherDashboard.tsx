@@ -394,7 +394,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
   const handleCreateLesson = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeClass || !iOwn(activeClass) || !lessonTitle.trim() || !lessonContent.trim()) return;
+    if (!activeClass || !lessonTitle.trim() || !lessonContent.trim()) return;
+    if (!iOwn(activeClass)) return showNotification(t.notYourSubject);
 
     const lessonData = {
       classId: activeClass.id,
@@ -450,7 +451,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
   const handleCreateTask = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeClass || !iOwn(activeClass) || !taskTitle.trim() || !taskDesc.trim()) return;
+    if (!activeClass || !taskTitle.trim() || !taskDesc.trim()) return;
+    if (!iOwn(activeClass)) return showNotification(t.notYourSubject);
 
     if (taskType === "dragdrop") {
       // Build the matcher from the teacher's own pairs
@@ -520,7 +522,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
   const handleAddAnnouncement = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeClass || !iOwn(activeClass) || !annTitle.trim() || !annContent.trim()) return;
+    if (!activeClass || !annTitle.trim() || !annContent.trim()) return;
+    if (!iOwn(activeClass)) return showNotification(t.notYourSubject);
     onAddAnnouncement({
       classId: activeClass.id,
       title: annTitle.trim(),
@@ -534,7 +537,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
   const handleAddEvent = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeClass || !iOwn(activeClass) || !evtTitle.trim()) return;
+    if (!activeClass || !evtTitle.trim()) return;
+    if (!iOwn(activeClass)) return showNotification(t.notYourSubject);
     onAddEvent({
       classId: activeClass.id,
       title: evtTitle.trim(),
@@ -551,7 +555,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     e.preventDefault();
     // Same ownership rule the publish handlers follow — the server rejects a
     // grade for someone else's class with a 403, so don't send it at all.
-    if (!selectedSub || !activeClass || !iOwn(activeClass)) return;
+    if (!selectedSub || !activeClass) return;
+    if (!iOwn(activeClass)) return showNotification(t.notYourSubject);
     onGradeSubmission(selectedSub.id, gradeXp, gradeFeedback.trim());
     setSelectedSub(null);
     setGradeFeedback("");
