@@ -2139,13 +2139,20 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
               {!joinMode && (
               <div>
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t.themeColor}</label>
-                <div className="flex items-center gap-1.5 h-[34px]">
+                <div className="grid grid-cols-6 gap-2">
                   {[
                     { key: "emerald", bg: "bg-emerald-500", ring: "ring-emerald-400" },
-                    { key: "violet", bg: "bg-violet-500", ring: "ring-violet-400" },
-                    { key: "amber", bg: "bg-amber-500", ring: "ring-amber-400" },
+                    { key: "teal", bg: "bg-teal-500", ring: "ring-teal-400" },
+                    { key: "cyan", bg: "bg-cyan-500", ring: "ring-cyan-400" },
+                    { key: "sky", bg: "bg-sky-500", ring: "ring-sky-400" },
                     { key: "blue", bg: "bg-blue-500", ring: "ring-blue-400" },
-                    { key: "indigo", bg: "bg-indigo-500", ring: "ring-indigo-400" }
+                    { key: "indigo", bg: "bg-indigo-500", ring: "ring-indigo-400" },
+                    { key: "violet", bg: "bg-violet-500", ring: "ring-violet-400" },
+                    { key: "fuchsia", bg: "bg-fuchsia-500", ring: "ring-fuchsia-400" },
+                    { key: "pink", bg: "bg-pink-500", ring: "ring-pink-400" },
+                    { key: "rose", bg: "bg-rose-500", ring: "ring-rose-400" },
+                    { key: "amber", bg: "bg-amber-500", ring: "ring-amber-400" },
+                    { key: "lime", bg: "bg-lime-500", ring: "ring-lime-400" }
                   ].map((item) => (
                     <button
                       key={item.key}

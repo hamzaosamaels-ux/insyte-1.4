@@ -54,6 +54,98 @@ export function getClassColors(color?: string) {
         bannerBg: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
         lightBorder: "border-blue-100 dark:border-blue-950/40"
       };
+    case "rose":
+    case "red":
+      return {
+        text: "text-rose-600 dark:text-rose-400",
+        bg: "bg-rose-50/70 dark:bg-rose-950/25",
+        border: "border-rose-200 dark:border-rose-900/40",
+        bgSolid: "bg-rose-500",
+        textHover: "hover:text-rose-600 dark:hover:text-rose-400",
+        ring: "ring-rose-500 dark:ring-rose-400",
+        badge: "bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 border border-rose-100 dark:border-rose-900/30",
+        gradient: "from-rose-500 to-pink-600",
+        bannerBg: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
+        lightBorder: "border-rose-100 dark:border-rose-950/40"
+      };
+    case "cyan":
+      return {
+        text: "text-cyan-600 dark:text-cyan-400",
+        bg: "bg-cyan-50/70 dark:bg-cyan-950/25",
+        border: "border-cyan-200 dark:border-cyan-900/40",
+        bgSolid: "bg-cyan-500",
+        textHover: "hover:text-cyan-600 dark:hover:text-cyan-400",
+        ring: "ring-cyan-500 dark:ring-cyan-400",
+        badge: "bg-cyan-50 dark:bg-cyan-950/20 text-cyan-700 dark:text-cyan-400 border border-cyan-100 dark:border-cyan-900/30",
+        gradient: "from-cyan-500 to-blue-600",
+        bannerBg: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400",
+        lightBorder: "border-cyan-100 dark:border-cyan-950/40"
+      };
+    case "teal":
+      return {
+        text: "text-teal-600 dark:text-teal-400",
+        bg: "bg-teal-50/70 dark:bg-teal-950/25",
+        border: "border-teal-200 dark:border-teal-900/40",
+        bgSolid: "bg-teal-500",
+        textHover: "hover:text-teal-600 dark:hover:text-teal-400",
+        ring: "ring-teal-500 dark:ring-teal-400",
+        badge: "bg-teal-50 dark:bg-teal-950/20 text-teal-700 dark:text-teal-400 border border-teal-100 dark:border-teal-900/30",
+        gradient: "from-teal-500 to-emerald-600",
+        bannerBg: "bg-teal-500/10 text-teal-600 dark:text-teal-400",
+        lightBorder: "border-teal-100 dark:border-teal-950/40"
+      };
+    case "fuchsia":
+      return {
+        text: "text-fuchsia-600 dark:text-fuchsia-400",
+        bg: "bg-fuchsia-50/70 dark:bg-fuchsia-950/25",
+        border: "border-fuchsia-200 dark:border-fuchsia-900/40",
+        bgSolid: "bg-fuchsia-500",
+        textHover: "hover:text-fuchsia-600 dark:hover:text-fuchsia-400",
+        ring: "ring-fuchsia-500 dark:ring-fuchsia-400",
+        badge: "bg-fuchsia-50 dark:bg-fuchsia-950/20 text-fuchsia-700 dark:text-fuchsia-400 border border-fuchsia-100 dark:border-fuchsia-900/30",
+        gradient: "from-fuchsia-500 to-purple-600",
+        bannerBg: "bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-400",
+        lightBorder: "border-fuchsia-100 dark:border-fuchsia-950/40"
+      };
+    case "lime":
+      return {
+        text: "text-lime-600 dark:text-lime-400",
+        bg: "bg-lime-50/70 dark:bg-lime-950/25",
+        border: "border-lime-200 dark:border-lime-900/40",
+        bgSolid: "bg-lime-500",
+        textHover: "hover:text-lime-600 dark:hover:text-lime-400",
+        ring: "ring-lime-500 dark:ring-lime-400",
+        badge: "bg-lime-50 dark:bg-lime-950/20 text-lime-700 dark:text-lime-400 border border-lime-100 dark:border-lime-900/30",
+        gradient: "from-lime-500 to-green-600",
+        bannerBg: "bg-lime-500/10 text-lime-600 dark:text-lime-400",
+        lightBorder: "border-lime-100 dark:border-lime-950/40"
+      };
+    case "sky":
+      return {
+        text: "text-sky-600 dark:text-sky-400",
+        bg: "bg-sky-50/70 dark:bg-sky-950/25",
+        border: "border-sky-200 dark:border-sky-900/40",
+        bgSolid: "bg-sky-500",
+        textHover: "hover:text-sky-600 dark:hover:text-sky-400",
+        ring: "ring-sky-500 dark:ring-sky-400",
+        badge: "bg-sky-50 dark:bg-sky-950/20 text-sky-700 dark:text-sky-400 border border-sky-100 dark:border-sky-900/30",
+        gradient: "from-sky-500 to-cyan-600",
+        bannerBg: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
+        lightBorder: "border-sky-100 dark:border-sky-950/40"
+      };
+    case "pink":
+      return {
+        text: "text-pink-600 dark:text-pink-400",
+        bg: "bg-pink-50/70 dark:bg-pink-950/25",
+        border: "border-pink-200 dark:border-pink-900/40",
+        bgSolid: "bg-pink-500",
+        textHover: "hover:text-pink-600 dark:hover:text-pink-400",
+        ring: "ring-pink-500 dark:ring-pink-400",
+        badge: "bg-pink-50 dark:bg-pink-950/20 text-pink-700 dark:text-pink-400 border border-pink-100 dark:border-pink-900/30",
+        gradient: "from-pink-500 to-rose-600",
+        bannerBg: "bg-pink-500/10 text-pink-600 dark:text-pink-400",
+        lightBorder: "border-pink-100 dark:border-pink-950/40"
+      };
     default:
       return {
         text: "text-indigo-600 dark:text-indigo-400",

@@ -116,6 +116,16 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     return url;
   };
 
+  // The embed is a cramped preview; presenting properly needs Google's own
+  // full-screen view, which only the /present path gives.
+  const getSlidesPresentUrl = (url?: string) => {
+    if (!url) return "";
+    const match = url.match(/docs\.google\.com\/presentation\/d\/([\w-]+)/);
+    return match && match[1]
+      ? `https://docs.google.com/presentation/d/${match[1]}/present`
+      : url;
+  };
+
   // Toast notifications state
   const [notification, setNotification] = useState<{ message: string; type: "success" | "info" } | null>(null);
 
@@ -1197,7 +1207,14 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                                   />
                                 </div>
                               </div>
-                              <p className="text-[9px] text-slate-400 mt-2 font-mono text-center">{t.useSlideControls}</p>
+                              <a
+                                href={getSlidesPresentUrl(selectedLesson.pptUrl)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="mt-3 w-full px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                              >
+                                {t.openFullscreen} <ExternalLink className="h-3.5 w-3.5" />
+                              </a>
                             </div>
                           )}
 
