@@ -1,0 +1,11 @@
+{
+  "name": "@insyte/bot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Read-only Telegram status bot for insyte. No dependencies, no database access.",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node index.js"
+  }
+}
