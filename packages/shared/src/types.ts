@@ -53,6 +53,18 @@ export interface ClassCommunity {
   color?: string; // Tailwind class color base, e.g. 'emerald', 'violet', 'amber'
 }
 
+// An uploaded file or an extra link hung off a lesson, assignment, or
+// submission. One shape for both so a single `attachments` column covers
+// "upload a file" and "add more than one link of the same kind".
+export interface Attachment {
+  id: string;
+  kind: "file" | "link";
+  name: string;              // Display label; for a file, its original filename
+  url: string;               // Supabase Storage public URL, or the raw link
+  mime?: string;             // Files only — drives the icon shown
+  size?: number;             // Files only — bytes
+}
+
 export interface Lesson {
   id: string;
   classId: string;
@@ -64,6 +76,7 @@ export interface Lesson {
   webUrl?: string;         // General external web link
   webUrlTitle?: string;    // Label for the web link
   rewardXp?: number;       // XP a student earns for reading this lesson (defaults to 25)
+  attachments?: Attachment[]; // Extra files/links beyond the three above
 }
 
 export type TaskType = 'text' | 'dragdrop' | 'quiz';
@@ -88,6 +101,7 @@ export interface TaskItem {
   correctPairing?: Record<string, string>; // Maps drag item to target drop zone
   // Multiple-choice quiz specific
   quizQuestions?: QuizQuestion[];
+  attachments?: Attachment[]; // Briefs, worksheets, reference links
 }
 
 export interface TaskSubmission {
@@ -103,6 +117,8 @@ export interface TaskSubmission {
   scoreXpEarned?: number;
   submittedAt: string;
   feedback?: string;
+  // Same visibility rule as `content` — only the owner and class teacher see it
+  attachments?: Attachment[]; // Files/links the student handed in
 }
 
 export interface Announcement {

@@ -95,6 +95,12 @@ alter table public.tasks drop constraint if exists tasks_type_check;
 alter table public.tasks add constraint tasks_type_check check (type in ('text','dragdrop','quiz'));
 alter table public.tasks add column if not exists quiz_questions jsonb;
 
+-- Attachments (uploaded files and extra links) on lessons, assignments, and
+-- student submissions. Nullable, so existing rows need no backfill.
+alter table public.lessons add column if not exists attachments jsonb;
+alter table public.tasks add column if not exists attachments jsonb;
+alter table public.submissions add column if not exists attachments jsonb;
+
 create table if not exists public.submissions (
   id             text primary key,
   task_id        text not null,

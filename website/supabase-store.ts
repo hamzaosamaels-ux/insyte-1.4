@@ -103,12 +103,14 @@ const classToRow = (c: any) => ({
 const rowToLesson = (r: any) => ({
   id: r.id, classId: r.class_id, title: r.title, content: r.content,
   publishedAt: r.published_at, videoUrl: r.video_url || "", pptUrl: r.ppt_url || "",
-  webUrl: r.web_url || "", webUrlTitle: r.web_url_title || "", rewardXp: r.reward_xp ?? 25
+  webUrl: r.web_url || "", webUrlTitle: r.web_url_title || "", rewardXp: r.reward_xp ?? 25,
+  attachments: r.attachments || undefined
 });
 const lessonToRow = (l: any) => ({
   id: l.id, class_id: l.classId, title: l.title, content: l.content,
   published_at: l.publishedAt, video_url: l.videoUrl || "", ppt_url: l.pptUrl || "",
-  web_url: l.webUrl || "", web_url_title: l.webUrlTitle || "", reward_xp: l.rewardXp ?? 25
+  web_url: l.webUrl || "", web_url_title: l.webUrlTitle || "", reward_xp: l.rewardXp ?? 25,
+  attachments: l.attachments || null
 });
 
 const rowToTask = (r: any) => ({
@@ -116,7 +118,8 @@ const rowToTask = (r: any) => ({
   rewardXp: r.reward_xp, dueDate: r.due_date, type: r.type,
   dragItems: r.drag_items || undefined, dropZones: r.drop_zones || undefined,
   correctPairing: r.correct_pairing || undefined,
-  quizQuestions: r.quiz_questions || undefined
+  quizQuestions: r.quiz_questions || undefined,
+  attachments: r.attachments || undefined
 });
 const taskToRow = (t: any) => ({
   id: t.id, class_id: t.classId, title: t.title, description: t.description,
@@ -125,20 +128,23 @@ const taskToRow = (t: any) => ({
   correct_pairing: t.correctPairing || null,
   // Quiz questions were never mapped, so quiz tasks lost all their content on
   // reload even once the type constraint allowed them through.
-  quiz_questions: t.quizQuestions || null
+  quiz_questions: t.quizQuestions || null,
+  attachments: t.attachments || null
 });
 
 const rowToSub = (r: any) => ({
   id: r.id, taskId: r.task_id, taskTitle: r.task_title, studentId: r.student_id,
   studentName: r.student_name, studentAvatar: r.student_avatar, content: r.content,
   submittedAt: r.submitted_at, isGraded: r.is_graded,
-  scoreXpEarned: r.score_xp_earned, feedback: r.feedback || undefined
+  scoreXpEarned: r.score_xp_earned, feedback: r.feedback || undefined,
+  attachments: r.attachments || undefined
 });
 const subToRow = (s: any) => ({
   id: s.id, task_id: s.taskId, task_title: s.taskTitle, student_id: s.studentId,
   student_name: s.studentName, student_avatar: s.studentAvatar || "", content: s.content || "",
   submitted_at: s.submittedAt, is_graded: s.isGraded,
-  score_xp_earned: s.scoreXpEarned || 0, feedback: s.feedback || null
+  score_xp_earned: s.scoreXpEarned || 0, feedback: s.feedback || null,
+  attachments: s.attachments || null
 });
 
 const rowToAnn = (r: any) => ({
@@ -204,9 +210,9 @@ export const EXPECTED_COLUMNS: Record<string, string[]> = {
     "verification_token_expires_at", "reset_token", "reset_token_expires_at"
   ],
   classes: ["id", "name", "code", "description", "teacher_id", "teacher_name", "student_ids", "color"],
-  lessons: ["id", "class_id", "title", "content", "published_at", "video_url", "ppt_url", "web_url", "web_url_title", "reward_xp"],
-  tasks: ["id", "class_id", "title", "description", "reward_xp", "due_date", "type", "drag_items", "drop_zones", "correct_pairing", "quiz_questions"],
-  submissions: ["id", "task_id", "task_title", "student_id", "student_name", "student_avatar", "content", "submitted_at", "is_graded", "score_xp_earned", "feedback"],
+  lessons: ["id", "class_id", "title", "content", "published_at", "video_url", "ppt_url", "web_url", "web_url_title", "reward_xp", "attachments"],
+  tasks: ["id", "class_id", "title", "description", "reward_xp", "due_date", "type", "drag_items", "drop_zones", "correct_pairing", "quiz_questions", "attachments"],
+  submissions: ["id", "task_id", "task_title", "student_id", "student_name", "student_avatar", "content", "submitted_at", "is_graded", "score_xp_earned", "feedback", "attachments"],
   announcements: ["id", "class_id", "title", "content", "author_name", "published_at"],
   chat_messages: ["id", "class_id", "sender_id", "sender_name", "sender_role", "sender_avatar", "text", "timestamp"],
   events: ["id", "class_id", "title", "description", "date", "time"],
@@ -310,6 +316,34 @@ export async function uploadAvatar(userId: string, dataUrl: string): Promise<str
     upsert: true
   });
   if (error) throw new Error(`Supabase avatar upload: ${error.message}`);
+  return db().storage.from(bucket).getPublicUrl(path).data.publicUrl;
+}
+
+// Upload a lesson/assignment/submission attachment and return its public URL.
+// Same bucket-on-demand pattern as avatars, but accepts any file type — what
+// is allowed is decided by the caller, not here.
+let filesBucketReady = false;
+export async function uploadFile(
+  prefix: string,
+  filename: string,
+  base64: string,
+  mime: string
+): Promise<string> {
+  const buffer = Buffer.from(base64, "base64");
+  const bucket = "attachments";
+  if (!filesBucketReady) {
+    await db().storage.createBucket(bucket, { public: true }).catch(() => {});
+    filesBucketReady = true;
+  }
+  // Keep the original name for the trailing segment so a downloaded file is
+  // still recognisable, but strip anything that could escape the path.
+  const safe = filename.replace(/[^\w.\-]+/g, "_").slice(-80);
+  const path = `${prefix}/${Date.now()}-${safe}`;
+  const { error } = await db().storage.from(bucket).upload(path, buffer, {
+    contentType: mime || "application/octet-stream",
+    upsert: true
+  });
+  if (error) throw new Error(`Supabase attachment upload: ${error.message}`);
   return db().storage.from(bucket).getPublicUrl(path).data.publicUrl;
 }
 

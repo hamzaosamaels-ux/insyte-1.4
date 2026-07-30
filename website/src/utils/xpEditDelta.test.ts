@@ -1,7 +1,7 @@
 // Run: npx tsx src/components/matchedPairs.test.ts
 // Guards the teacher grading screen and the inline XP editor.
 import assert from "node:assert/strict";
-import { xpEditDelta } from "./TeacherDashboard";
+import { xpEditDelta } from "./xpEditDelta";
 
 // ---- matchedPairs: submission rendering ----
 // Kept in sync with the copy in TeacherDashboard.tsx (not exported — it is
@@ -57,4 +57,4 @@ assert.equal(xpEditDelta("-50", 250), -250);
 // Decimals round to a whole XP value
 assert.equal(xpEditDelta("260.4", 250), 10);
 
-console.log("TeacherDashboard: all assertions passed");
+console.log("xpEditDelta + matchedPairs: all assertions passed");

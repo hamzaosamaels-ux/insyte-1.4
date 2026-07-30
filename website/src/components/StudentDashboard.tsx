@@ -10,11 +10,12 @@ import {
 import {
   UserProfile, ClassCommunity, Lesson, TaskItem,
   TaskSubmission, Announcement, ChatMessage, ClassEvent,
-  Mail, AppNotification
+  Mail, AppNotification, Attachment
 } from "../types";
 import { Language, Theme, getTranslation } from "../translations";
 import { InteractiveCalendar } from "./InteractiveCalendar";
 import { SettingsTab } from "./SettingsTab";
+import { AttachmentPicker, AttachmentList } from "./AttachmentPicker";
 import { NavbarControls } from "./NavbarControls";
 import { NotificationBell, StreakBadge } from "./HeaderExtras";
 import { MailPanel } from "./MailPanel";
@@ -235,6 +236,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
 
   // Homework submission input state
   const [homeworkText, setHomeworkText] = useState("");
+  const [homeworkAttachments, setHomeworkAttachments] = useState<Attachment[]>([]);
   const [submittingTask, setSubmittingTask] = useState(false);
 
   // Drag and Drop Matcher State
@@ -390,10 +392,12 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
         studentAvatar: currentStudent.avatar,
         // No answers/pairing sent, so the server leaves this ungraded for the
         // teacher to review — which is the correct flow for a written essay.
-        content: homeworkText.trim()
+        content: homeworkText.trim(),
+        attachments: homeworkAttachments
       });
 
       setHomeworkText("");
+      setHomeworkAttachments([]);
       setSubmittingTask(false);
       setSelectedTask(null);
       // Let student know they submitted
@@ -1164,6 +1168,12 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                     </div>
 
                     {/* DETAILED INTERACTIVE MEDIA SECTION */}
+                    {selectedLesson.attachments && selectedLesson.attachments.length > 0 && (
+                      <div className="border-t border-slate-200/50 dark:border-[#2c2452]/40 pt-6">
+                        <AttachmentList items={selectedLesson.attachments} language={language} />
+                      </div>
+                    )}
+
                     {(selectedLesson.videoUrl || selectedLesson.pptUrl || selectedLesson.webUrl) && (
                       <div className="border-t border-slate-200/50 dark:border-[#2c2452]/40 pt-6 space-y-4">
                         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
@@ -1429,6 +1439,12 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                       <strong>{t.assignmentPrompt}</strong> {selectedTask.description}
                     </p>
 
+                    {selectedTask.attachments && selectedTask.attachments.length > 0 && (
+                      <div className="mb-6">
+                        <AttachmentList items={selectedTask.attachments} language={language} />
+                      </div>
+                    )}
+
                     {/* DRAG AND DROP MATCHING CHALLENGE TYPE */}
                     {selectedTask.type === 'dragdrop' && (
                       <div className="space-y-6">
@@ -1550,6 +1566,12 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                             className="w-full p-4 bg-slate-50 dark:bg-[#201b3a] border border-slate-200 dark:border-[#2d2553]/50 focus:border-indigo-500 rounded-2xl focus:outline-hidden text-slate-700 dark:text-slate-200 text-sm leading-relaxed"
                           />
                         </div>
+
+                        <AttachmentPicker
+                          value={homeworkAttachments}
+                          onChange={setHomeworkAttachments}
+                          language={language}
+                        />
 
                         <button
                           type="submit"

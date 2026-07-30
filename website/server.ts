@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
-import { supabaseEnabled, loadFromSupabase, saveToSupabase, uploadAvatar, verifySchema } from "./supabase-store";
+import { supabaseEnabled, loadFromSupabase, saveToSupabase, uploadAvatar, uploadFile, verifySchema } from "./supabase-store";
 import { emailEnabled, sendVerificationEmail, sendPasswordResetEmail } from "./email-sender";
 import { GoogleGenAI } from "@google/genai";
 // NOTE: `vite` is imported lazily inside the dev branch below so the production
@@ -123,6 +123,16 @@ interface ClassCommunity {
   color?: string;
 }
 
+// Uploaded files and extra links; see packages/shared Attachment.
+interface Attachment {
+  id: string;
+  kind: "file" | "link";
+  name: string;
+  url: string;
+  mime?: string;
+  size?: number;
+}
+
 interface Lesson {
   id: string;
   classId: string;
@@ -134,6 +144,7 @@ interface Lesson {
   webUrl?: string;
   webUrlTitle?: string;
   rewardXp?: number;
+  attachments?: Attachment[];
 }
 
 const DEFAULT_LESSON_READ_XP = 25;
@@ -150,6 +161,7 @@ interface TaskItem {
   dropZones?: string[];
   correctPairing?: Record<string, string>;
   quizQuestions?: { question: string; options: string[]; correctIndex: number }[];
+  attachments?: Attachment[];
 }
 
 interface TaskSubmission {
@@ -164,6 +176,7 @@ interface TaskSubmission {
   isGraded: boolean;
   scoreXpEarned: number;
   feedback?: string;
+  attachments?: Attachment[];
 }
 
 interface Announcement {
@@ -424,8 +437,11 @@ function userFromToken(db: DbSchema, req: express.Request): UserProfile | null {
 }
 
 // Public view of a submission: status only, no homework content or private feedback
-function publicSubmission(s: TaskSubmission): Omit<TaskSubmission, "content" | "feedback"> {
-  const { content, feedback, ...rest } = s;
+// Attachments are the student's actual handed-in work, so they follow the same
+// rule as `content` — only the owner and the class teacher ever see them, never
+// the public /api/data list.
+function publicSubmission(s: TaskSubmission): Omit<TaskSubmission, "content" | "feedback" | "attachments"> {
+  const { content, feedback, attachments, ...rest } = s;
   return rest;
 }
 
@@ -999,6 +1015,80 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
     });
   });
 
+  // Upload one attachment (lesson material, assignment brief, or a student's
+  // handed-in work) and return the stored URL. Storing the file is separate
+  // from attaching it: the caller puts the returned URL in the `attachments`
+  // array it sends to /api/lessons, /api/tasks, or /api/submissions.
+  //
+  // Executables are refused outright. Everything else is allowed, because a
+  // school genuinely needs Word/PDF/images/audio and guessing a full allowlist
+  // would block real work.
+  const BLOCKED_FILE_EXT = /\.(exe|bat|cmd|com|scr|msi|dll|sh|jar|app|apk|ps1|vbs)$/i;
+  const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
+
+  // Never store an attachment array straight from the client — keep only known
+  // fields, and only URLs a browser can safely navigate to (a javascript: URL
+  // here would become stored XSS the moment anyone clicked the link).
+  const cleanAttachments = (raw: unknown): Attachment[] | undefined => {
+    if (!Array.isArray(raw)) return undefined;
+    const cleaned: Attachment[] = raw.slice(0, 20).flatMap((a: any) => {
+      if (!a || typeof a.url !== "string" || !isSafeHttpUrl(a.url)) return [];
+      return [{
+        id: String(a.id || `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`).slice(0, 60),
+        kind: (a.kind === "file" ? "file" : "link") as "file" | "link",
+        name: String(a.name || a.url).slice(0, 200),
+        url: a.url,
+        ...(a.mime ? { mime: String(a.mime).slice(0, 100) } : {}),
+        ...(Number.isFinite(a.size) ? { size: Math.max(0, Math.round(a.size)) } : {})
+      }];
+    });
+    return cleaned.length > 0 ? cleaned : undefined;
+  };
+
+  app.post("/api/upload", async (req, res) => {
+    const { filename, dataUrl } = req.body;
+    const db = readDb();
+    const user = userFromToken(db, req);
+    if (!user) {
+      return res.status(401).json({ error: "Sign in required." });
+    }
+    if (typeof filename !== "string" || !filename.trim() || typeof dataUrl !== "string") {
+      return res.status(400).json({ error: "filename and dataUrl are required." });
+    }
+    if (BLOCKED_FILE_EXT.test(filename)) {
+      return res.status(400).json({ error: "That file type can't be uploaded." });
+    }
+    const parsed = /^data:([\w.+-]+\/[\w.+-]+);base64,(.+)$/.exec(dataUrl);
+    if (!parsed) {
+      return res.status(400).json({ error: "File must be sent as a base64 data URL." });
+    }
+    const [, mime, base64] = parsed;
+    // base64 is ~4/3 the byte size; check before allocating the Buffer.
+    if (base64.length * 0.75 > MAX_UPLOAD_BYTES) {
+      return res.status(413).json({ error: "File too large. Maximum size is 8MB." });
+    }
+    if (!supabaseEnabled()) {
+      return res.status(503).json({ error: "File uploads need storage configured." });
+    }
+    try {
+      const url = await uploadFile(user.id, filename.trim(), base64, mime);
+      res.json({
+        attachment: {
+          id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          kind: "file",
+          name: filename.trim(),
+          url,
+          mime,
+          size: Math.round(base64.length * 0.75)
+        }
+      });
+    } catch (err: any) {
+      // Loud, not silent — an upload that fails must not look like it worked.
+      console.error("[Insyte] Attachment upload failed:", err);
+      res.status(502).json({ error: "Upload failed. Please try again." });
+    }
+  });
+
   // Log out: invalidate the presented session token
   app.post("/api/logout", (req, res) => {
     const token = String(req.headers["x-auth-token"] || "");
@@ -1310,7 +1400,7 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
 
   // Publish a new lesson guide
   app.post("/api/lessons", (req, res) => {
-    const { classId, title, content, videoUrl, pptUrl, webUrl, webUrlTitle, rewardXp } = req.body;
+    const { classId, title, content, videoUrl, pptUrl, webUrl, webUrlTitle, rewardXp, attachments } = req.body;
     if (!classId || !title || !content) {
       return res.status(400).json({ error: "classId, title, and content are required." });
     }
@@ -1339,7 +1429,8 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
       pptUrl: pptUrl || "",
       webUrl: webUrl || "",
       webUrlTitle: webUrlTitle || "",
-      rewardXp: Number.isFinite(parsedXp) && parsedXp >= 0 ? parsedXp : DEFAULT_LESSON_READ_XP
+      rewardXp: Number.isFinite(parsedXp) && parsedXp >= 0 ? parsedXp : DEFAULT_LESSON_READ_XP,
+      attachments: cleanAttachments(attachments)
     };
 
     db.lessons.unshift(newLesson); // Prepend so most recent appears first
@@ -1350,7 +1441,7 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
   // Update an existing lesson guide
   app.put("/api/lessons/:id", (req, res) => {
     const { id } = req.params;
-    const { title, content, videoUrl, pptUrl, webUrl, webUrlTitle, rewardXp } = req.body;
+    const { title, content, videoUrl, pptUrl, webUrl, webUrlTitle, rewardXp, attachments } = req.body;
 
     if (!title || !content) {
       return res.status(400).json({ error: "title and content are required." });
@@ -1383,7 +1474,8 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
       pptUrl: pptUrl || "",
       webUrl: webUrl || "",
       webUrlTitle: webUrlTitle || "",
-      rewardXp: Number.isFinite(parsedXp) && parsedXp >= 0 ? parsedXp : (db.lessons[index].rewardXp ?? DEFAULT_LESSON_READ_XP)
+      rewardXp: Number.isFinite(parsedXp) && parsedXp >= 0 ? parsedXp : (db.lessons[index].rewardXp ?? DEFAULT_LESSON_READ_XP),
+      attachments: cleanAttachments(attachments)
     };
 
     writeDb(db);
@@ -1414,7 +1506,7 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
 
   // Publish a new homework assignment task
   app.post("/api/tasks", (req, res) => {
-    const { classId, title, description, rewardXp, dueDate, type, dragItems, dropZones, correctPairing, quizQuestions } = req.body;
+    const { classId, title, description, rewardXp, dueDate, type, dragItems, dropZones, correctPairing, quizQuestions, attachments } = req.body;
     if (!classId || !title || !description || !rewardXp || !dueDate || !type) {
       return res.status(400).json({ error: "Missing required task fields." });
     }
@@ -1439,7 +1531,8 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
       dragItems,
       dropZones,
       correctPairing,
-      quizQuestions
+      quizQuestions,
+      attachments: cleanAttachments(attachments)
     };
 
     db.tasks.unshift(newTask);
@@ -1555,7 +1648,7 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
 
   // Submit student Homework essays or matcher games
   app.post("/api/submissions", (req, res) => {
-    const { taskId, taskTitle, content } = req.body;
+    const { taskId, taskTitle, content, attachments } = req.body;
     if (!taskId || !content) {
       return res.status(400).json({ error: "taskId and content are required." });
     }
@@ -1610,7 +1703,8 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
       content,
       submittedAt: new Date().toISOString(),
       isGraded: autoScore !== null,
-      scoreXpEarned: autoScore ?? 0
+      scoreXpEarned: autoScore ?? 0,
+      attachments: cleanAttachments(attachments)
     };
 
     db.submissions = already

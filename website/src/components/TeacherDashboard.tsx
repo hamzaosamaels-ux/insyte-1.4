@@ -9,7 +9,7 @@ import {
 import {
   UserProfile, ClassCommunity, Lesson, TaskItem,
   TaskSubmission, Announcement, ClassEvent,
-  Mail, AppNotification, ChatMessage
+  Mail, AppNotification, ChatMessage, Attachment
 } from "../types";
 import { Language, Theme, getTranslation } from "../translations";
 import { InteractiveCalendar } from "./InteractiveCalendar";
@@ -19,6 +19,8 @@ import { NotificationBell, StreakBadge } from "./HeaderExtras";
 import { MailPanel } from "./MailPanel";
 import { Library as LibraryShelf } from "./Library";
 import { OnboardingChecklist } from "./Onboarding";
+import { AttachmentPicker, AttachmentList } from "./AttachmentPicker";
+import { xpEditDelta } from "../utils/xpEditDelta";
 import { getClassColors } from "../utils/colorHelper";
 
 interface TeacherDashboardProps {
@@ -61,17 +63,6 @@ interface TeacherDashboardProps {
 // whatever the student typed — which can legitimately start with "{" and not
 // be JSON at all. Returns the pairs only when it really parses to a flat
 // object, so a stray brace renders as plain text instead of throwing.
-// XP delta for an inline edit, or null to leave the student untouched.
-// Number("") is 0, not NaN — so a blank field must be rejected explicitly,
-// otherwise clearing the box and clicking away reads as "set XP to 0".
-export const xpEditDelta = (draft: string, currentXp: number): number | null => {
-  const raw = draft.trim();
-  if (raw === "") return null;
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed)) return null;
-  const newXp = Math.max(0, Math.round(parsed));
-  return newXp === currentXp ? null : newXp - currentXp;
-};
 
 const matchedPairs = (content: string): [string, string][] | null => {
   if (!content.startsWith("{")) return null;
@@ -219,6 +210,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const [lessonWebUrl, setLessonWebUrl] = useState("");
   const [lessonWebUrlTitle, setLessonWebUrlTitle] = useState("");
   const [lessonRewardXp, setLessonRewardXp] = useState("25");
+  const [lessonAttachments, setLessonAttachments] = useState<Attachment[]>([]);
   const [editingLessonId, setEditingLessonId] = useState<string | null>(null);
 
   // Create Task states
@@ -226,6 +218,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const [taskDesc, setTaskDesc] = useState("");
   const [taskXp, setTaskXp] = useState(100);
   const [taskDueDate, setTaskDueDate] = useState("2026-07-30");
+  const [taskAttachments, setTaskAttachments] = useState<Attachment[]>([]);
   const [taskType, setTaskType] = useState<"text" | "dragdrop" | "quiz">("text");
   // Teacher-defined matching pairs for the dragdrop task (item -> matching zone)
   const [matchPairs, setMatchPairs] = useState<{ item: string; zone: string }[]>([
@@ -405,7 +398,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       pptUrl: lessonPptUrl.trim() || undefined,
       webUrl: lessonWebUrl.trim() || undefined,
       webUrlTitle: (lessonWebUrl.trim() && lessonWebUrlTitle.trim()) ? lessonWebUrlTitle.trim() : undefined,
-      rewardXp: Math.max(0, Math.round(Number(lessonRewardXp)) || 25)
+      rewardXp: Math.max(0, Math.round(Number(lessonRewardXp)) || 25),
+      attachments: lessonAttachments
     };
 
     if (editingLessonId) {
@@ -423,6 +417,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     setLessonWebUrl("");
     setLessonWebUrlTitle("");
     setLessonRewardXp("25");
+    setLessonAttachments([]);
     setEditingLessonId(null);
   };
 
@@ -434,6 +429,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     setLessonWebUrl(lesson.webUrl || "");
     setLessonWebUrlTitle(lesson.webUrlTitle || "");
     setLessonRewardXp(String(lesson.rewardXp ?? 25));
+    setLessonAttachments(lesson.attachments || []);
     setEditingLessonId(lesson.id);
     setActiveSection("lessons");
   };
@@ -446,6 +442,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     setLessonWebUrl("");
     setLessonWebUrlTitle("");
     setLessonRewardXp("25");
+    setLessonAttachments([]);
     setEditingLessonId(null);
   };
 
@@ -474,7 +471,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         type: "dragdrop",
         dragItems: pairs.map(p => p.item),
         dropZones: pairs.map(p => p.zone),
-        correctPairing
+        correctPairing,
+        attachments: taskAttachments
       });
     } else if (taskType === "quiz") {
       // Build the quiz from the teacher's questions; every question needs text
@@ -499,7 +497,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         rewardXp: taskXp,
         dueDate: taskDueDate,
         type: "quiz",
-        quizQuestions: qs
+        quizQuestions: qs,
+        attachments: taskAttachments
       });
     } else {
       onCreateTask({
@@ -508,13 +507,15 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         description: taskDesc.trim(),
         rewardXp: taskXp,
         dueDate: taskDueDate,
-        type: "text"
+        type: "text",
+        attachments: taskAttachments
       });
     }
 
     setTaskTitle("");
     setTaskDesc("");
     setTaskXp(100);
+    setTaskAttachments([]);
     setMatchPairs([{ item: "", zone: "" }, { item: "", zone: "" }]);
     setQuizQuestions([{ question: "", options: ["", ""], correctIndex: 0 }]);
     showNotification(t.assignmentPublished);
@@ -1150,6 +1151,12 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                       </div>
                     </div>
 
+                    <AttachmentPicker
+                      value={lessonAttachments}
+                      onChange={setLessonAttachments}
+                      language={language}
+                    />
+
                     <div className="flex items-center gap-3 pt-2">
                       <button
                         type="submit"
@@ -1508,6 +1515,12 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                     </div>
                   )}
 
+                  <AttachmentPicker
+                    value={taskAttachments}
+                    onChange={setTaskAttachments}
+                    language={language}
+                  />
+
                   <button
                     type="submit"
                     className="px-5 py-2.5 bg-violet-600 hover:bg-violet-500 text-white font-bold text-xs rounded-xl shadow-md shadow-violet-100 dark:shadow-none transition-all cursor-pointer"
@@ -1688,6 +1701,11 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                           selectedSub.content ?? "…"
                         )}
                       </p>
+                      {selectedSub.attachments && selectedSub.attachments.length > 0 && (
+                        <div className="mt-4">
+                          <AttachmentList items={selectedSub.attachments} language={language} />
+                        </div>
+                      )}
                     </div>
 
                     {selectedSub.isGraded ? (
