@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
-import { supabaseEnabled, loadFromSupabase, saveToSupabase, uploadAvatar } from "./supabase-store";
+import { supabaseEnabled, loadFromSupabase, saveToSupabase, uploadAvatar, verifySchema } from "./supabase-store";
 import { emailEnabled, sendVerificationEmail, sendPasswordResetEmail } from "./email-sender";
 import { GoogleGenAI } from "@google/genai";
 // NOTE: `vite` is imported lazily inside the dev branch below so the production
@@ -277,6 +277,10 @@ let supabaseBootError = "";
 let lastSaveOk = true;
 let lastSaveError = "";
 let lastSaveFailedAt = "";
+// Columns the code writes but the live database doesn't have. Non-empty means
+// writes to those tables WILL fail — checked once at boot so the mismatch is
+// visible immediately rather than after data has already been lost.
+let schemaProblems: string[] = [];
 
 // Try to load Supabase data into the cache. On failure, stay UP (a crash-loop
 // would just 502 the whole app) and DON'T persist writes until a load succeeds
@@ -287,6 +291,16 @@ async function tryLoadSupabase(): Promise<void> {
     supabaseReady = true;
     supabaseBootError = "";
     console.log("[Insyte] Persistence: Supabase (data survives redeploys)");
+    // Loading fine doesn't mean writing will: a missing column only breaks
+    // the write path. Check it explicitly and shout about it.
+    schemaProblems = await verifySchema();
+    if (schemaProblems.length) {
+      console.error(
+        "[Insyte] SCHEMA MISMATCH — writes to these tables will FAIL until the " +
+        "statements in supabase/schema.sql are run against the live database:\n  " +
+        schemaProblems.join("\n  ")
+      );
+    }
   } catch (err: any) {
     supabaseReady = false;
     supabaseBootError = err?.message || String(err);
@@ -1813,6 +1827,7 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
       persisting: !supabaseEnabled() ? "n/a (file mode)" : lastSaveOk,
       lastSaveError: lastSaveError || undefined,
       lastSaveFailedAt: lastSaveFailedAt || undefined,
+      schemaProblems: schemaProblems.length ? schemaProblems : undefined,
       emailEnabled: emailEnabled(),
       timestamp: new Date().toISOString()
     });

@@ -80,12 +80,20 @@ create table if not exists public.tasks (
   description     text not null,
   reward_xp       integer not null default 0,
   due_date        text not null,
-  type            text not null check (type in ('text','dragdrop')),
+  type            text not null check (type in ('text','dragdrop','quiz')),
   drag_items      jsonb,
   drop_zones      jsonb,
-  correct_pairing jsonb
+  correct_pairing jsonb,
+  quiz_questions  jsonb
 );
 create index if not exists tasks_class_idx on public.tasks (class_id);
+-- The quiz task type shipped after this table was first created, so existing
+-- databases have a CHECK that rejects it and no column to store the questions.
+-- Without both of these every quiz task fails to persist and is lost on the
+-- next restart (surfaced as `persisting:false` on /api/health).
+alter table public.tasks drop constraint if exists tasks_type_check;
+alter table public.tasks add constraint tasks_type_check check (type in ('text','dragdrop','quiz'));
+alter table public.tasks add column if not exists quiz_questions jsonb;
 
 create table if not exists public.submissions (
   id             text primary key,

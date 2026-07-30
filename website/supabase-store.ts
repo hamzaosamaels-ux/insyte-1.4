@@ -115,13 +115,17 @@ const rowToTask = (r: any) => ({
   id: r.id, classId: r.class_id, title: r.title, description: r.description,
   rewardXp: r.reward_xp, dueDate: r.due_date, type: r.type,
   dragItems: r.drag_items || undefined, dropZones: r.drop_zones || undefined,
-  correctPairing: r.correct_pairing || undefined
+  correctPairing: r.correct_pairing || undefined,
+  quizQuestions: r.quiz_questions || undefined
 });
 const taskToRow = (t: any) => ({
   id: t.id, class_id: t.classId, title: t.title, description: t.description,
   reward_xp: t.rewardXp, due_date: t.dueDate, type: t.type,
   drag_items: t.dragItems || null, drop_zones: t.dropZones || null,
-  correct_pairing: t.correctPairing || null
+  correct_pairing: t.correctPairing || null,
+  // Quiz questions were never mapped, so quiz tasks lost all their content on
+  // reload even once the type constraint allowed them through.
+  quiz_questions: t.quizQuestions || null
 });
 
 const rowToSub = (r: any) => ({
@@ -188,6 +192,47 @@ async function selectAll(table: string): Promise<any[]> {
   const { data, error } = await db().from(table).select("*");
   if (error) throw new Error(`Supabase read ${table}: ${error.message}`);
   return data || [];
+}
+
+// Every column the write path actually sends, per table. Kept next to the
+// mapping functions above so the two are edited together.
+const EXPECTED_COLUMNS: Record<string, string[]> = {
+  profiles: [
+    "id", "name", "email", "role", "avatar", "xp", "level", "rank",
+    "joined_classes", "streak", "last_active_date", "read_lessons",
+    "password_hash", "email_verified", "verification_token",
+    "verification_token_expires_at", "reset_token", "reset_token_expires_at"
+  ],
+  classes: ["id", "name", "code", "description", "teacher_id", "teacher_name", "student_ids", "color"],
+  lessons: ["id", "class_id", "title", "content", "published_at", "video_url", "ppt_url", "web_url", "web_url_title", "reward_xp"],
+  tasks: ["id", "class_id", "title", "description", "reward_xp", "due_date", "type", "drag_items", "drop_zones", "correct_pairing", "quiz_questions"],
+  submissions: ["id", "task_id", "task_title", "student_id", "student_name", "student_avatar", "content", "submitted_at", "is_graded", "score_xp_earned", "feedback"],
+  announcements: ["id", "class_id", "title", "content", "author_name", "published_at"],
+  chat_messages: ["id", "class_id", "sender_id", "sender_name", "sender_role", "sender_avatar", "text", "timestamp"],
+  events: ["id", "class_id", "title", "description", "date", "time"],
+  mails: ["id", "from_id", "from_name", "from_avatar", "to_id", "to_name", "subject", "body", "sent_at", "read"],
+  notifications: ["id", "user_id", "type", "title", "body", "created_at", "read"],
+  sessions: ["token", "user_id", "issued_at"]
+};
+
+// Ask for exactly the columns the code writes. PostgREST errors on any that
+// don't exist, which turns silent schema drift into a startup-time answer.
+//
+// This exists because the same failure happened three separate times: a field
+// was added in code, schema.sql was updated, but the live database never had
+// the statements run — so every write for that table threw, was swallowed by a
+// background .catch, and the data silently lived in memory until a restart
+// dropped it. Checking at boot means the mismatch is reported before it eats
+// anyone's data.
+export async function verifySchema(): Promise<string[]> {
+  const problems: string[] = [];
+  await Promise.all(
+    Object.entries(EXPECTED_COLUMNS).map(async ([table, cols]) => {
+      const { error } = await db().from(table).select(cols.join(",")).limit(1);
+      if (error) problems.push(`${table}: ${error.message}`);
+    })
+  );
+  return problems;
 }
 
 // Load the whole schema from Supabase into the in-memory shape the server uses.
