@@ -24,5 +24,10 @@ jobs:
       - run: npm ci
       - name: Type-check
         run: npx tsc --noEmit
+      - name: Test
+        # Includes the schema-drift check. Code adding a column that schema.sql
+        # never defines is the bug that has silently eaten data three times, so
+        # it fails the build rather than waiting to be discovered in production.
+        run: npm test
       - name: Build
         run: npm run build

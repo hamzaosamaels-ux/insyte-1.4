@@ -196,7 +196,7 @@ async function selectAll(table: string): Promise<any[]> {
 
 // Every column the write path actually sends, per table. Kept next to the
 // mapping functions above so the two are edited together.
-const EXPECTED_COLUMNS: Record<string, string[]> = {
+export const EXPECTED_COLUMNS: Record<string, string[]> = {
   profiles: [
     "id", "name", "email", "role", "avatar", "xp", "level", "rank",
     "joined_classes", "streak", "last_active_date", "read_lessons",
