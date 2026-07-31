@@ -157,6 +157,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
 
   // Navigation & View States
   const studentClasses = classes.filter(c => currentStudent?.joinedClasses?.includes(c.id) ?? false);
+  const studentClassIds = new Set(studentClasses.map(c => c.id));
   const [activeClass, setActiveClass] = useState<ClassCommunity | null>(studentClasses[0] || null);
 
   const getGradeAndSubject = (name: string) => {
@@ -1855,10 +1856,10 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
 
             {/* CALENDAR TAB */}
             {activeTab === "calendar" && (
-              <InteractiveCalendar 
-                classes={classes}
-                tasks={tasks}
-                events={events}
+              <InteractiveCalendar
+                classes={studentClasses}
+                tasks={tasks.filter(tk => studentClassIds.has(tk.classId))}
+                events={events.filter(ev => studentClassIds.has(ev.classId))}
                 submissions={submissions}
                 currentStudentId={currentStudent.id}
                 language={language}
