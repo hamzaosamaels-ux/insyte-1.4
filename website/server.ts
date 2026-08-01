@@ -4,6 +4,7 @@ import fs from "fs";
 import crypto from "crypto";
 import { supabaseEnabled, loadFromSupabase, saveToSupabase, uploadAvatar, uploadFile, verifySchema } from "./supabase-store";
 import { emailEnabled, sendVerificationEmail, sendPasswordResetEmail } from "./email-sender";
+import { pushEnabled, pushPublicKey, sendPush } from "./push-sender";
 import { GoogleGenAI } from "@google/genai";
 // NOTE: `vite` is imported lazily inside the dev branch below so the production
 // server (and Railway's build) never needs vite/tailwind installed.
@@ -213,6 +214,17 @@ interface SessionEntry {
   issuedAt: number; // epoch ms — always set explicitly by the app, never a DB default
 }
 
+// One row per device that opted into push. Keyed by endpoint because that is
+// what the browser gives back and what web-push needs to reach the device — a
+// single user can have several (phone, laptop, tablet).
+interface PushSub {
+  endpoint: string;
+  userId: string;
+  p256dh: string;
+  auth: string;
+  createdAt: string;
+}
+
 interface DbSchema {
   students: UserProfile[];
   teachers: UserProfile[];
@@ -225,6 +237,7 @@ interface DbSchema {
   submissions: TaskSubmission[];
   mails: Mail[];
   notifications: AppNotification[];
+  pushSubscriptions: PushSub[];
   sessions: Record<string, SessionEntry>; // token -> { userId, issuedAt }
 }
 
@@ -242,6 +255,7 @@ const seedData: DbSchema = {
   submissions: [],
   mails: [],
   notifications: [],
+  pushSubscriptions: [],
   sessions: {}
 };
 
@@ -397,6 +411,26 @@ function notify(db: DbSchema, userId: string, type: AppNotification["type"], tit
   // Cap stored notifications so the flat file doesn't grow unbounded
   if (db.notifications.length > 500) {
     db.notifications = db.notifications.slice(-500);
+  }
+
+  // Mirror it to the user's devices. Deliberately fire-and-forget: a push
+  // service being slow must never hold up the request that triggered it, and
+  // the in-app notification above is already saved either way.
+  if (pushEnabled()) {
+    const subs = db.pushSubscriptions.filter(s => s.userId === userId);
+    if (subs.length > 0) {
+      sendPush(subs, { title, body, url: "/", tag: type })
+        .then(dead => {
+          if (dead.length === 0) return;
+          // Prune endpoints the browser has permanently discarded, so we stop
+          // retrying them forever.
+          const gone = new Set(dead);
+          const fresh = readDb();
+          fresh.pushSubscriptions = fresh.pushSubscriptions.filter(s => !gone.has(s.endpoint));
+          writeDb(fresh);
+        })
+        .catch(err => console.error("[Insyte] Push dispatch failed:", err));
+    }
   }
 }
 
@@ -1087,6 +1121,56 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
       console.error("[Insyte] Attachment upload failed:", err);
       res.status(502).json({ error: "Upload failed. Please try again." });
     }
+  });
+
+  // Register this device for push. The VAPID public key is handed out by
+  // /api/health so the client knows whether to even offer the option.
+  app.post("/api/push/subscribe", (req, res) => {
+    const { endpoint, keys } = req.body || {};
+    const db = readDb();
+    const user = userFromToken(db, req);
+    if (!user) {
+      return res.status(401).json({ error: "Sign in required." });
+    }
+    if (!pushEnabled()) {
+      return res.status(503).json({ error: "Push notifications aren't configured on the server." });
+    }
+    if (typeof endpoint !== "string" || !isSafeHttpUrl(endpoint) || !keys?.p256dh || !keys?.auth) {
+      return res.status(400).json({ error: "A valid push subscription is required." });
+    }
+
+    // Re-subscribing on the same device returns the same endpoint, so replace
+    // rather than stack duplicates (which would send the same push twice).
+    db.pushSubscriptions = [
+      ...db.pushSubscriptions.filter(s => s.endpoint !== endpoint),
+      {
+        endpoint,
+        userId: user.id,
+        p256dh: String(keys.p256dh),
+        auth: String(keys.auth),
+        createdAt: new Date().toISOString()
+      }
+    ];
+    writeDb(db);
+    res.json({ ok: true });
+  });
+
+  app.post("/api/push/unsubscribe", (req, res) => {
+    const { endpoint } = req.body || {};
+    const db = readDb();
+    const user = userFromToken(db, req);
+    if (!user) {
+      return res.status(401).json({ error: "Sign in required." });
+    }
+    if (typeof endpoint !== "string") {
+      return res.status(400).json({ error: "endpoint is required." });
+    }
+    // Scoped to the caller so one user can't unsubscribe someone else's device.
+    db.pushSubscriptions = db.pushSubscriptions.filter(
+      s => !(s.endpoint === endpoint && s.userId === user.id)
+    );
+    writeDb(db);
+    res.json({ ok: true });
   });
 
   // Log out: invalidate the presented session token
@@ -1923,6 +2007,10 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
       lastSaveFailedAt: lastSaveFailedAt || undefined,
       schemaProblems: schemaProblems.length ? schemaProblems : undefined,
       emailEnabled: emailEnabled(),
+      pushEnabled: pushEnabled(),
+      // Safe to publish — the browser needs it to subscribe. The private half
+      // never leaves Railway's env.
+      vapidPublicKey: pushPublicKey() || undefined,
       timestamp: new Date().toISOString()
     });
   });

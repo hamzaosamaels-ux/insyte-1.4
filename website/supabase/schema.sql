@@ -189,6 +189,19 @@ create table if not exists public.sessions (
 -- rather than an unknown true age — a safe default, not a forced logout.
 alter table public.sessions add column if not exists issued_at timestamptz not null default now();
 
+-- One row per device opted into push notifications. Keyed by endpoint: that is
+-- what the browser returns and what web-push needs to reach the device, and a
+-- single user legitimately has several (phone, laptop, tablet).
+create table if not exists public.push_subscriptions (
+  endpoint   text primary key,
+  user_id    text not null,
+  p256dh     text not null,
+  auth       text not null,
+  created_at text not null
+);
+create index if not exists push_subscriptions_user_idx on public.push_subscriptions (user_id);
+
+
 -- ============================================================================
 -- Row Level Security
 -- ----------------------------------------------------------------------------
@@ -214,6 +227,7 @@ alter table public.events        enable row level security;
 alter table public.mails         enable row level security;
 alter table public.notifications enable row level security;
 alter table public.sessions      enable row level security;
+alter table public.push_subscriptions enable row level security;
 
 -- No policies are defined, so with RLS enabled the anon and authenticated
 -- roles are denied all access by default. The service role bypasses RLS and is

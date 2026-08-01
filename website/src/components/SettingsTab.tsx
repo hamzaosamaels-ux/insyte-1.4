@@ -1,9 +1,11 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { getTranslation, Language } from "../translations";
 import { UserProfile } from "../types";
 import { Settings, User, Mail, Bell, LogOut, ShieldCheck, Award, GraduationCap, Camera, KeyRound, AlertTriangle } from "lucide-react";
 import { LegalFooter } from "./Legal";
+import { api, authHeaders } from "../api";
+import { pushSupported, isPushSubscribed, subscribeToPush, unsubscribeFromPush } from "../utils/pwa";
 
 interface SettingsTabProps {
   language: Language;
@@ -63,6 +65,63 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const [notifPerm, setNotifPerm] = useState<string>(
     typeof Notification !== "undefined" ? Notification.permission : "denied"
   );
+  // Push state. vapidKey empty means the server has no VAPID keys configured,
+  // in which case the button stays hidden rather than offering something that
+  // would silently never deliver.
+  const [vapidKey, setVapidKey] = useState("");
+  const [pushOn, setPushOn] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushError, setPushError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!pushSupported()) return;
+    fetch(api("/api/health"))
+      .then(r => r.json())
+      .then(h => { if (h.pushEnabled && h.vapidPublicKey) setVapidKey(h.vapidPublicKey); })
+      .catch(() => { /* health unreachable — just leave push hidden */ });
+    isPushSubscribed().then(setPushOn).catch(() => {});
+  }, []);
+
+  const togglePush = async () => {
+    setPushBusy(true);
+    setPushError(null);
+    try {
+      if (pushOn) {
+        const reg = await navigator.serviceWorker.getRegistration();
+        const sub = await reg?.pushManager.getSubscription();
+        if (sub) {
+          await fetch(api("/api/push/unsubscribe"), {
+            method: "POST",
+            headers: authHeaders(true),
+            body: JSON.stringify({ endpoint: sub.endpoint })
+          });
+        }
+        await unsubscribeFromPush();
+        setPushOn(false);
+      } else {
+        const err = await subscribeToPush(vapidKey, async (sub) => {
+          const res = await fetch(api("/api/push/subscribe"), {
+            method: "POST",
+            headers: authHeaders(true),
+            body: JSON.stringify(sub)
+          });
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            return data.error || "Couldn't register this device.";
+          }
+          return null;
+        });
+        if (err) setPushError(err);
+        else {
+          setPushOn(true);
+          setNotifPerm("granted");
+        }
+      }
+    } catch (e: any) {
+      setPushError(e?.message || "Something went wrong.");
+    }
+    setPushBusy(false);
+  };
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [curPwd, setCurPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
@@ -249,8 +308,28 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           })}
         </div>
 
-        {/* Browser (OS) notifications opt-in */}
-        {typeof Notification !== "undefined" && (
+        {/* Push notifications: real delivery even when the app is closed.
+            Only offered when the server actually has VAPID keys — otherwise
+            the button would appear to work and never deliver anything. */}
+        {vapidKey ? (
+          <div className="mt-4 pt-4 border-t border-slate-100 dark:border-[#241c49]/80">
+            <button
+              onClick={togglePush}
+              disabled={pushBusy}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold cursor-pointer disabled:cursor-default transition-all bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-950/50 disabled:opacity-60"
+            >
+              <Bell className="h-4 w-4" />
+              {pushBusy ? t.pushWorking : pushOn ? t.disablePush : t.enablePush}
+            </button>
+            {pushOn && !pushError && (
+              <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-2 text-center">{t.pushEnabled}</p>
+            )}
+            {pushError && (
+              <p className="text-[11px] text-red-500 mt-2 text-center">{pushError}</p>
+            )}
+          </div>
+        ) : typeof Notification !== "undefined" && (
+          // Fallback: in-tab notifications only (fires while the app is open).
           <div className="mt-4 pt-4 border-t border-slate-100 dark:border-[#241c49]/80">
             <button
               onClick={() => Notification.requestPermission().then(p => setNotifPerm(p))}

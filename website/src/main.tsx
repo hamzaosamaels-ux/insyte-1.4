@@ -3,10 +3,13 @@ import ReactDOM from 'react-dom/client';
 import * as Sentry from '@sentry/react';
 import App from './App.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { registerServiceWorker } from './utils/pwa';
 import './index.css';
 
 // Error tracking — only active when a DSN is provided (VITE_SENTRY_DSN in the
 // Vercel env). Without it this is a no-op, so nothing breaks locally.
+registerServiceWorker();
+
 const dsn = import.meta.env.VITE_SENTRY_DSN;
 if (dsn) {
   Sentry.init({

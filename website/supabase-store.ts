@@ -25,6 +25,7 @@ export interface StoreSchema {
   submissions: any[];
   mails: any[];
   notifications: any[];
+  pushSubscriptions: any[];
   sessions: Record<string, { userId: string; issuedAt: number }>;
 }
 
@@ -147,6 +148,15 @@ const subToRow = (s: any) => ({
   attachments: s.attachments || null
 });
 
+const rowToPush = (r: any) => ({
+  endpoint: r.endpoint, userId: r.user_id, p256dh: r.p256dh, auth: r.auth,
+  createdAt: r.created_at
+});
+const pushToRow = (p: any) => ({
+  endpoint: p.endpoint, user_id: p.userId, p256dh: p.p256dh, auth: p.auth,
+  created_at: p.createdAt
+});
+
 const rowToAnn = (r: any) => ({
   id: r.id, classId: r.class_id, title: r.title, content: r.content,
   authorName: r.author_name, publishedAt: r.published_at
@@ -218,6 +228,7 @@ export const EXPECTED_COLUMNS: Record<string, string[]> = {
   events: ["id", "class_id", "title", "description", "date", "time"],
   mails: ["id", "from_id", "from_name", "from_avatar", "to_id", "to_name", "subject", "body", "sent_at", "read"],
   notifications: ["id", "user_id", "type", "title", "body", "created_at", "read"],
+  push_subscriptions: ["endpoint", "user_id", "p256dh", "auth", "created_at"],
   sessions: ["token", "user_id", "issued_at"]
 };
 
@@ -243,12 +254,12 @@ export async function verifySchema(): Promise<string[]> {
 
 // Load the whole schema from Supabase into the in-memory shape the server uses.
 export async function loadFromSupabase(): Promise<StoreSchema> {
-  const [profiles, classes, lessons, tasks, submissions, announcements, chat, events, mails, notifications, sessions] =
+  const [profiles, classes, lessons, tasks, submissions, announcements, chat, events, mails, notifications, sessions, pushSubs] =
     await Promise.all([
       selectAll("profiles"), selectAll("classes"), selectAll("lessons"),
       selectAll("tasks"), selectAll("submissions"), selectAll("announcements"),
       selectAll("chat_messages"), selectAll("events"), selectAll("mails"),
-      selectAll("notifications"), selectAll("sessions")
+      selectAll("notifications"), selectAll("sessions"), selectAll("push_subscriptions")
     ]);
 
   const profileObjs = profiles.map(rowToProfile);
@@ -267,6 +278,7 @@ export async function loadFromSupabase(): Promise<StoreSchema> {
     events: events.map(rowToEvent),
     mails: mails.map(rowToMail),
     notifications: notifications.map(rowToNotif),
+    pushSubscriptions: pushSubs.map(rowToPush),
     sessions: sessionMap
   };
 }
@@ -368,6 +380,7 @@ export async function saveToSupabase(data: StoreSchema): Promise<void> {
     syncTable("events", data.events.map(eventToRow)),
     syncTable("mails", data.mails.map(mailToRow)),
     syncTable("notifications", data.notifications.map(notifToRow)),
-    syncTable("sessions", sessionRows, "token")
+    syncTable("sessions", sessionRows, "token"),
+    syncTable("push_subscriptions", (data.pushSubscriptions || []).map(pushToRow), "endpoint")
   ]);
 }
