@@ -20,7 +20,6 @@ import { MailPanel } from "./MailPanel";
 import { Library as LibraryShelf } from "./Library";
 import { OnboardingChecklist } from "./Onboarding";
 import { AttachmentPicker, AttachmentList } from "./AttachmentPicker";
-import { xpEditDelta } from "../utils/xpEditDelta";
 import { getClassColors } from "../utils/colorHelper";
 
 interface TeacherDashboardProps {
@@ -131,9 +130,9 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const [editingXpId, setEditingXpId] = useState<string | null>(null);
   const [xpDraft, setXpDraft] = useState("");
   const commitXpEdit = (studentId: string, currentXp: number) => {
-    const delta = xpEditDelta(xpDraft, currentXp);
-    if (delta !== null) {
-      onAdjustStudentXp(studentId, delta);
+    const newXp = Math.round(Number(xpDraft));
+    if (!Number.isNaN(newXp) && newXp !== currentXp) {
+      onAdjustStudentXp(studentId, newXp - currentXp);
     }
     setEditingXpId(null);
   };
@@ -162,16 +161,12 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const markShared = () => { localStorage.setItem("insyte_shared_code", "1"); setHasShared(true); };
 
   useEffect(() => {
-    if (classes.length === 0) {
+    if (classes.length > 0) {
+      if (!activeClass || !classes.some(c => c.id === activeClass.id)) {
+        setActiveClass(classes[0]);
+      }
+    } else {
       setActiveClass(null);
-      return;
-    }
-    // Land on a class this teacher owns where possible — a co-taught class
-    // can be read but never published to, so it makes a poor default.
-    const mine = classes.filter(c => c.teacherId === currentTeacher.id);
-    const stillListed = activeClass && classes.some(c => c.id === activeClass.id);
-    if (!stillListed) {
-      setActiveClass(mine[0] ?? classes[0]);
     }
   }, [classes]);
 
@@ -184,15 +179,9 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     classesByGrade[grade].push(cl);
   });
 
-  // Only the owning teacher may publish to a class — the server enforces this
-  // on every write. Joining a community as a co-teacher enrols you in all its
-  // sibling subjects (server: siblingClassIds), so without this the subject
-  // row offers colleagues' subjects that every upload then 403s on.
-  const iOwn = (cl: ClassCommunity) => cl.teacherId === currentTeacher.id;
-
   const grades = Object.keys(classesByGrade);
   const activeGrade = activeClass ? getGradeAndSubject(activeClass.name).grade : (grades[0] || "");
-  const activeGradeClasses = (classesByGrade[activeGrade] || []).filter(iOwn);
+  const activeGradeClasses = classesByGrade[activeGrade] || [];
 
   // Creation Forms State toggles
   const [showCreateClass, setShowCreateClass] = useState(false);
@@ -388,7 +377,6 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const handleCreateLesson = (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeClass || !lessonTitle.trim() || !lessonContent.trim()) return;
-    if (!iOwn(activeClass)) return showNotification(t.notYourSubject);
 
     const lessonData = {
       classId: activeClass.id,
@@ -449,7 +437,6 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const handleCreateTask = (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeClass || !taskTitle.trim() || !taskDesc.trim()) return;
-    if (!iOwn(activeClass)) return showNotification(t.notYourSubject);
 
     if (taskType === "dragdrop") {
       // Build the matcher from the teacher's own pairs
@@ -524,7 +511,6 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const handleAddAnnouncement = (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeClass || !annTitle.trim() || !annContent.trim()) return;
-    if (!iOwn(activeClass)) return showNotification(t.notYourSubject);
     onAddAnnouncement({
       classId: activeClass.id,
       title: annTitle.trim(),
@@ -539,7 +525,6 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const handleAddEvent = (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeClass || !evtTitle.trim()) return;
-    if (!iOwn(activeClass)) return showNotification(t.notYourSubject);
     onAddEvent({
       classId: activeClass.id,
       title: evtTitle.trim(),
@@ -557,7 +542,6 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     // Same ownership rule the publish handlers follow — the server rejects a
     // grade for someone else's class with a 403, so don't send it at all.
     if (!selectedSub || !activeClass) return;
-    if (!iOwn(activeClass)) return showNotification(t.notYourSubject);
     onGradeSubmission(selectedSub.id, gradeXp, gradeFeedback.trim());
     setSelectedSub(null);
     setGradeFeedback("");
@@ -624,10 +608,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                     <button
                       key={grade}
                       onClick={() => {
-                        const inGrade = classesByGrade[grade] ?? [];
-                        // Same reason as the mount default: prefer a subject
-                        // this teacher owns, so the section opens publishable.
-                        const firstCl = inGrade.find(iOwn) ?? inGrade[0];
+                        const firstCl = classesByGrade[grade]?.[0];
                         if (firstCl) {
                           setActiveClass(firstCl);
                           setSelectedSub(null);

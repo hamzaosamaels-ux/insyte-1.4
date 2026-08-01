@@ -10,29 +10,19 @@ import { DashboardSkeleton } from "./components/DashboardSkeleton";
 import { Language, Theme, getTranslation } from "./translations";
 import { api, authHeaders, getToken, setToken, clearToken, API_BASE } from "./api";
 import { login as sharedLogIn, VerificationRequiredError } from "@insyte/shared/auth";
-import { nextList } from "./utils/nextList";
-
-// Lists never accept a non-array update — see nextList for why that matters.
-function useListState<T>() {
-  const [value, setValue] = useState<T[]>([]);
-  const setGuarded = (next: React.SetStateAction<T[]> | undefined) => {
-    setValue((prev) => nextList(prev, next));
-  };
-  return [value, setGuarded] as const;
-}
 
 export default function App() {
-  const [students, setStudents] = useListState<UserProfile>();
-  const [teachers, setTeachers] = useListState<UserProfile>();
-  const [classes, setClasses] = useListState<ClassCommunity>();
-  const [lessons, setLessons] = useListState<Lesson>();
-  const [tasks, setTasks] = useListState<TaskItem>();
-  const [announcements, setAnnouncements] = useListState<Announcement>();
-  const [chatMessages, setChatMessages] = useListState<ChatMessage>();
-  const [events, setEvents] = useListState<ClassEvent>();
-  const [submissions, setSubmissions] = useListState<TaskSubmission>();
-  const [mails, setMails] = useListState<Mail>();
-  const [notifications, setNotifications] = useListState<AppNotification>();
+  const [students, setStudents] = useState<UserProfile[]>([]);
+  const [teachers, setTeachers] = useState<UserProfile[]>([]);
+  const [classes, setClasses] = useState<ClassCommunity[]>([]);
+  const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [events, setEvents] = useState<ClassEvent[]>([]);
+  const [submissions, setSubmissions] = useState<TaskSubmission[]>([]);
+  const [mails, setMails] = useState<Mail[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
   // Hydrate the signed-in user synchronously from localStorage so a page
