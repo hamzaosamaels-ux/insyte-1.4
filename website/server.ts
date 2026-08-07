@@ -106,7 +106,7 @@ interface Mail {
 interface AppNotification {
   id: string;
   userId: string;
-  type: "announcement" | "task" | "grade" | "mail" | "join" | "event";
+  type: "announcement" | "task" | "grade" | "mail" | "join" | "event" | "lesson" | "submission";
   title: string;
   body: string;
   createdAt: string;
@@ -1518,6 +1518,16 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
     };
 
     db.lessons.unshift(newLesson); // Prepend so most recent appears first
+
+    // Lessons never notified anyone before this — a student had no way to
+    // know new material (or a file/link attached to it) existed short of
+    // opening the class and checking manually.
+    const hasFiles = (newLesson.attachments?.length ?? 0) > 0;
+    for (const sid of targetClass.studentIds) {
+      notify(db, sid, "lesson", "New lesson published",
+        hasFiles ? `${title} — includes attached files/links.` : title);
+    }
+
     writeDb(db);
     res.status(201).json(newLesson);
   });
@@ -1794,6 +1804,18 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
     db.submissions = already
       ? db.submissions.map(s => (s.id === already.id ? newSubmission : s))
       : [...db.submissions, newSubmission];
+
+    // Only text/essay hand-ins need a human to look at them — quizzes and
+    // matching games already scored themselves above, so paging the teacher
+    // for those would just be noise on every auto-graded submission.
+    if (autoScore === null) {
+      const ownerClass = task && db.classes.find(c => c.id === task.classId);
+      if (ownerClass) {
+        const hasFiles = (newSubmission.attachments?.length ?? 0) > 0;
+        notify(db, ownerClass.teacherId, "submission", "New submission to grade",
+          `${requester.name} — ${taskTitle}${hasFiles ? " (with attachment)" : ""}`);
+      }
+    }
 
     // Award the auto-graded XP in the same write, so it can't be farmed by
     // replaying the separate add-xp endpoint.

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Bell, Flame, Megaphone, ClipboardList, GraduationCap, Mail as MailIcon, UserPlus, CalendarDays } from "lucide-react";
+import { Bell, Flame, Megaphone, ClipboardList, GraduationCap, Mail as MailIcon, UserPlus, CalendarDays, BookOpen, Upload } from "lucide-react";
 import { AppNotification, NotificationType } from "../types";
 
 const typeIcon: Record<NotificationType, React.ReactNode> = {
@@ -9,7 +9,9 @@ const typeIcon: Record<NotificationType, React.ReactNode> = {
   grade: <GraduationCap className="h-3.5 w-3.5" />,
   mail: <MailIcon className="h-3.5 w-3.5" />,
   join: <UserPlus className="h-3.5 w-3.5" />,
-  event: <CalendarDays className="h-3.5 w-3.5" />
+  event: <CalendarDays className="h-3.5 w-3.5" />,
+  lesson: <BookOpen className="h-3.5 w-3.5" />,
+  submission: <Upload className="h-3.5 w-3.5" />
 };
 
 export const StreakBadge: React.FC<{ streak: number; label: string }> = ({ streak, label }) => (

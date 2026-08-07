@@ -30,7 +30,7 @@ export interface Mail {
   read: boolean;
 }
 
-export type NotificationType = 'announcement' | 'task' | 'grade' | 'mail' | 'join' | 'event';
+export type NotificationType = 'announcement' | 'task' | 'grade' | 'mail' | 'join' | 'event' | 'lesson' | 'submission';
 
 export interface AppNotification {
   id: string;
