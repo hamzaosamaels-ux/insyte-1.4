@@ -117,7 +117,7 @@ export const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({
         </p>
 
         <div className="flex items-center justify-center gap-2 mt-6 opacity-60">
-          <GraduationCap className="h-4 w-4" />
+          <img src="/logo-header.png" alt="" className="h-4 w-4 object-contain" />
           <span className="text-xs font-bold">insyte</span>
         </div>
       </div>

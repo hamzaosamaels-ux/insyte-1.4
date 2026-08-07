@@ -587,9 +587,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           >
             <Menu className="h-6 w-6" />
           </button>
-          <div className="p-1.5 sm:p-2 bg-violet-600 text-white rounded-xl shadow-md">
-            <Users className="h-4 w-4 sm:h-5 sm:w-5" />
-          </div>
+          <img src="/logo-header.png" alt="" className="h-8 w-8 sm:h-9 sm:w-9 object-contain" />
           <div>
             <h1 className="text-base sm:text-xl font-bold font-display tracking-tight text-slate-900 dark:text-slate-50">insyte</h1>
             <p className="text-slate-400 text-[9px] sm:text-[10px] uppercase font-mono tracking-widest font-bold hidden sm:block">{t.teacherPortal}</p>

@@ -88,9 +88,9 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ duration: 0.5 }}
-            className="inline-flex p-4 bg-gradient-to-tr from-indigo-500 to-violet-600 rounded-2xl mb-4 shadow-lg shadow-indigo-500/20"
+            className="inline-flex p-2 mb-4"
           >
-            <GraduationCap className="h-10 w-10 text-white" />
+            <img src="/logo.png" alt="" className="h-16 w-16 object-contain" />
           </motion.div>
           <motion.h1
             initial={{ y: 20, opacity: 0 }}

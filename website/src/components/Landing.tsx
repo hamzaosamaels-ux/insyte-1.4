@@ -52,9 +52,7 @@ export const Landing: React.FC<LandingProps> = ({ language, setLanguage, onGetSt
       <nav className="sticky top-0 z-30 backdrop-blur-xl bg-slate-950/60 border-b border-slate-800/60">
         <div className="max-w-6xl mx-auto px-5 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-gradient-to-tr from-indigo-500 to-violet-600 rounded-xl">
-              <GraduationCap className="h-5 w-5 text-white" />
-            </div>
+            <img src="/logo-header.png" alt="" className="h-8 w-8 object-contain" />
             <span className="text-xl font-extrabold font-display bg-gradient-to-r from-indigo-400 via-violet-300 to-indigo-300 bg-clip-text text-transparent">
               insyte
             </span>

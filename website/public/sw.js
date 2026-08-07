@@ -14,7 +14,7 @@ const SHELL = `${VERSION}-shell`;
 const ASSETS = `${VERSION}-assets`;
 
 // Enough to render the app shell offline; everything else is fetched live.
-const SHELL_URLS = ["/", "/index.html", "/manifest.webmanifest", "/icon.svg"];
+const SHELL_URLS = ["/", "/index.html", "/manifest.webmanifest", "/logo.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -86,8 +86,8 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(payload.title, {
       body: payload.body,
-      icon: "/icon.svg",
-      badge: "/icon.svg",
+      icon: "/logo-192.png",
+      badge: "/logo-192.png",
       data: { url: payload.url },
       tag: payload.tag || undefined
     })
