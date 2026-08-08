@@ -86,7 +86,11 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(payload.title, {
       body: payload.body,
-      icon: "/logo-192.png",
+      // The recipient's own character when the server sends one, so the
+      // notification reads as someone from the Insyte world, not a system
+      // alert. badge stays the app logo regardless — that's the small
+      // monochrome status-bar mark, meant to identify the app, not the sender.
+      icon: payload.icon || "/logo-192.png",
       badge: "/logo-192.png",
       data: { url: payload.url },
       tag: payload.tag || undefined

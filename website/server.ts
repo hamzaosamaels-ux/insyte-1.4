@@ -150,6 +150,15 @@ interface Lesson {
 
 const DEFAULT_LESSON_READ_XP = 25;
 
+// Characters from the Insyte world (public/avatars/, sliced from the
+// character sheet). New accounts get one at random rather than a generic
+// dicebear robot, so the whole app reads as one universe.
+const AVATAR_COUNT = 20;
+function randomAvatarUrl(): string {
+  const n = 1 + Math.floor(Math.random() * AVATAR_COUNT);
+  return `/avatars/avatar-${String(n).padStart(2, "0")}.png`;
+}
+
 interface TaskItem {
   id: string;
   classId: string;
@@ -419,7 +428,11 @@ function notify(db: DbSchema, userId: string, type: AppNotification["type"], tit
   if (pushEnabled()) {
     const subs = db.pushSubscriptions.filter(s => s.userId === userId);
     if (subs.length > 0) {
-      sendPush(subs, { title, body, url: "/", tag: type })
+      // The recipient's own character shows on the notification, not the
+      // generic app logo — makes it visibly "someone from the Insyte world"
+      // reaching out rather than a system alert.
+      const recipient = [...db.students, ...db.teachers].find(u => u.id === userId);
+      sendPush(subs, { title, body, url: "/", tag: type, icon: recipient?.avatar })
         .then(dead => {
           if (dead.length === 0) return;
           // Prune endpoints the browser has permanently discarded, so we stop
@@ -783,7 +796,7 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
       name: trimmedName,
       email: trimmedEmail,
       role,
-      avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(trimmedName)}`,
+      avatar: randomAvatarUrl(),
       xp: 0,
       level: role === "teacher" ? 10 : 1,
       rank: role === "teacher" ? "Educator" : "Freshman Scholar",
