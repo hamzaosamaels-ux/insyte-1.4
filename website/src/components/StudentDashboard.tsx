@@ -260,6 +260,20 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   const [aiLoading, setAiLoading] = useState(false);
   const aiBottomRef = useRef<HTMLDivElement>(null);
 
+  // Akinator-style "thinking" line, cycled while Insyte works so the wait
+  // feels like the character considering the question rather than a spinner.
+  const aiThinkingLines = [t.aiThinking1, t.aiThinking2, t.aiThinking3, t.aiThinking4];
+  const [aiThinkingIdx, setAiThinkingIdx] = useState(0);
+  useEffect(() => {
+    if (!aiLoading) return;
+    setAiThinkingIdx(0);
+    const timer = setInterval(
+      () => setAiThinkingIdx(i => (i + 1) % aiThinkingLines.length),
+      1800
+    );
+    return () => clearInterval(timer);
+  }, [aiLoading]);
+
   // When classes list changes (e.g. just joined first class), ensure one is active
   useEffect(() => {
     if (!activeClass && studentClasses.length > 0) {
@@ -429,7 +443,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     const currentClassTasks = tasks.filter(t => t.classId === activeClass?.id);
     const openTasks = currentClassTasks.filter(t => !submissions.some(s => s.taskId === t.id && s.studentId === currentStudent.id));
 
-    const systemPrompt = `You are **Insyte AI**, a helpful study tutor for an educational platform called Insyte.
+    const systemPrompt = `You are **Insyte**, the mascot and study tutor built into the educational platform Insyte.
 You help students with studies, tasks, lessons, and motivate them.
 
 **Current Student Context:**
@@ -1775,13 +1789,13 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                         key={idx}
                         className={`flex gap-3.5 max-w-2xl ${isAi ? "mr-auto text-left" : "ml-auto flex-row-reverse text-right"}`}
                       >
-                        <div className={`w-8.5 h-8.5 rounded-full flex items-center justify-center border shrink-0 ${
-                          isAi 
-                            ? "bg-gradient-to-tr from-indigo-500 to-violet-600 text-white border-indigo-200" 
-                            : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600"
-                        }`}>
-                          {isAi ? <Sparkles className="h-4.5 w-4.5" /> : currentStudent.name[0]}
-                        </div>
+                        {isAi ? (
+                          <img src="/logo-header.png" alt="" className="w-8.5 h-8.5 object-contain shrink-0" />
+                        ) : (
+                          <div className="w-8.5 h-8.5 rounded-full flex items-center justify-center shrink-0 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600">
+                            {currentStudent.name[0]}
+                          </div>
+                        )}
                         <div>
                           <div className={`text-[9px] text-slate-400 flex items-center gap-1.5 font-mono mb-1 ${isAi ? "justify-start" : "justify-end"}`}>
                             <span>{isAi ? t.insyteAiTutorCaps : currentStudent.name.toUpperCase()}</span>
@@ -1799,18 +1813,38 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                     );
                   })}
 
-                  {/* AI Generating Animation */}
+                  {/* Insyte is thinking — the character visibly considers the
+                      question (bobbing, with a rotating line) instead of a
+                      generic spinner. */}
                   {aiLoading && (
                     <div className="flex gap-3.5 max-w-2xl mr-auto text-left">
-                      <div className="w-8.5 h-8.5 rounded-full flex items-center justify-center bg-gradient-to-tr from-indigo-500 to-violet-600 text-white border border-indigo-200">
-                        <Sparkles className="h-4.5 w-4.5 animate-spin" />
-                      </div>
+                      <motion.img
+                        src="/logo-header.png"
+                        alt=""
+                        className="w-8.5 h-8.5 object-contain shrink-0"
+                        animate={{ y: [0, -4, 0], rotate: [0, -6, 6, 0] }}
+                        transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+                      />
                       <div>
                         <div className="text-[9px] text-slate-400 font-mono mb-1">{t.insyteAiTutorCaps}</div>
-                        <div className="p-4 bg-white dark:bg-[#201b3a] text-slate-800 dark:text-slate-200 border border-slate-100 dark:border-[#2d2553]/50 rounded-2xl rounded-tl-none shadow-xs flex items-center gap-2">
-                          <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" />
-                          <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:0.2s]" />
-                          <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:0.4s]" />
+                        <div className="p-4 bg-white dark:bg-[#201b3a] text-slate-800 dark:text-slate-200 border border-slate-100 dark:border-[#2d2553]/50 rounded-2xl rounded-tl-none shadow-xs flex items-center gap-2.5">
+                          <AnimatePresence mode="wait">
+                            <motion.span
+                              key={aiThinkingIdx}
+                              initial={{ opacity: 0, y: 4 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -4 }}
+                              transition={{ duration: 0.25 }}
+                              className="text-xs text-slate-500 dark:text-slate-400 italic"
+                            >
+                              {aiThinkingLines[aiThinkingIdx]}
+                            </motion.span>
+                          </AnimatePresence>
+                          <span className="flex gap-1 shrink-0">
+                            <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" />
+                            <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:0.2s]" />
+                            <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:0.4s]" />
+                          </span>
                         </div>
                       </div>
                     </div>

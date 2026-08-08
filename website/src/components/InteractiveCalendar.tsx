@@ -23,16 +23,16 @@ export const InteractiveCalendar: React.FC<InteractiveCalendarProps> = ({
 }) => {
   const t = getTranslation(language);
 
-  // Default to July 2026 as per local workspace time context
-  const [currentYear, setCurrentYear] = useState(2026);
-  const [currentMonth, setCurrentMonth] = useState(6); // 6 is July (0-indexed)
-
   // Current day string formatted as YYYY-MM-DD
   const today = new Date();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
-  // Local state for the selected calendar day
-  const [selectedDateStr, setSelectedDateStr] = useState<string>(`2026-07-14`);
+  // Open on the real current month, not a date frozen at development time.
+  const [currentYear, setCurrentYear] = useState(today.getFullYear());
+  const [currentMonth, setCurrentMonth] = useState(today.getMonth());
+
+  // Local state for the selected calendar day — starts on today, not a fixed date.
+  const [selectedDateStr, setSelectedDateStr] = useState<string>(todayStr);
 
   const monthNamesEn = [
     "January", "February", "March", "April", "May", "June",
