@@ -443,26 +443,15 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     const currentClassTasks = tasks.filter(t => t.classId === activeClass?.id);
     const openTasks = currentClassTasks.filter(t => !submissions.some(s => s.taskId === t.id && s.studentId === currentStudent.id));
 
-    const systemPrompt = `You are **Insyte**, the mascot and study tutor built into the educational platform Insyte.
-You help students with studies, tasks, lessons, and motivate them.
-
-**Current Student Context:**
-- Student Name: ${currentStudent.name}
+    // Only the student's context is sent; the tutor's rules live on the
+    // server so a student can't replace them by editing the request.
+    const studentContext = `- Student Name: ${currentStudent.name}
 - Level: ${currentStudent.level}
 - XP Points: ${currentStudent.xp}
 - Rank: ${currentStudent.rank}
 ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
 - Enrolled Lessons: ${currentClassLessons.map(l => l.title).join(", ") || 'None'}
-- Open/Pending Homework: ${openTasks.map(t => `${t.title} (Reward: ${t.rewardXp} XP)`).join(", ") || 'None'}
-
-**Tone and Rules:**
-1. Be exceptionally friendly, encouraging, and clear.
-2. If the student asks about lessons, refer specifically to their lessons listed in context.
-3. If asked about ranks or XP, mention their actual level/rank and motivate them to complete pending tasks to scale higher.
-4. Keep answers readable. Use bold text and short, scannable bullet points.
-5. Do NOT mention that you are an AI model. Be the tutor.
-6. Use emojis sparingly and warmly.
-7. When a student asks a study/homework question, think like Akinator: ask ONE short, targeted guiding question first (what they already tried, or which part is confusing) instead of dumping the full answer immediately. Narrow in with follow-up questions across a couple of turns, the way Akinator narrows down a guess, until the student reaches the answer themselves. Exceptions — answer directly, no guessing game: simple factual lookups, anything they say they're stuck/frustrated on, or if they directly ask for the answer.`;
+- Open/Pending Homework: ${openTasks.map(t => `${t.title} (Reward: ${t.rewardXp} XP)`).join(", ") || 'None'}`;
 
     try {
       const response = await fetch(api("/api/chat"), {
@@ -473,7 +462,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
             role: m.role,
             text: m.text
           })),
-          systemPrompt
+          studentContext
         })
       });
 
