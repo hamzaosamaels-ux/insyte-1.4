@@ -1,3 +1,23 @@
+import webpush from 'web-push';
+
+webpush.setVapidDetails(
+  'mailto:support@insyte.com',
+  process.env.VAPID_PUBLIC_KEY!,
+  process.env.VAPID_PRIVATE_KEY!
+);
+
+app.post('/api/push/subscribe', (req, res) => {
+  const { subscription } = req.body;
+  const user = userFromToken(db, req);
+
+  if (user && subscription) {
+    user.pushSubscription = subscription;
+    res.json({ success: true });
+  } else {
+    res.status(400).json({ error: 'Invalid subscription' });
+  }
+});
+
 import express from "express";
 import path from "path";
 import fs from "fs";
