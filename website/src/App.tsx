@@ -784,9 +784,14 @@ export default function App() {
   }
 
   // Teacher Workspace — classes this teacher owns or joined as co-teacher
-  const teacherClasses = classes.filter(
-    c => c.teacherId === currentUser.id || (currentUser.joinedClasses ?? []).includes(c.id)
-  );
+  // AFTER (Supports both camelCase and snake_case fields)
+const teacherClasses = classes.filter(
+  c =>
+    c.teacherId === currentUser.id ||
+    (c as any).teacher_id === currentUser.id ||
+    (currentUser.joinedClasses ?? []).includes(c.id) ||
+    ((currentUser as any).joined_classes ?? []).includes(c.id)
+);
 
   return (
     <TeacherDashboard
