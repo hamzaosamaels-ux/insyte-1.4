@@ -7,6 +7,51 @@ import { LegalFooter } from "./Legal";
 import { api, authHeaders } from "../api";
 import { pushSupported, isPushSubscribed, subscribeToPush, unsubscribeFromPush } from "../utils/pwa";
 
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+export async function enableNotifications() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    alert('Push notifications are not supported on this browser.');
+    return;
+  }
+
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') {
+    alert('Notification permission denied.');
+    return;
+  }
+
+  const registration = await navigator.serviceWorker.register('/sw.js');
+  await navigator.serviceWorker.ready;
+
+  // Replace with your Public Key from Step 1
+  const publicVapidKey = 'YOUR_VAPID_PUBLIC_KEY_HERE';
+  const subscription = await registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(publicVapidKey)
+  });
+
+  await fetch('/api/push/subscribe', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders()
+    },
+    body: JSON.stringify({ subscription })
+  });
+
+  alert('Push notifications enabled!');
+}
+
 interface SettingsTabProps {
   language: Language;
   user: UserProfile;
