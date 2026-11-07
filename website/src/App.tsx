@@ -140,12 +140,12 @@ export default function App() {
   };
 
   // Pull the shared (public) portal state: classes, lessons, tasks, chat, etc.
-  const refreshPublic = (initial = false) => {
-    return fetch(api("/api/data"))
-      .then((res) => {
-        if (!res.ok) throw new Error("Server responded with an error code");
-        return res.json();
-      })
+const refreshPublic = (initial = false) => {
+  return fetch(api("/api/data"), { headers: authHeaders() })
+    .then((res) => {
+      if (!res.ok) throw new Error("Server responded with an error code");
+      return res.json();
+    })
       .then((data) => {
         setStudents(data.students || []);
         setTeachers(data.teachers || []);
