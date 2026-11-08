@@ -386,7 +386,7 @@ function awardXp(user: UserProfile, amount: number): UserProfile {
   return { ...user, xp, level, rank };
 }
 
-async function notify(db: DbSchema, userId: string, type: AppNotification["type"], title: string, body: string) {
+function notify(db: DbSchema, userId: string, type: AppNotification["type"], title: string, body: string) {
   db.notifications.push({
     id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     userId,
@@ -406,17 +406,15 @@ async function notify(db: DbSchema, userId: string, type: AppNotification["type"
     const subs = db.pushSubscriptions.filter(s => s.userId === userId);
     if (subs.length > 0) {
       const recipient = [...db.students, ...db.teachers].find(u => u.id === userId);
-      try {
-        const dead = await sendPush(subs, { title, body, url: "/", tag: type, icon: recipient?.avatar });
-        if (dead.length > 0) {
+      void sendPush(subs, { title, body, url: "/", tag: type, icon: recipient?.avatar })
+        .then(dead => {
+          if (!dead || dead.length === 0) return;
           const gone = new Set(dead);
           const fresh = readDb();
           fresh.pushSubscriptions = fresh.pushSubscriptions.filter(s => !gone.has(s.endpoint));
           writeDb(fresh);
-        }
-      } catch (err) {
-        console.error("[Insyte] Push dispatch failed:", err);
-      }
+        })
+        .catch(err => console.error("[Insyte] Push dispatch failed:", err));
     }
   }
 }
