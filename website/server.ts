@@ -419,23 +419,6 @@ function notify(db: DbSchema, userId: string, type: AppNotification["type"], tit
   }
 }
 
-  if (pushEnabled()) {
-    const subs = db.pushSubscriptions.filter(s => s.userId === userId);
-    if (subs.length > 0) {
-      const recipient = [...db.students, ...db.teachers].find(u => u.id === userId);
-      sendPush(subs, { title, body, url: "/", tag: type, icon: recipient?.avatar })
-        .then(dead => {
-          if (dead.length === 0) return;
-          const gone = new Set(dead);
-          const fresh = readDb();
-          fresh.pushSubscriptions = fresh.pushSubscriptions.filter(s => !gone.has(s.endpoint));
-          writeDb(fresh);
-        })
-        .catch(err => console.error("[Insyte] Push dispatch failed:", err));
-    }
-  }
-}
-
 function findUserByEmail(db: DbSchema, email: string): UserProfile | undefined {
   const lower = email.trim().toLowerCase();
   return [...db.students, ...db.teachers].find(u => u.email.toLowerCase() === lower);
