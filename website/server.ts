@@ -672,7 +672,9 @@ async function startServer() {
   app.post("/api/push/subscribe", (req: express.Request, res: express.Response) => {
     const db = readDb();
     const user = userFromToken(db, req);
-    const { subscription } = req.body;
+    // The Settings toggle sends the subscription itself ({ endpoint, keys });
+    // also accept it wrapped as { subscription }.
+    const subscription = req.body?.subscription ?? req.body;
 
     if (!user || !subscription || !subscription.endpoint || !subscription.keys) {
       return res.status(400).json({ error: "Invalid subscription payload." });
@@ -729,10 +731,12 @@ async function startServer() {
     if (String(password).length < 6) {
       return res.status(400).json({ error: "Password must be at least 6 characters." });
     }
-    if (role === "teacher") {
-      const allowed = (process.env.TEACHER_EMAILS || "").split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
+    // Teacher sign-up is open by default. Setting TEACHER_EMAILS (comma list of
+    // addresses or "@domain" entries) in Railway restricts it to that list.
+    const allowedTeachers = (process.env.TEACHER_EMAILS || "").split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
+    if (role === "teacher" && allowedTeachers.length > 0) {
       const e = String(email).trim().toLowerCase();
-      if (!allowed.some(a => (a.startsWith("@") ? e.endsWith(a) : e === a))) {
+      if (!allowedTeachers.some(a => (a.startsWith("@") ? e.endsWith(a) : e === a))) {
         return res.status(403).json({ error: "Teacher accounts are invite-only. Ask your school's Insyte admin to add your email." });
       }
     }
