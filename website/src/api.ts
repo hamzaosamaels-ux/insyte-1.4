@@ -2,9 +2,10 @@
 // Every fetch must go through api() or writes silently hit the wrong host.
 import { createApi } from "@insyte/shared/api";
 
-export const API_BASE = import.meta.env.PROD
-  ? "https://insyte-14-production-a1bc1d5a.up.railway.app"
-  : "";
+export const API_BASE = "";
+//export const API_BASE = import.meta.env.PROD
+  //? "https://insyte-14-production-a1bc1d5a.up.railway.app"
+  //: "";
 
 const { api, authHeaders: sharedAuthHeaders } = createApi(API_BASE);
 export { api };
