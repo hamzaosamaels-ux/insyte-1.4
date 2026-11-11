@@ -171,24 +171,46 @@ function geminiClient(): GoogleGenAI | null {
   });
 }
 
+// What /api/health reports about the AI, so "why is the tutor failing" is
+// answerable without reading Railway logs. Only a short code is kept, never
+// the full upstream message.
+const geminiStatus = { lastOkAt: "", lastError: "", lastErrorAt: "" };
+function briefGeminiError(err: any, model: string): string {
+  let code = err?.status ?? "";
+  let name = "";
+  try {
+    const parsed = JSON.parse(err?.message || "");
+    code = parsed?.error?.code ?? code;
+    name = parsed?.error?.status ?? "";
+  } catch { /* not JSON: keep what we have */ }
+  return `${model}: ${[code, name].filter(Boolean).join(" ") || String(err?.message || "unknown").slice(0, 80)}`;
+}
+function geminiModels(): string[] {
+  return (process.env.GEMINI_MODELS || "gemini-2.5-flash").split(",").map(m => m.trim()).filter(Boolean);
+}
+
 // Set GEMINI_MODELS in Railway (comma-separated, first preferred, the rest
 // fallbacks) to change models without a code change.
 async function geminiGenerate(
   ai: GoogleGenAI,
   opts: { contents: any[]; system: string; maxOutputTokens: number; temperature: number }
 ) {
-  const models = (process.env.GEMINI_MODELS || "gemini-2.5-flash").split(",").map(m => m.trim()).filter(Boolean);
+  const models = geminiModels();
   let lastError: any = null;
   for (const model of models) {
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        return await ai.models.generateContent({
+        const out = await ai.models.generateContent({
           model,
           contents: opts.contents,
           config: { systemInstruction: opts.system, temperature: opts.temperature, maxOutputTokens: opts.maxOutputTokens }
         });
+        geminiStatus.lastOkAt = new Date().toISOString();
+        return out;
       } catch (err: any) {
         lastError = err;
+        geminiStatus.lastError = briefGeminiError(err, model);
+        geminiStatus.lastErrorAt = new Date().toISOString();
         const msg = err?.message || "";
         console.warn(`[Insyte] Gemini ${model} attempt ${attempt} failed:`, msg);
         const transient = msg.includes("503") || msg.includes("UNAVAILABLE") || msg.includes("429") ||
@@ -2011,6 +2033,13 @@ async function startServer() {
       schemaProblems: schemaProblems.length ? schemaProblems : undefined,
       emailEnabled: emailEnabled(),
       pushEnabled: pushEnabled(),
+      ai: {
+        configured: Boolean(process.env.GEMINI_API_KEY),
+        models: geminiModels(),
+        lastOkAt: geminiStatus.lastOkAt || undefined,
+        lastError: geminiStatus.lastError || undefined,
+        lastErrorAt: geminiStatus.lastErrorAt || undefined
+      },
       vapidPublicKey: pushPublicKey() || undefined,
       timestamp: new Date().toISOString()
     });
@@ -2056,9 +2085,7 @@ async function startServer() {
       res.json({ text: response.text });
     } catch (error: any) {
       console.error("Error communicating with Gemini API:", error);
-      res.status(500).json({
-        error: error.message || "An unexpected error occurred while communicating with the AI Study Buddy."
-      });
+      res.status(500).json({ error: "Insyte couldn't answer right now. Please try again in a minute." });
     }
   });
 
