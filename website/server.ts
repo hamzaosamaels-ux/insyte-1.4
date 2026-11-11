@@ -1913,7 +1913,10 @@ async function startServer() {
       }
 
       const generateWithRetryAndFallback = async () => {
-        const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-flash'];
+        // Set GEMINI_MODELS in Railway (comma-separated, first is preferred, the
+        // rest are fallbacks) to change models without a code change.
+        const modelsToTry = (process.env.GEMINI_MODELS || "gemini-2.5-flash")
+          .split(",").map(m => m.trim()).filter(Boolean);
         let lastError: any = null;
 
         for (const model of modelsToTry) {
