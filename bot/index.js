@@ -17,7 +17,7 @@ const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const ALLOWED = (process.env.ALLOWED_USER_IDS || "")
   .split(",").map(s => s.trim()).filter(Boolean);
 
-const API = "https://insyte-14-production.up.railway.app";
+const API = "https://insyte-14-production-a1bc1d5a.up.railway.app";
 const SITE = "https://insyte-1-4.vercel.app";
 const REPO = "hamzaosamaels-ux/insyte-1.4";
 

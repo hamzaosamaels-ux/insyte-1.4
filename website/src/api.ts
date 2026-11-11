@@ -3,7 +3,7 @@
 import { createApi } from "@insyte/shared/api";
 
 export const API_BASE = import.meta.env.PROD
-  ? "https://insyte-14-production.up.railway.app"
+  ? "https://insyte-14-production-a1bc1d5a.up.railway.app"
   : "";
 
 const { api, authHeaders: sharedAuthHeaders } = createApi(API_BASE);
