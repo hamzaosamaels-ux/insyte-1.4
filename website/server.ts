@@ -895,10 +895,10 @@ async function startServer() {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim())) {
       return res.status(400).json({ error: "That doesn't look like a valid email address." });
     }
-    //if (!emailEnabled()) {
-     // console.error("[Insyte] Signup rejected: BREVO_API_KEY is not configured — cannot verify real emails.");
-     // return res.status(503).json({ error: "Sign-ups are temporarily unavailable. Try again soon." });
-    //}
+    if (!emailEnabled()) {
+      console.error("[Insyte] Signup rejected: BREVO_API_KEY is not configured — cannot verify real emails.");
+      return res.status(503).json({ error: "Sign-ups are temporarily unavailable. Try again soon." });
+    }
 
     const db = readDb();
     if (findUserByEmail(db, email)) {
