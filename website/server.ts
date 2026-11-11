@@ -897,7 +897,7 @@ app.post("/api/signup", async (req, res) => {
     lastActiveDate: todayStr(),
     readLessons: [],
     passwordHash: hashPassword(String(password)),
-    emailVerified: false,
+    emailVerified: true,
     verificationToken,
     verificationTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
   };
