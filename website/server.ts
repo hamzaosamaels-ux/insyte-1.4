@@ -774,15 +774,14 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
 const storeInitPromise = initStore();
 readDb();
 
-app.use("/api/", async (req, res, next) => {
+app.use("/api/", async (req: any, res: any, next: any) => {
   if (req.path === "/health") return next();
   if (supabaseEnabled() && !supabaseReady) {
     await storeInitPromise;
   }
   next();
 });
-  next();
-});
+
 
 // REST BACKEND API ENDPOINTS
 
