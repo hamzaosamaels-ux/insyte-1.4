@@ -771,18 +771,16 @@ app.use("/api/resend-verification", resendLimiter);
 const forgotPasswordLimiter = makeRateLimiter(10 * 60 * 1000, 5, "forgot-password");
 app.use("/api/forgot-password", forgotPasswordLimiter);
 
-void initStore();
+const storeInitPromise = initStore();
 readDb();
 
-app.use("/api/", (req, res, next) => {
+app.use("/api/", async (req, res, next) => {
   if (req.path === "/health") return next();
   if (supabaseEnabled() && !supabaseReady) {
-    res.setHeader("Retry-After", "15");
-    return res.status(503).json({
-      error: "Server is still starting up. Try again in a moment.",
-      starting: true
-    });
+    await storeInitPromise;
   }
+  next();
+});
   next();
 });
 
