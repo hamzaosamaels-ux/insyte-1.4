@@ -5,7 +5,7 @@ import {
   ChevronRight, ChevronLeft, Trophy, Bell, Clock, LogOut, CheckCircle2,
   List, ShieldAlert, ArrowLeft, RefreshCw, Star, Info, Settings,
   Video, Presentation, Globe, ExternalLink, Search, Mail as MailLucide, UserPlus, Menu,
-  Library as LibraryIcon
+  Library as LibraryIcon, NotebookPen
 } from "lucide-react";
 import {
   UserProfile, ClassCommunity, Lesson, TaskItem,
@@ -20,6 +20,8 @@ import { NavbarControls } from "./NavbarControls";
 import { NotificationBell, StreakBadge } from "./HeaderExtras";
 import { MailPanel } from "./MailPanel";
 import { Library } from "./Library";
+import { StudentNotebook } from "./StudentNotebook";
+import { SimpleMarkdown } from "./SimpleMarkdown";
 import { XpBar, Confetti, LevelUpToast } from "./Gamify";
 import { getClassColors } from "../utils/colorHelper";
 import { api, authHeaders } from "../api";
@@ -182,7 +184,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   const activeGradeClasses = classesByGrade[activeGrade] || [];
 
   const activeColors = getClassColors(activeClass?.color);
-  const [activeTab, setActiveTab] = useState<"dashboard" | "lessons" | "tasks" | "chat" | "ai" | "calendar" | "mail" | "library" | "settings">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "lessons" | "tasks" | "chat" | "ai" | "notebook" | "calendar" | "mail" | "library" | "settings">("dashboard");
 
   // Join-class modal state
   const [joinOpen, setJoinOpen] = useState(false);
@@ -760,6 +762,18 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
               <Sparkles className="h-4 w-4" />
               <span>{t.aiTutor}</span>
               <span className={`absolute top-1 right-2 w-2 h-2 rounded-full bg-indigo-500 animate-ping`} />
+            </button>
+
+            <button
+              onClick={() => { setActiveTab("notebook"); setSelectedLesson(null); setSelectedTask(null); }}
+              className={`w-auto md:w-full shrink-0 flex items-center justify-start gap-2.5 px-3.5 md:px-4 py-2.5 md:py-3 rounded-xl text-xs font-bold transition-all ${
+                activeTab === "notebook"
+                  ? "bg-slate-100 dark:bg-[#1c1836] text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-[#2d2553]/50 shadow-xs"
+                  : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 hover:text-slate-800 dark:hover:text-slate-200 border border-transparent"
+              }`}
+            >
+              <NotebookPen className="h-4 w-4" />
+              <span>{t.notebookTab}</span>
             </button>
 
             <button
@@ -1750,6 +1764,40 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
             )}
 
             {/* STUDY BUDDY AI CHAT TAB */}
+            {activeTab === "notebook" && (
+              <div className="space-y-4">
+                {activeGradeClasses.length > 1 && (
+                  <div className="flex flex-wrap gap-2">
+                    {activeGradeClasses.map((cl) => {
+                      const { subject } = getGradeAndSubject(cl.name);
+                      const isSelected = activeClass?.id === cl.id;
+                      const clColors = getClassColors(cl.color);
+                      return (
+                        <button
+                          key={cl.id}
+                          onClick={() => setActiveClass(cl)}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-semibold transition-all cursor-pointer border ${
+                            isSelected
+                              ? `bg-white dark:bg-[#1c1836] ${clColors.text} shadow-xs ${clColors.border}`
+                              : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 border-transparent"
+                          }`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${clColors.bgSolid}`} />
+                          {subject}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                <StudentNotebook
+                  classId={activeClass?.id}
+                  subjectName={activeClass ? getGradeAndSubject(activeClass.name).subject : ""}
+                  lessons={classLessons}
+                  t={t}
+                />
+              </div>
+            )}
+
             {activeTab === "ai" && (
               <div className="bg-white dark:bg-[#18142c] border border-slate-200 dark:border-[#2b244c] rounded-3xl flex flex-col h-[70vh] md:h-[calc(100vh-160px)] shadow-xs">
                 
@@ -1765,7 +1813,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                     </div>
                   </div>
                   <span className="bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/40 text-[8px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider font-mono">
-                    Gemini 3.5-flash
+                    Gemini
                   </span>
                 </div>
 
@@ -1795,7 +1843,7 @@ ${activeClass ? `- Current Subject: ${activeClass.name}` : ''}
                               ? "bg-white dark:bg-[#201b3a] text-slate-800 dark:text-slate-200 border border-slate-100 dark:border-[#2d2553]/50 rounded-tl-none shadow-xs whitespace-pre-wrap" 
                               : "bg-indigo-600 text-white rounded-tr-none shadow-xs text-left"
                           }`}>
-                            {msg.text}
+                            {isAi ? <SimpleMarkdown text={msg.text} /> : msg.text}
                           </div>
                         </div>
                       </div>

@@ -44,6 +44,14 @@ function normalizedSupabaseUrl(): string {
   return /^https?:\/\//i.test(cleaned) ? cleaned : `https://${cleaned}`;
 }
 
+// Public URL prefix of the attachments bucket, or "" when Supabase isn't
+// configured. The study notebook only ever fetches files under this prefix, so
+// a teacher can't make the server request an arbitrary address.
+export function attachmentPublicPrefix(): string {
+  const base = normalizedSupabaseUrl();
+  return base ? `${base}/storage/v1/object/public/attachments/` : "";
+}
+
 function supabaseKey(): string {
   return (process.env.SUPABASE_SERVICE_KEY || "").trim();
 }
