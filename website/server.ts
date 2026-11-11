@@ -740,7 +740,7 @@ function writeDb(data: DbSchema) {
   }
 }
 
-async function startServer() {
+//async function startServer() {
   const app = express();
   const PORT = 3000;
 
@@ -2164,12 +2164,20 @@ async function startServer() {
     }
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  //app.listen(PORT, "0.0.0.0", () => {
+    //console.log(`[Insyte Server] Ready! Access it at http://localhost:${PORT}`);
+  //});
+//}
+
+//startServer().catch((err) => {
+  //console.error("Failed to start the Express server:", err);
+  //process.exit(1);
+//});
+
+if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+  app.listen(PORT, () => {
     console.log(`[Insyte Server] Ready! Access it at http://localhost:${PORT}`);
   });
 }
 
-startServer().catch((err) => {
-  console.error("Failed to start the Express server:", err);
-  process.exit(1);
-});
+export default app;
