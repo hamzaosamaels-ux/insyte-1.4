@@ -2,9 +2,9 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
-import { supabaseEnabled, loadFromSupabase, saveToSupabase, uploadAvatar, uploadFile, verifySchema, attachmentPublicPrefix } from "./supabase-store";
-import { emailEnabled, sendVerificationEmail, sendPasswordResetEmail } from "./email-sender";
-import { pushEnabled, pushPublicKey, sendPush } from "./push-sender";
+import { supabaseEnabled, loadFromSupabase, saveToSupabase, uploadAvatar, uploadFile, verifySchema, attachmentPublicPrefix } from "./supabase-store.js";
+import { emailEnabled, sendVerificationEmail, sendPasswordResetEmail } from "./email-sender.js";
+import { pushEnabled, pushPublicKey, sendPush } from "./push-sender.js";
 import { GoogleGenAI } from "@google/genai";
 
 const DB_FILE = path.join(process.cwd(), "db.json");
