@@ -2,20 +2,10 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
-import webpush from "web-push";
 import { supabaseEnabled, loadFromSupabase, saveToSupabase, uploadAvatar, uploadFile, verifySchema } from "./supabase-store";
 import { emailEnabled, sendVerificationEmail, sendPasswordResetEmail } from "./email-sender";
 import { pushEnabled, pushPublicKey, sendPush } from "./push-sender";
 import { GoogleGenAI } from "@google/genai";
-
-// Configure Web Push VAPID keys if provided
-if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
-  webpush.setVapidDetails(
-    "mailto:support@insyte.com",
-    process.env.VAPID_PUBLIC_KEY,
-    process.env.VAPID_PRIVATE_KEY
-  );
-}
 
 const DB_FILE = path.join(process.cwd(), "db.json");
 
