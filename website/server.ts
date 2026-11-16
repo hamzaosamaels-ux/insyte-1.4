@@ -476,6 +476,11 @@ interface PushSub {
   createdAt: string;
 }
 
+// One row per student per day they were in the app. id is userId:day, so a
+// day is counted once however many times the account loads.
+interface ActivityDay { id: string; userId: string; day: string }
+const ACTIVITY_KEEP_DAYS = 60;
+
 interface DbSchema {
   students: UserProfile[];
   teachers: UserProfile[];
@@ -489,6 +494,7 @@ interface DbSchema {
   mails: Mail[];
   notifications: AppNotification[];
   pushSubscriptions: PushSub[];
+  activityDays: ActivityDay[];
   sessions: Record<string, SessionEntry>;
 }
 
@@ -505,6 +511,7 @@ const seedData: DbSchema = {
   mails: [],
   notifications: [],
   pushSubscriptions: [],
+  activityDays: [],
   sessions: {}
 };
 
@@ -634,6 +641,20 @@ function readDb(): DbSchema {
 
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+// Remember that a student was in the app today. Writes only the first time each
+// day, and drops anything older than ACTIVITY_KEEP_DAYS. Returns true if it changed.
+function recordActivity(db: DbSchema, user: UserProfile): boolean {
+  if (user.role !== "student") return false;
+  const day = todayStr();
+  const id = `${user.id}:${day}`;
+  const cutoff = new Date(Date.now() - ACTIVITY_KEEP_DAYS * 86400000).toISOString().slice(0, 10);
+  const kept = db.activityDays.filter(a => a.day >= cutoff);
+  const changed = kept.length !== db.activityDays.length || !kept.some(a => a.id === id);
+  if (!changed) return false;
+  db.activityDays = kept.some(a => a.id === id) ? kept : [...kept, { id, userId: user.id, day }];
+  return true;
 }
 
 function applyStreak(user: UserProfile): UserProfile {
@@ -814,6 +835,7 @@ const hashLoginToken = (token: string) => crypto.createHash("sha256").update(tok
 // Shared by password and QR sign-in: streak, the daily check-in reward, a new
 // session, and the response the client expects.
 function openSession(db: DbSchema, found: UserProfile, res: express.Response) {
+  recordActivity(db, found);
   let updated = applyStreak(found);
   const isNewDay = updated.lastActiveDate !== found.lastActiveDate;
   let dailyXp = 0;
@@ -1020,6 +1042,7 @@ app.get("/api/me", (req, res) => {
   if (!user) {
     return res.status(401).json({ error: "Not signed in." });
   }
+  if (recordActivity(db, user)) writeDb(db);
   res.json({
     user: selfUser(user),
     myMails: mailsFor(db, user.id),
@@ -1237,6 +1260,35 @@ app.post("/api/teacher/students/:id/new-card", (req, res) => {
   }
   writeDb(db);
   res.json({ student: { id: student.id, name: student.name }, token });
+});
+
+// Which of a teacher's students were in the app on each of the last N days.
+// Only classes this teacher teaches, and only their students.
+app.get("/api/teacher/activity", (req, res) => {
+  const db = readDb();
+  const teacher = userFromToken(db, req);
+  if (!teacher || teacher.role !== "teacher") {
+    return res.status(401).json({ error: "Teacher session required." });
+  }
+  const n = Math.min(Math.max(parseInt(String(req.query.days ?? "14"), 10) || 14, 1), ACTIVITY_KEEP_DAYS);
+  const days: string[] = [];
+  for (let i = n - 1; i >= 0; i--) days.push(new Date(Date.now() - i * 86400000).toISOString().slice(0, 10));
+  const byUser = new Map<string, string[]>();
+  for (const a of db.activityDays) {
+    if (!days.includes(a.day)) continue;
+    byUser.set(a.userId, [...(byUser.get(a.userId) ?? []), a.day]);
+  }
+  const classes = db.classes.filter(c => c.teacherId === teacher.id).map(c => ({
+    id: c.id,
+    name: c.name,
+    students: db.students
+      .filter(s => c.studentIds.includes(s.id))
+      .map(s => {
+        const activeDays = (byUser.get(s.id) ?? []).sort();
+        return { id: s.id, name: s.name, activeDays, lastActive: activeDays.at(-1) ?? "" };
+      })
+  }));
+  res.json({ days, classes });
 });
 
 app.post("/api/verify-email", (req, res) => {

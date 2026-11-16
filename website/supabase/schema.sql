@@ -196,6 +196,14 @@ alter table public.sessions add column if not exists issued_at timestamptz not n
 -- One row per device opted into push notifications. Keyed by endpoint: that is
 -- what the browser returns and what web-push needs to reach the device, and a
 -- single user legitimately has several (phone, laptop, tablet).
+-- One row per student per day they were in the app (see recordActivity).
+create table if not exists public.activity_days (
+  id      text primary key,
+  user_id text not null,
+  day     date not null
+);
+create index if not exists activity_days_user_idx on public.activity_days (user_id, day);
+
 create table if not exists public.push_subscriptions (
   endpoint   text primary key,
   user_id    text not null,
@@ -232,6 +240,7 @@ alter table public.mails         enable row level security;
 alter table public.notifications enable row level security;
 alter table public.sessions      enable row level security;
 alter table public.push_subscriptions enable row level security;
+alter table public.activity_days enable row level security;
 
 -- No policies are defined, so with RLS enabled the anon and authenticated
 -- roles are denied all access by default. The service role bypasses RLS and is

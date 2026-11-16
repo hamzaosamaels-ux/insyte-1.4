@@ -26,6 +26,7 @@ export interface StoreSchema {
   mails: any[];
   notifications: any[];
   pushSubscriptions: any[];
+  activityDays: any[];
   sessions: Record<string, { userId: string; issuedAt: number }>;
 }
 
@@ -242,7 +243,8 @@ export const EXPECTED_COLUMNS: Record<string, string[]> = {
   mails: ["id", "from_id", "from_name", "from_avatar", "to_id", "to_name", "subject", "body", "sent_at", "read"],
   notifications: ["id", "user_id", "type", "title", "body", "created_at", "read"],
   push_subscriptions: ["endpoint", "user_id", "p256dh", "auth", "created_at"],
-  sessions: ["token", "user_id", "issued_at"]
+  sessions: ["token", "user_id", "issued_at"],
+  activity_days: ["id", "user_id", "day"]
 };
 
 // Ask for exactly the columns the code writes. PostgREST errors on any that
@@ -267,12 +269,12 @@ export async function verifySchema(): Promise<string[]> {
 
 // Load the whole schema from Supabase into the in-memory shape the server uses.
 export async function loadFromSupabase(): Promise<StoreSchema> {
-  const [profiles, classes, lessons, tasks, submissions, announcements, chat, events, mails, notifications, sessions, pushSubs] =
+  const [profiles, classes, lessons, tasks, submissions, announcements, chat, events, mails, notifications, sessions, pushSubs, activity] =
     await Promise.all([
       selectAll("profiles"), selectAll("classes"), selectAll("lessons"),
       selectAll("tasks"), selectAll("submissions"), selectAll("announcements"),
       selectAll("chat_messages"), selectAll("events"), selectAll("mails"),
-      selectAll("notifications"), selectAll("sessions"), selectAll("push_subscriptions")
+      selectAll("notifications"), selectAll("sessions"), selectAll("push_subscriptions"), selectAll("activity_days")
     ]);
 
   const profileObjs = profiles.map(rowToProfile);
@@ -292,6 +294,7 @@ export async function loadFromSupabase(): Promise<StoreSchema> {
     mails: mails.map(rowToMail),
     notifications: notifications.map(rowToNotif),
     pushSubscriptions: pushSubs.map(rowToPush),
+    activityDays: activity.map(r => ({ id: r.id, userId: r.user_id, day: String(r.day) })),
     sessions: sessionMap
   };
 }
@@ -371,7 +374,8 @@ function rowsOf(data: StoreSchema): Record<string, { idField: string; rows: any[
     mails: t(data.mails.map(mailToRow)),
     notifications: t(data.notifications.map(notifToRow)),
     sessions: t(sessionRows, "token"),
-    push_subscriptions: t((data.pushSubscriptions || []).map(pushToRow), "endpoint")
+    push_subscriptions: t((data.pushSubscriptions || []).map(pushToRow), "endpoint"),
+    activity_days: t((data.activityDays || []).map(a => ({ id: a.id, user_id: a.userId, day: a.day })))
   };
 }
 
