@@ -20,6 +20,7 @@ import { MailPanel } from "./MailPanel";
 import { Library as LibraryShelf } from "./Library";
 import { OnboardingChecklist } from "./Onboarding";
 import { AttachmentPicker, AttachmentList } from "./AttachmentPicker";
+import { AddStudentsModal, NewCardButton } from "./LoginCards";
 import { getClassColors } from "../utils/colorHelper";
 
 interface TeacherDashboardProps {
@@ -39,6 +40,7 @@ interface TeacherDashboardProps {
   onSendMessage: (classId: string, text: string) => void;
   onCreateClass: (name: string, code: string, description: string, color?: string) => Promise<string | null>;
   onJoinClass: (code: string) => Promise<string | null>;
+  onRosterChanged: (allStudents: UserProfile[], allClasses: ClassCommunity[]) => void;
   onSendMail: (toId: string, subject: string, body: string) => Promise<string | null>;
   onMarkMailRead: (mailId: string) => void;
   onMarkNotificationsRead: () => void;
@@ -91,6 +93,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   onSendMessage,
   onCreateClass,
   onJoinClass,
+  onRosterChanged,
   onSendMail,
   onMarkMailRead,
   onMarkNotificationsRead,
@@ -127,6 +130,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const [menuOpen, setMenuOpen] = useState(false);
 
   // Inline XP editor: click a student's XP number to type an exact value
+  const [addStudentsOpen, setAddStudentsOpen] = useState(false);
   const [editingXpId, setEditingXpId] = useState<string | null>(null);
   const [xpDraft, setXpDraft] = useState("");
   const commitXpEdit = (studentId: string, currentXp: number) => {
@@ -913,6 +917,12 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                         <Copy className="h-3.5 w-3.5 text-violet-400" />
                       </button>
                       <button
+                        onClick={() => setAddStudentsOpen(true)}
+                        className="flex items-center gap-1.5 px-4 py-2.5 bg-violet-600 text-white rounded-xl cursor-pointer hover:bg-violet-700 transition-all text-xs font-bold"
+                      >
+                        <Plus className="h-4 w-4" /> {language === "ar" ? "إضافة طلاب" : "Add students"}
+                      </button>
+                      <button
                         onClick={() => openCreateClass(true)}
                         className="flex items-center gap-1.5 px-4 py-2.5 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400 rounded-xl cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-950/50 transition-all text-xs font-bold"
                         title={t.addSubjectHint}
@@ -922,6 +932,9 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                     </div>
                   </div>
 
+                  {addStudentsOpen && (
+                    <AddStudentsModal activeClass={activeClass} lang={language} onClose={() => setAddStudentsOpen(false)} onCreated={onRosterChanged} />
+                  )}
                   <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {classStudents.map((stud) => (
                       <div key={stud.id} className="p-4 bg-slate-50 dark:bg-[#1c1836] border border-slate-100 dark:border-[#2b244c]/60 rounded-xl flex items-center gap-3">
@@ -977,6 +990,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                               +
                             </button>
                           </div>
+                          <NewCardButton student={stud} className={activeClass.name} lang={language} />
                         </div>
                       </div>
                     ))}

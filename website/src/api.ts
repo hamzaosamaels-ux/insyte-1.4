@@ -20,3 +20,7 @@ export const clearToken = () => localStorage.removeItem(TOKEN_KEY);
 export function authHeaders(json = false): Record<string, string> {
   return sharedAuthHeaders(getToken(), json);
 }
+
+// Where a printed login card sends the phone camera. Must be the one origin the
+// backend's CORS allows; in dev, whatever the dev server is.
+export const SITE_URL = import.meta.env.PROD ? "https://insyte-1-4.vercel.app" : window.location.origin;

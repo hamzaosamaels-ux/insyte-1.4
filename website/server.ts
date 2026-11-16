@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
-import { supabaseEnabled, loadFromSupabase, saveToSupabase, uploadAvatar, uploadFile, verifySchema, attachmentPublicPrefix } from "./supabase-store.js";
+import { supabaseEnabled, loadFromSupabase, saveToSupabase, baselineOf, type StoreBaseline, uploadAvatar, uploadFile, verifySchema, attachmentPublicPrefix } from "./supabase-store.js";
 import { emailEnabled, sendVerificationEmail, sendPasswordResetEmail } from "./email-sender.js";
 import { pushEnabled, pushPublicKey, sendPush } from "./push-sender.js";
 import { GoogleGenAI } from "@google/genai";
@@ -82,6 +82,7 @@ interface UserProfile {
   verificationTokenExpiresAt?: string;
   resetToken?: string;
   resetTokenExpiresAt?: string;
+  loginTokenHash?: string; // sha256 of the QR login card secret; never sent to a client
   pushSubscription?: any;
 }
 
@@ -446,9 +447,46 @@ let lastSaveError = "";
 let lastSaveFailedAt = "";
 let schemaProblems: string[] = [];
 
+// The database as it stood when each in-memory copy was loaded, so a save
+// writes only that copy's own changes (see saveToSupabase).
+const baselines = new WeakMap<object, StoreBaseline>();
+let loadedAt = 0;
+let writeCount = 0;
+// Saves run one at a time, in order. On serverless the response waits for
+// this, because the instance can be frozen the moment a response is sent.
+let pendingSave: Promise<void> = Promise.resolve();
+let refreshing: Promise<void> | null = null;
+
+// Re-read the database so this instance sees what other instances wrote.
+// Skipped if a request changed the data while the read was in flight: that
+// newer in-memory copy wins and the next request refreshes instead.
+function refreshStore(): Promise<void> {
+  if (!refreshing) {
+    refreshing = (async () => {
+      await pendingSave;
+      const seen = writeCount;
+      try {
+        const loaded = await loadFromSupabase();
+        if (seen !== writeCount) return;
+        const base = baselineOf(loaded as any);
+        memCache = normalize(loaded);
+        baselines.set(memCache as DbSchema, base);
+        loadedAt = Date.now();
+      } catch (err: any) {
+        console.error("[Insyte] Supabase refresh failed (serving the copy in memory):", err?.message || err);
+      }
+    })().finally(() => { refreshing = null; });
+  }
+  return refreshing;
+}
+
 async function tryLoadSupabase(): Promise<void> {
   try {
-    memCache = normalize(await loadFromSupabase());
+    const loaded = await loadFromSupabase();
+    const base = baselineOf(loaded as any);
+    memCache = normalize(loaded);
+    baselines.set(memCache as DbSchema, base);
+    loadedAt = Date.now();
     supabaseReady = true;
     supabaseBootError = "";
     console.log("[Insyte] Persistence: Supabase (data survives redeploys)");
@@ -565,13 +603,13 @@ function findUserByVerificationToken(db: DbSchema, token: string): UserProfile |
   return [...db.students, ...db.teachers].find(u => u.verificationToken === token);
 }
 
-function publicUser(u: UserProfile): Omit<UserProfile, "email" | "passwordHash" | "verificationToken" | "verificationTokenExpiresAt" | "resetToken" | "resetTokenExpiresAt"> {
-  const { email, passwordHash, verificationToken, verificationTokenExpiresAt, resetToken, resetTokenExpiresAt, ...rest } = u;
+function publicUser(u: UserProfile): Omit<UserProfile, "email" | "passwordHash" | "verificationToken" | "verificationTokenExpiresAt" | "resetToken" | "resetTokenExpiresAt" | "loginTokenHash"> {
+  const { email, passwordHash, verificationToken, verificationTokenExpiresAt, resetToken, resetTokenExpiresAt, loginTokenHash, ...rest } = u;
   return rest;
 }
 
-function selfUser(u: UserProfile): Omit<UserProfile, "passwordHash" | "verificationToken" | "verificationTokenExpiresAt" | "resetToken" | "resetTokenExpiresAt"> {
-  const { passwordHash, verificationToken, verificationTokenExpiresAt, resetToken, resetTokenExpiresAt, ...rest } = u;
+function selfUser(u: UserProfile): Omit<UserProfile, "passwordHash" | "verificationToken" | "verificationTokenExpiresAt" | "resetToken" | "resetTokenExpiresAt" | "loginTokenHash"> {
+  const { passwordHash, verificationToken, verificationTokenExpiresAt, resetToken, resetTokenExpiresAt, loginTokenHash, ...rest } = u;
   return rest;
 }
 
@@ -676,6 +714,29 @@ function validateLessonUrls(body: { videoUrl?: string; pptUrl?: string; webUrl?:
   return null;
 }
 
+// QR login cards: only a sha256 of the card's secret is stored, so a leaked
+// database can't be turned back into working cards.
+const hashLoginToken = (token: string) => crypto.createHash("sha256").update(token).digest("hex");
+
+// Shared by password and QR sign-in: streak, the daily check-in reward, a new
+// session, and the response the client expects.
+function openSession(db: DbSchema, found: UserProfile, res: express.Response) {
+  let updated = applyStreak(found);
+  const isNewDay = updated.lastActiveDate !== found.lastActiveDate;
+  let dailyXp = 0;
+  if (isNewDay && updated.role === "student") {
+    dailyXp = 20 + Math.min(30, (updated.streak - 1) * 5);
+    updated = awardXp(updated, dailyXp);
+    notify(db, updated.id, "event", "Daily check-in", `+${dailyXp} XP — ${updated.streak}-day streak!`);
+  }
+  saveUser(db, updated);
+  const token = newToken();
+  db.sessions[token] = { userId: updated.id, issuedAt: Date.now() };
+  writeDb(db);
+  const view = peopleFor(db, updated.id);
+  res.json({ token, user: selfUser(updated), dailyXp, allStudents: view.students, allTeachers: view.teachers });
+}
+
 function saveUser(db: DbSchema, user: UserProfile) {
   if (user.role === "student") {
     db.students = db.students.map(s => (s.id === user.id ? user : s));
@@ -702,9 +763,13 @@ function siblingClassIds(db: DbSchema, cls: ClassCommunity): string[] {
 
 function writeDb(data: DbSchema) {
   if (supabaseEnabled()) {
+    const base = baselines.get(data) || (memCache ? baselines.get(memCache) : undefined);
     memCache = data;
-    if (supabaseReady) {
-      saveToSupabase(data as any)
+    writeCount++;
+    if (supabaseReady && base) {
+      baselines.set(data, base);
+      pendingSave = pendingSave
+        .then(() => saveToSupabase(data as any, base))
         .then(() => {
           lastSaveOk = true;
           lastSaveError = "";
@@ -766,6 +831,7 @@ app.use("/api/", makeRateLimiter(5 * 60 * 1000, 300, "API"));
 const authLimiter = makeRateLimiter(10 * 60 * 1000, 10, "sign-in");
 app.use("/api/login", authLimiter);
 app.use("/api/signup", authLimiter);
+app.use("/api/qr-login", makeRateLimiter(10 * 60 * 1000, 30, "card sign-in"));
 const resendLimiter = makeRateLimiter(10 * 60 * 1000, 5, "resend-verification");
 app.use("/api/resend-verification", resendLimiter);
 const forgotPasswordLimiter = makeRateLimiter(10 * 60 * 1000, 5, "forgot-password");
@@ -774,10 +840,30 @@ app.use("/api/forgot-password", forgotPasswordLimiter);
 const storeInitPromise = initStore();
 readDb();
 
+// More than one copy of this server can be running (serverless), each with
+// its own memory. So there: re-read the database before anything that writes,
+// or when this copy is a few seconds old or doesn't know the caller's session,
+// and hold each response until its save has reached the database.
+const SERVERLESS = !!process.env.VERCEL;
 app.use("/api/", async (req: any, res: any, next: any) => {
+  if (!supabaseEnabled()) return next();
+  if (!supabaseReady) await storeInitPromise;
   if (req.path === "/health") return next();
-  if (supabaseEnabled() && !supabaseReady) {
-    await storeInitPromise;
+  if (!supabaseReady) {
+    // Never answer from an empty database: a 401 from here made every client
+    // delete its own session.
+    res.setHeader("Retry-After", "15");
+    return res.status(503).json({ error: "Server is still starting up. Try again in a moment.", starting: true });
+  }
+  if (SERVERLESS) {
+    const token = String(req.headers["x-auth-token"] || "");
+    const unknownSession = !!token && !memCache?.sessions?.[token];
+    if (req.method !== "GET" || unknownSession || Date.now() - loadedAt > 3000) await refreshStore();
+    const end = res.end.bind(res);
+    res.end = (...args: any[]) => {
+      pendingSave.then(() => end(...args));
+      return res;
+    };
   }
   next();
 });
@@ -944,25 +1030,120 @@ app.post("/api/login", (req, res) => {
     });
   }
 
-  let updated = applyStreak(found);
-  const isNewDay = updated.lastActiveDate !== found.lastActiveDate;
-  let dailyXp = 0;
-  if (isNewDay && updated.role === "student") {
-    dailyXp = 20 + Math.min(30, (updated.streak - 1) * 5);
-    updated = awardXp(updated, dailyXp);
-    notify(db, updated.id, "event", "Daily check-in", `+${dailyXp} XP — ${updated.streak}-day streak!`);
+  return openSession(db, found, res);
+});
+
+// Sign in by scanning a login card. The card's secret is 24 random bytes, so
+// it can't be guessed; the limiter above only keeps scripts from trying.
+// Students only: a teacher account can never sign in this way.
+app.post("/api/qr-login", (req, res) => {
+  const token = String(req.body?.token || "");
+  if (!/^[0-9a-f]{48}$/.test(token)) {
+    return res.status(400).json({ error: "That login card isn't valid. Ask your teacher for a new one." });
   }
-  saveUser(db, updated);
-  const token = newToken();
-  db.sessions[token] = { userId: updated.id, issuedAt: Date.now() };
+  const db = readDb();
+  const hash = hashLoginToken(token);
+  const found = db.students.find(st => st.loginTokenHash === hash);
+  if (!found) {
+    return res.status(401).json({ error: "That login card isn't valid. Ask your teacher for a new one." });
+  }
+  return openSession(db, found, res);
+});
+
+// A teacher adds students from a list of names. Each gets an account in the
+// class's whole community (every subject under the grade, like joining by
+// code) and a secret for a QR login card. The secrets are returned ONCE,
+// here, and never stored; only their hashes are.
+app.post("/api/teacher/students", (req, res) => {
+  const db = readDb();
+  const teacher = userFromToken(db, req);
+  if (!teacher || teacher.role !== "teacher") {
+    return res.status(401).json({ error: "Teacher session required." });
+  }
+  const { classId, names } = req.body || {};
+  const cls = typeof classId === "string" ? db.classes.find(c => c.id === classId) : undefined;
+  if (!cls || cls.teacherId !== teacher.id) {
+    return res.status(403).json({ error: "You do not teach this class." });
+  }
+  if (!Array.isArray(names)) {
+    return res.status(400).json({ error: "names must be a list." });
+  }
+  // Until the database has the login_token_hash column, saving a card student
+  // would fail silently in the background. Refuse loudly instead.
+  if (schemaProblems.some(p => p.includes("login_token_hash"))) {
+    return res.status(503).json({ error: "The database needs one update before login cards can be made. Ask the person who runs the server." });
+  }
+  const clean = Array.from(new Set(
+    names.map((n: unknown) => String(n ?? "").trim().replace(/\s+/g, " ")).filter((n: string) => n.length > 0 && n.length <= 60)
+  )).slice(0, 60);
+  if (clean.length === 0) {
+    return res.status(400).json({ error: "Add at least one name." });
+  }
+
+  const communityIds = siblingClassIds(db, cls);
+  const created: { id: string; name: string; token: string }[] = [];
+  for (const name of clean) {
+    const token = crypto.randomBytes(24).toString("hex");
+    const id = `student-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`;
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 12) || "student";
+    db.students.push({
+      id,
+      name,
+      // The column is NOT NULL UNIQUE, and a card student has no mailbox. The
+      // reserved .invalid domain can never receive mail.
+      email: `${slug}.${crypto.randomBytes(3).toString("hex")}@students.insyte.invalid`,
+      role: "student",
+      avatar: randomAvatarUrl(),
+      xp: 0,
+      level: 1,
+      rank: "Freshman Scholar",
+      joinedClasses: communityIds,
+      streak: 0,
+      lastActiveDate: "",
+      readLessons: [],
+      // No password anyone knows: the card is the only way in.
+      passwordHash: hashPassword(crypto.randomBytes(24).toString("hex")),
+      emailVerified: true,
+      loginTokenHash: hashLoginToken(token)
+    });
+    created.push({ id, name, token });
+  }
+  const newIds = created.map(c => c.id);
+  db.classes = db.classes.map(c =>
+    communityIds.includes(c.id) ? { ...c, studentIds: Array.from(new Set([...c.studentIds, ...newIds])) } : c
+  );
   writeDb(db);
-  res.json({
-    token,
-    user: selfUser(updated),
-    dailyXp,
-    allStudents: peopleFor(db, updated.id).students,
-    allTeachers: peopleFor(db, updated.id).teachers
-  });
+  const view = peopleFor(db, teacher.id);
+  res.status(201).json({ students: created, className: cls.name, allStudents: view.students, allClasses: view.classes });
+});
+
+// Make a replacement card: the old one stops working immediately, along with
+// any session it opened. Only for accounts that were made with a card, so a
+// teacher can never take over a student who signed up with their own email.
+app.post("/api/teacher/students/:id/new-card", (req, res) => {
+  const db = readDb();
+  const teacher = userFromToken(db, req);
+  if (!teacher || teacher.role !== "teacher") {
+    return res.status(401).json({ error: "Teacher session required." });
+  }
+  const student = db.students.find(st => st.id === req.params.id);
+  if (!student) {
+    return res.status(404).json({ error: "Student not found." });
+  }
+  const teachesThem = db.classes.some(c => c.teacherId === teacher.id && student.joinedClasses.includes(c.id));
+  if (!teachesThem) {
+    return res.status(403).json({ error: "You do not teach this student." });
+  }
+  if (!student.loginTokenHash) {
+    return res.status(400).json({ error: "This student signs in with their own email and password, so they don't use a card." });
+  }
+  const token = crypto.randomBytes(24).toString("hex");
+  saveUser(db, { ...student, loginTokenHash: hashLoginToken(token) });
+  for (const [tok, entry] of Object.entries(db.sessions)) {
+    if (entry.userId === student.id) delete db.sessions[tok];
+  }
+  writeDb(db);
+  res.json({ student: { id: student.id, name: student.name }, token });
 });
 
 app.post("/api/verify-email", (req, res) => {
@@ -2116,10 +2297,26 @@ app.post("/api/notebook/generate", async (req, res) => {
   }
 });
 
-if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
-  app.listen(PORT, () => {
-    console.log(`[Insyte Server] Ready! Access it at http://localhost:${PORT}`);
-  });
+// Run directly (local dev, or a long-running host): Vercel imports the app
+// instead and never gets here.
+if (!process.env.VERCEL) {
+  (async () => {
+    if (process.env.NODE_ENV !== "production") {
+      const { createServer: createViteServer } = await import("vite");
+      const tailwindcss = (await import("@tailwindcss/vite")).default;
+      const vite = await createViteServer({
+        configFile: false,
+        plugins: [tailwindcss()],
+        esbuild: { jsx: "automatic" },
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    }
+    app.listen(PORT, () => {
+      console.log(`[Insyte Server] Ready! Access it at http://localhost:${PORT}`);
+    });
+  })();
 }
 
 export default app;

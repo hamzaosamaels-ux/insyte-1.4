@@ -29,6 +29,9 @@ create table if not exists public.profiles (
   -- since a reset link is more sensitive if it leaks.
   reset_token text,
   reset_token_expires_at timestamptz,
+  -- QR login cards: sha256 of the secret in the student's card. The secret
+  -- itself is shown once when the card is made and never stored.
+  login_token_hash text,
   created_at     timestamptz not null default now()
 );
 create index if not exists profiles_email_idx on public.profiles (lower(email));
@@ -45,6 +48,7 @@ alter table public.profiles add column if not exists verification_token text;
 alter table public.profiles add column if not exists verification_token_expires_at timestamptz;
 alter table public.profiles add column if not exists reset_token text;
 alter table public.profiles add column if not exists reset_token_expires_at timestamptz;
+alter table public.profiles add column if not exists login_token_hash text;
 
 create table if not exists public.classes (
   id           text primary key,

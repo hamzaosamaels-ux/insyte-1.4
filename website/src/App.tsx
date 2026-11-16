@@ -217,8 +217,14 @@ const refreshPublic = (initial = false) => {
       .then(async (res) => {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Sign up failed.");
-        // Account isn't usable yet — no token is issued until the email link
-        // is clicked. Show the "check your inbox" card instead of logging in.
+        // The server signs a new account straight in. (If it ever asks for
+        // email verification instead, show the "check your inbox" card.)
+        if (data.token) {
+          setToken(data.token);
+          setCurrentUser(data.user);
+          loadMe();
+          return;
+        }
         setPendingVerificationEmail(data.email);
         if (data.emailWarning) setAuthError(data.emailWarning);
       })
@@ -280,6 +286,28 @@ const refreshPublic = (initial = false) => {
         setVerifyState("success");
       })
       .catch(() => setVerifyState("error"))
+      .finally(() => window.history.replaceState({}, "", window.location.pathname));
+  }, []);
+
+  // Printed login card: the QR opens /?qr=<secret>. Sign in once, then strip the
+  // URL so the secret doesn't stay in the address bar / history.
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get("qr");
+    if (!token) return;
+    fetch(api("/api/qr-login"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token })
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) { window.alert(data.error || "This card doesn't work any more. Ask your teacher for a new one."); return; }
+        setToken(data.token);
+        setStudents(data.allStudents);
+        setTeachers(data.allTeachers);
+        setCurrentUser(data.user);
+      })
+      .catch(() => window.alert("Connection error. Check your internet and scan again."))
       .finally(() => window.history.replaceState({}, "", window.location.pathname));
   }, []);
 
@@ -811,6 +839,7 @@ const teacherClasses = classes.filter(
       onSendMessage={handleSendMessage}
       onCreateClass={handleCreateClass}
       onJoinClass={handleJoinClass}
+      onRosterChanged={(allStudents, allClasses) => { setStudents(allStudents); setClasses(allClasses); }}
       onCreateLesson={handleCreateLesson}
       onUpdateLesson={handleUpdateLesson}
       onDeleteLesson={handleDeleteLesson}

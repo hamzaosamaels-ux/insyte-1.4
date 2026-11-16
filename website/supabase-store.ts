@@ -83,7 +83,8 @@ const rowToProfile = (r: any) => ({
   verificationToken: r.verification_token || undefined,
   verificationTokenExpiresAt: r.verification_token_expires_at || undefined,
   resetToken: r.reset_token || undefined,
-  resetTokenExpiresAt: r.reset_token_expires_at || undefined
+  resetTokenExpiresAt: r.reset_token_expires_at || undefined,
+  loginTokenHash: r.login_token_hash || undefined
 });
 const profileToRow = (p: any) => ({
   id: p.id, name: p.name, email: p.email, role: p.role, avatar: p.avatar,
@@ -95,7 +96,10 @@ const profileToRow = (p: any) => ({
   verification_token: p.verificationToken || null,
   reset_token: p.resetToken || null,
   reset_token_expires_at: p.resetTokenExpiresAt || null,
-  verification_token_expires_at: p.verificationTokenExpiresAt || null
+  verification_token_expires_at: p.verificationTokenExpiresAt || null,
+  // Only sent when set, so a database that hasn't had the column added yet
+  // keeps saving normally until the first QR-card student exists.
+  ...(p.loginTokenHash ? { login_token_hash: p.loginTokenHash } : {})
 });
 
 const rowToClass = (r: any) => ({
@@ -225,7 +229,8 @@ export const EXPECTED_COLUMNS: Record<string, string[]> = {
     "id", "name", "email", "role", "avatar", "xp", "level", "rank",
     "joined_classes", "streak", "last_active_date", "read_lessons",
     "password_hash", "email_verified", "verification_token",
-    "verification_token_expires_at", "reset_token", "reset_token_expires_at"
+    "verification_token_expires_at", "reset_token", "reset_token_expires_at",
+    "login_token_hash"
   ],
   classes: ["id", "name", "code", "description", "teacher_id", "teacher_name", "student_ids", "color"],
   lessons: ["id", "class_id", "title", "content", "published_at", "video_url", "ppt_url", "web_url", "web_url_title", "reward_xp", "attachments"],
@@ -291,29 +296,6 @@ export async function loadFromSupabase(): Promise<StoreSchema> {
   };
 }
 
-// Replace a table's rows with exactly the given set: upsert current rows, then
-// delete any row whose id is no longer present. Keeps Supabase in sync with the
-// in-memory object without tracking per-field deltas.
-async function syncTable(table: string, rows: any[], idField = "id") {
-  // Deliberately NOT returning early on an empty array. That looked like a
-  // safety guard but meant deleting a table's LAST row never reached Supabase:
-  // the row survived and reappeared on the next restart, undoing the delete.
-  // Emptiness is only ever reached by really deleting everything, and writeDb
-  // already refuses to persist at all until a successful load — which is the
-  // real protection against wiping live rows with a cold cache.
-  if (rows.length === 0) {
-    const { error: delAllErr } = await db().from(table).delete().not(idField, "is", null);
-    if (delAllErr) throw new Error(`Supabase clear ${table}: ${delAllErr.message}`);
-    return;
-  }
-  const { error: upErr } = await db().from(table).upsert(rows);
-  if (upErr) throw new Error(`Supabase upsert ${table}: ${upErr.message}`);
-  const keep = rows.map(r => r[idField]);
-  const { error } = await db().from(table).delete()
-    .not(idField, "in", `(${keep.map(k => `"${k}"`).join(",")})`);
-  if (error) throw new Error(`Supabase prune ${table}: ${error.message}`);
-}
-
 // Upload a profile photo (data URL) to Supabase Storage and return its public
 // URL, instead of storing the heavy base64 string in the database row.
 let avatarBucketReady = false;
@@ -368,27 +350,62 @@ export async function uploadFile(
 }
 
 // Persist the whole in-memory schema back to Supabase.
-export async function saveToSupabase(data: StoreSchema): Promise<void> {
-  const profileRows = [...data.students, ...data.teachers].map(profileToRow);
+// Every table as rows, exactly as they are written.
+function rowsOf(data: StoreSchema): Record<string, { idField: string; rows: any[] }> {
   // issued_at is always the ORIGINAL mint time, re-sent as-is on every save —
   // never recomputed from Date.now() here — so a session's expiry can't get
   // silently refreshed just because some unrelated write happened later.
   const sessionRows = Object.entries(data.sessions || {}).map(([token, v]) => ({
     token, user_id: v.userId, issued_at: new Date(v.issuedAt).toISOString()
   }));
+  const t = (rows: any[], idField = "id") => ({ idField, rows });
+  return {
+    profiles: t([...data.students, ...data.teachers].map(profileToRow)),
+    classes: t(data.classes.map(classToRow)),
+    lessons: t(data.lessons.map(lessonToRow)),
+    tasks: t(data.tasks.map(taskToRow)),
+    submissions: t(data.submissions.map(subToRow)),
+    announcements: t(data.announcements.map(annToRow)),
+    chat_messages: t(data.chatMessages.map(msgToRow)),
+    events: t(data.events.map(eventToRow)),
+    mails: t(data.mails.map(mailToRow)),
+    notifications: t(data.notifications.map(notifToRow)),
+    sessions: t(sessionRows, "token"),
+    push_subscriptions: t((data.pushSubscriptions || []).map(pushToRow), "endpoint")
+  };
+}
 
-  await Promise.all([
-    syncTable("profiles", profileRows),
-    syncTable("classes", data.classes.map(classToRow)),
-    syncTable("lessons", data.lessons.map(lessonToRow)),
-    syncTable("tasks", data.tasks.map(taskToRow)),
-    syncTable("submissions", data.submissions.map(subToRow)),
-    syncTable("announcements", data.announcements.map(annToRow)),
-    syncTable("chat_messages", data.chatMessages.map(msgToRow)),
-    syncTable("events", data.events.map(eventToRow)),
-    syncTable("mails", data.mails.map(mailToRow)),
-    syncTable("notifications", data.notifications.map(notifToRow)),
-    syncTable("sessions", sessionRows, "token"),
-    syncTable("push_subscriptions", (data.pushSubscriptions || []).map(pushToRow), "endpoint")
-  ]);
+// What the database held the last time this copy of the data was in step with
+// it: table -> row id -> row as JSON.
+export type StoreBaseline = Map<string, Map<string, string>>;
+
+export function baselineOf(data: StoreSchema): StoreBaseline {
+  const out: StoreBaseline = new Map();
+  for (const [table, { idField, rows }] of Object.entries(rowsOf(data))) {
+    out.set(table, new Map(rows.map(r => [String(r[idField]), JSON.stringify(r)])));
+  }
+  return out;
+}
+
+// Write only what THIS copy changed since its baseline: rows it added or
+// edited are upserted, rows it removed are deleted. Rows it never touched are
+// left alone, so a server instance holding an older copy can't erase what
+// another instance wrote (the backend can run as several serverless instances
+// at once). The baseline is advanced table by table as each write lands.
+export async function saveToSupabase(data: StoreSchema, baseline: StoreBaseline): Promise<void> {
+  await Promise.all(Object.entries(rowsOf(data)).map(async ([table, { idField, rows }]) => {
+    const before = baseline.get(table) || new Map<string, string>();
+    const now = new Map(rows.map(r => [String(r[idField]), JSON.stringify(r)] as [string, string]));
+    const changed = rows.filter(r => before.get(String(r[idField])) !== now.get(String(r[idField])));
+    const removed = [...before.keys()].filter(id => !now.has(id));
+    if (changed.length) {
+      const { error } = await db().from(table).upsert(changed);
+      if (error) throw new Error(`Supabase upsert ${table}: ${error.message}`);
+    }
+    if (removed.length) {
+      const { error } = await db().from(table).delete().in(idField, removed);
+      if (error) throw new Error(`Supabase delete ${table}: ${error.message}`);
+    }
+    baseline.set(table, now);
+  }));
 }
