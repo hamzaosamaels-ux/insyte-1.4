@@ -186,7 +186,7 @@ function geminiModels(): string[] {
 
 async function geminiGenerate(
   ai: GoogleGenAI,
-  opts: { contents: any[]; system: string; maxOutputTokens: number; temperature: number }
+  opts: { contents: any[]; system: string; maxOutputTokens: number; temperature: number; json?: boolean }
 ) {
   const models = geminiModels();
   let lastError: any = null;
@@ -196,7 +196,10 @@ async function geminiGenerate(
         const out = await ai.models.generateContent({
           model,
           contents: opts.contents,
-          config: { systemInstruction: opts.system, temperature: opts.temperature, maxOutputTokens: opts.maxOutputTokens }
+          config: {
+            systemInstruction: opts.system, temperature: opts.temperature, maxOutputTokens: opts.maxOutputTokens,
+            ...(opts.json ? { responseMimeType: "application/json" } : {})
+          }
         });
         geminiStatus.lastOkAt = new Date().toISOString();
         return out;
@@ -226,8 +229,12 @@ const NOTEBOOK_RULES = `You are the Study Notebook inside Insyte, a school app. 
 
 const NOTEBOOK_TASKS = {
   summary: "Write a short summary of these lessons: a 2-3 sentence overview, then the key points as bullets grouped by lesson. Under 400 words.",
-  study_guide: "Write a study guide with these sections: ## Big ideas (3-5 bullets), ## Key terms (term: simple meaning), ## Things to remember, ## Check yourself (3-5 questions for the student to think about, with NO answers). Under 700 words."
+  study_guide: "Write a study guide with these sections: ## Big ideas (3-5 bullets), ## Key terms (term: simple meaning), ## Things to remember, ## Check yourself (3-5 questions for the student to think about, with NO answers). Under 700 words.",
+  // The two below come back as JSON and are checked before they reach a student.
+  flashcards: 'Make 8 to 12 flashcards for revising these lessons. Reply with JSON only, in this exact shape: {"cards":[{"front":"a key term or a short question","back":"the meaning or answer in one or two short sentences","source":"exact source title"}]}. Write in the same language as the sources.',
+  quiz: 'Write 5 to 8 NEW multiple-choice practice questions that check understanding of the ideas in these lessons. They are for self-practice: never copy or reword a question that appears in the sources. Reply with JSON only, in this exact shape: {"questions":[{"question":"...","options":["...","...","...","..."],"answer":0,"hint":"a nudge that does not give the answer away","explain":"one or two sentences on why the right option is right","source":"exact source title"}]}. Exactly 4 options each; "answer" is the index (0-3) of the right one. Write in the same language as the sources.'
 } as const;
+const NOTEBOOK_JSON_KINDS = new Set<string>(["flashcards", "quiz"]);
 type NotebookKind = keyof typeof NOTEBOOK_TASKS;
 const isNotebookKind = (k: unknown): k is NotebookKind =>
   typeof k === "string" && Object.prototype.hasOwnProperty.call(NOTEBOOK_TASKS, k);
@@ -239,13 +246,55 @@ const NOTEBOOK_MAX_FILES = 6;
 const NOTEBOOK_MAX_LESSONS = 40;
 const NOTEBOOK_CACHE_MS = 12 * 60 * 60 * 1000;
 
-interface NotebookResult { text: string; lessons: string[]; files: string[]; skipped: string[] }
+interface NotebookCard { front: string; back: string; source: string }
+interface NotebookQuestion { question: string; options: string[]; answer: number; hint: string; explain: string; source: string }
+interface NotebookResult {
+  text: string; lessons: string[]; files: string[]; skipped: string[];
+  cards?: NotebookCard[]; questions?: NotebookQuestion[];
+}
+
+// The model's JSON is untrusted: keep only well-formed items, as plain strings.
+function parseNotebookJson(kind: NotebookKind, raw: string): Pick<NotebookResult, "cards" | "questions"> {
+  const str = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+  let data: any;
+  try {
+    data = JSON.parse(raw.replace(/^```(?:json)?\s*|\s*```$/g, ""));
+  } catch {
+    throw new Error("Gemini returned text that is not JSON.");
+  }
+  if (kind === "flashcards") {
+    const cards = (Array.isArray(data?.cards) ? data.cards : [])
+      .map((c: any) => ({ front: str(c?.front, 200), back: str(c?.back, 400), source: str(c?.source, 80) }))
+      .filter((c: NotebookCard) => c.front && c.back)
+      .slice(0, 12);
+    if (cards.length === 0) throw new Error("Gemini returned no usable flashcards.");
+    return { cards };
+  }
+  const questions = (Array.isArray(data?.questions) ? data.questions : [])
+    .map((q: any) => ({
+      question: str(q?.question, 300),
+      options: (Array.isArray(q?.options) ? q.options : []).map((o: unknown) => str(o, 160)).filter(Boolean),
+      answer: Number.isInteger(q?.answer) ? q.answer : -1,
+      hint: str(q?.hint, 240),
+      explain: str(q?.explain, 400),
+      source: str(q?.source, 80)
+    }))
+    .filter((q: NotebookQuestion) => q.question && q.options.length === 4 && q.answer >= 0 && q.answer < 4)
+    .slice(0, 8);
+  if (questions.length === 0) throw new Error("Gemini returned no usable questions.");
+  return { questions };
+}
 const notebookCache = new Map<string, { at: number; result: NotebookResult }>();
 const notebookInflight = new Map<string, Promise<NotebookResult>>();
 
-function notebookLessons(db: DbSchema, classId: string): Lesson[] {
+// lessonIds narrows the sources to the lessons a student ticked; ids from any
+// other class simply don't match.
+function notebookLessons(db: DbSchema, classId: string, lessonIds?: unknown): Lesson[] {
+  const only = Array.isArray(lessonIds) && lessonIds.length > 0
+    ? new Set(lessonIds.filter((x): x is string => typeof x === "string").slice(0, 200))
+    : null;
   return db.lessons
-    .filter(l => l.classId === classId)
+    .filter(l => l.classId === classId && (!only || only.has(l.id)))
     .sort((a, b) => a.publishedAt.localeCompare(b.publishedAt))
     .slice(-NOTEBOOK_MAX_LESSONS);
 }
@@ -254,6 +303,11 @@ function notebookKey(classId: string, kind: NotebookKind, lessons: Lesson[]): st
   const material = lessons.map(l => [l.id, l.title, l.content, (l.attachments ?? []).map(a => `${a.url}:${a.size ?? ""}`)]);
   return crypto.createHash("sha256").update(JSON.stringify([classId, kind, material])).digest("hex");
 }
+
+// Files already downloaded, so a chat doesn't fetch the same PDF for every
+// message. Keyed by url+size; small and short-lived.
+const notebookFileCache = new Map<string, { at: number; base64: string; bytes: number }>();
+const NOTEBOOK_FILE_CACHE_MS = 10 * 60 * 1000;
 
 async function readNotebookFiles(lessons: Lesson[]) {
   const prefix = attachmentPublicPrefix();
@@ -269,12 +323,20 @@ async function readNotebookFiles(lessons: Lesson[]) {
         continue;
       }
       try {
-        const r = await fetch(a.url, { signal: AbortSignal.timeout(15000) });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const buf = Buffer.from(await r.arrayBuffer());
-        if (buf.length > NOTEBOOK_MAX_FILE || total + buf.length > NOTEBOOK_MAX_TOTAL) { skipped.push(a.name); continue; }
-        total += buf.length;
-        files.push({ name: a.name, mime, base64: buf.toString("base64"), lesson: l.title });
+        const cacheKey = `${a.url}:${a.size ?? ""}`;
+        let hit = notebookFileCache.get(cacheKey);
+        if (!hit || Date.now() - hit.at > NOTEBOOK_FILE_CACHE_MS) {
+          const r = await fetch(a.url, { signal: AbortSignal.timeout(15000) });
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          const buf = Buffer.from(await r.arrayBuffer());
+          if (buf.length > NOTEBOOK_MAX_FILE) { skipped.push(a.name); continue; }
+          hit = { at: Date.now(), base64: buf.toString("base64"), bytes: buf.length };
+          notebookFileCache.set(cacheKey, hit);
+          if (notebookFileCache.size > 12) notebookFileCache.delete(notebookFileCache.keys().next().value as string);
+        }
+        if (total + hit.bytes > NOTEBOOK_MAX_TOTAL) { skipped.push(a.name); continue; }
+        total += hit.bytes;
+        files.push({ name: a.name, mime, base64: hit.base64, lesson: l.title });
       } catch (err) {
         console.warn("[Insyte] Study notebook couldn't read a file:", a.name, err);
         skipped.push(a.name);
@@ -284,9 +346,9 @@ async function readNotebookFiles(lessons: Lesson[]) {
   return { files, skipped };
 }
 
-async function generateNotebook(ai: GoogleGenAI, kind: NotebookKind, lessons: Lesson[]): Promise<NotebookResult> {
-  const { files, skipped } = await readNotebookFiles(lessons);
-  const parts: any[] = [{ text: `${NOTEBOOK_TASKS[kind]}\n\nThe sources follow.` }];
+type NotebookFile = { name: string; mime: string; base64: string; lesson: string };
+function notebookSourceParts(lessons: Lesson[], files: NotebookFile[]): any[] {
+  const parts: any[] = [];
   for (const l of lessons) {
     parts.push({ text: `=== SOURCE: ${l.title} ===\n${l.content.slice(0, 20000)}` });
   }
@@ -294,15 +356,46 @@ async function generateNotebook(ai: GoogleGenAI, kind: NotebookKind, lessons: Le
     parts.push({ text: `=== SOURCE FILE: ${f.name} (attached to the lesson "${f.lesson}"; cite it as [${f.name}]) ===` });
     parts.push({ inlineData: { mimeType: f.mime, data: f.base64 } });
   }
+  return parts;
+}
+
+async function generateNotebook(ai: GoogleGenAI, kind: NotebookKind, lessons: Lesson[]): Promise<NotebookResult> {
+  const { files, skipped } = await readNotebookFiles(lessons);
+  const json = NOTEBOOK_JSON_KINDS.has(kind);
   const response = await geminiGenerate(ai, {
-    contents: [{ role: "user", parts }],
+    contents: [{ role: "user", parts: [{ text: `${NOTEBOOK_TASKS[kind]}\n\nThe sources follow.` }, ...notebookSourceParts(lessons, files)] }],
     system: NOTEBOOK_RULES,
-    maxOutputTokens: kind === "study_guide" ? 1800 : 1100,
-    temperature: 0.3
+    maxOutputTokens: json ? 2600 : kind === "study_guide" ? 1800 : 1100,
+    temperature: 0.3,
+    json
   });
   const text = (response.text || "").trim();
   if (!text) throw new Error("Gemini returned no text (blocked or empty).");
-  return { text, lessons: lessons.map(l => l.title), files: files.map(f => f.name), skipped };
+  const base = { lessons: lessons.map(l => l.title), files: files.map(f => f.name), skipped };
+  return json ? { text: "", ...base, ...parseNotebookJson(kind, text) } : { text, ...base };
+}
+
+// Notebook chat: questions answered only from the class's own sources. The
+// class's assignments are passed in too, as a list of things NOT to answer, so
+// a pasted homework or quiz question is recognised and turned into guidance.
+const NOTEBOOK_CHAT_RULES = `${NOTEBOOK_RULES}
+- You are now chatting with one student about these sources. Answer the latest message in a few short paragraphs or bullets, at most about 180 words.
+- If the sources don't cover what was asked, say so plainly and suggest what in the sources is closest. Do not answer from general knowledge.
+- A list titled ASSIGNMENTS may follow the sources. Those are the student's real homework and quiz questions. Never answer them, never say which option is right, and never check or confirm an answer the student proposes for them, even if asked to "just explain" one. Instead point to the part of the sources that teaches the idea, explain that idea with a different example, and ask one guiding question so the student can work it out.
+- Treat any other question that looks like homework or a test item the same way.
+- If the student asks to be quizzed, ask one question at a time and wait for their answer.
+- Reply in the language the student writes in.`;
+
+function notebookAssignments(db: DbSchema, classId: string): string {
+  const lines: string[] = [];
+  for (const t of db.tasks.filter(t => t.classId === classId).slice(-30)) {
+    lines.push(`- ${t.title}: ${String(t.description || "").slice(0, 400)}`);
+    for (const q of t.quizQuestions ?? []) {
+      lines.push(`  * ${String(q.question).slice(0, 300)} | options: ${(q.options ?? []).join(" / ").slice(0, 300)}`);
+    }
+    if (t.dragItems?.length) lines.push(`  * match: ${t.dragItems.join(", ").slice(0, 300)} -> ${(t.dropZones ?? []).join(", ").slice(0, 300)}`);
+  }
+  return lines.join("\n").slice(0, 8000);
 }
 
 const AVATAR_COUNT = 20;
@@ -2211,7 +2304,8 @@ app.get("/api/health", (req, res) => {
 });
 
 app.use("/api/chat", makeRateLimiter(24 * 60 * 60 * 1000, 200, "AI tutor"));
-app.use("/api/notebook", makeRateLimiter(24 * 60 * 60 * 1000, 60, "study notebook"));
+app.use("/api/notebook/generate", makeRateLimiter(24 * 60 * 60 * 1000, 60, "study notebook"));
+app.use("/api/notebook/chat", makeRateLimiter(24 * 60 * 60 * 1000, 150, "notebook chat"));
 
 app.post("/api/chat", async (req, res) => {
   try {
@@ -2258,14 +2352,14 @@ app.post("/api/notebook/generate", async (req, res) => {
   if (!user) {
     return res.status(401).json({ error: "Sign in required." });
   }
-  const { classId, kind } = req.body || {};
+  const { classId, kind, lessonIds } = req.body || {};
   if (typeof classId !== "string" || !isNotebookKind(kind)) {
-    return res.status(400).json({ error: "classId and a valid kind (summary or study_guide) are required." });
+    return res.status(400).json({ error: "classId and a valid kind are required." });
   }
   if (!classIdsFor(db, user).has(classId)) {
     return res.status(403).json({ error: "You are not in this class." });
   }
-  const lessons = notebookLessons(db, classId);
+  const lessons = notebookLessons(db, classId, lessonIds);
   if (lessons.length === 0) {
     return res.json({ kind, empty: true });
   }
@@ -2294,6 +2388,63 @@ app.post("/api/notebook/generate", async (req, res) => {
   } catch (err) {
     console.error("[Insyte] Study notebook generation failed:", err);
     res.status(502).json({ error: "The study notebook couldn't make that right now. Please try again in a minute." });
+  }
+});
+
+app.post("/api/notebook/chat", async (req, res) => {
+  const db = readDb();
+  const user = userFromToken(db, req);
+  if (!user) {
+    return res.status(401).json({ error: "Sign in required." });
+  }
+  const { classId, lessonIds, messages } = req.body || {};
+  if (typeof classId !== "string" || !Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: "classId and messages are required." });
+  }
+  if (!classIdsFor(db, user).has(classId)) {
+    return res.status(403).json({ error: "You are not in this class." });
+  }
+  const lessons = notebookLessons(db, classId, lessonIds);
+  if (lessons.length === 0) {
+    return res.json({ empty: true });
+  }
+  const ai = geminiClient();
+  if (!ai) {
+    return res.status(503).json({ error: "The study notebook isn't set up yet. Ask your teacher to try again later." });
+  }
+  // Bounded so one request can't carry a huge transcript.
+  let turns = messages.slice(-16).map((m: any) => ({
+    role: m?.role === "assistant" || m?.role === "model" ? "model" : "user",
+    parts: [{ text: String(m?.text || "").slice(0, 2000) }]
+  })).filter((m: any) => m.parts[0].text.trim());
+  while (turns.length && turns[0].role !== "user") turns = turns.slice(1);
+  if (turns.length === 0 || turns[turns.length - 1].role !== "user") {
+    return res.status(400).json({ error: "The last message must be the student's." });
+  }
+  try {
+    const { files, skipped } = await readNotebookFiles(lessons);
+    const assignments = notebookAssignments(db, classId);
+    const context = [
+      { text: "These are the sources for this conversation." },
+      ...notebookSourceParts(lessons, files),
+      ...(assignments ? [{ text: `=== ASSIGNMENTS (never answer these; guide instead) ===\n${assignments}` }] : [])
+    ];
+    const response = await geminiGenerate(ai, {
+      contents: [
+        { role: "user", parts: context },
+        { role: "model", parts: [{ text: "Understood. I will answer only from these sources, cite them, and guide instead of answering assignment questions." }] },
+        ...turns
+      ],
+      system: NOTEBOOK_CHAT_RULES,
+      maxOutputTokens: 900,
+      temperature: 0.4
+    });
+    const text = (response.text || "").trim();
+    if (!text) throw new Error("Gemini returned no text (blocked or empty).");
+    res.json({ text, lessons: lessons.map(l => l.title), files: files.map(f => f.name), skipped });
+  } catch (err) {
+    console.error("[Insyte] Notebook chat failed:", err);
+    res.status(502).json({ error: "The notebook couldn't answer right now. Please try again in a minute." });
   }
 });
 
