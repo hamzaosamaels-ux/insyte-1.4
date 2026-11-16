@@ -217,10 +217,18 @@ const notifToRow = (n: any) => ({
   created_at: n.createdAt, read: n.read
 });
 
-async function selectAll(table: string): Promise<any[]> {
-  const { data, error } = await db().from(table).select("*");
-  if (error) throw new Error(`Supabase read ${table}: ${error.message}`);
-  return data || [];
+// Reads the WHOLE table. Supabase returns at most 1000 rows per request, so a
+// plain select silently drops the rest once a table grows past that (sessions,
+// chat and the activity log all will). Page through in a stable order instead.
+const PAGE = 1000;
+async function selectAll(table: string, idField = "id"): Promise<any[]> {
+  const all: any[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await db().from(table).select("*").order(idField).range(from, from + PAGE - 1);
+    if (error) throw new Error(`Supabase read ${table}: ${error.message}`);
+    all.push(...(data || []));
+    if (!data || data.length < PAGE) return all;
+  }
 }
 
 // Every column the write path actually sends, per table. Kept next to the
@@ -274,7 +282,7 @@ export async function loadFromSupabase(): Promise<StoreSchema> {
       selectAll("profiles"), selectAll("classes"), selectAll("lessons"),
       selectAll("tasks"), selectAll("submissions"), selectAll("announcements"),
       selectAll("chat_messages"), selectAll("events"), selectAll("mails"),
-      selectAll("notifications"), selectAll("sessions"), selectAll("push_subscriptions"), selectAll("activity_days")
+      selectAll("notifications"), selectAll("sessions", "token"), selectAll("push_subscriptions", "endpoint"), selectAll("activity_days")
     ]);
 
   const profileObjs = profiles.map(rowToProfile);

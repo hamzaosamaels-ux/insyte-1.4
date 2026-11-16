@@ -645,11 +645,23 @@ function todayStr(): string {
 
 // Remember that a student was in the app today. Writes only the first time each
 // day, and drops anything older than ACTIVITY_KEEP_DAYS. Returns true if it changed.
+// The school's calendar day, not UTC: a student studying at 1am must count for
+// the day their teacher sees. APP_TIMEZONE overrides the default.
+const ACTIVITY_TZ = process.env.APP_TIMEZONE || "Africa/Cairo";
+function schoolDay(daysAgo = 0): string {
+  const at = new Date(Date.now() - daysAgo * 86400000);
+  try {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: ACTIVITY_TZ }).format(at);
+  } catch {
+    return at.toISOString().slice(0, 10); // unknown zone name: fall back to UTC
+  }
+}
+
 function recordActivity(db: DbSchema, user: UserProfile): boolean {
   if (user.role !== "student") return false;
-  const day = todayStr();
+  const day = schoolDay();
   const id = `${user.id}:${day}`;
-  const cutoff = new Date(Date.now() - ACTIVITY_KEEP_DAYS * 86400000).toISOString().slice(0, 10);
+  const cutoff = schoolDay(ACTIVITY_KEEP_DAYS);
   const kept = db.activityDays.filter(a => a.day >= cutoff);
   const changed = kept.length !== db.activityDays.length || !kept.some(a => a.id === id);
   if (!changed) return false;
@@ -1272,13 +1284,17 @@ app.get("/api/teacher/activity", (req, res) => {
   }
   const n = Math.min(Math.max(parseInt(String(req.query.days ?? "14"), 10) || 14, 1), ACTIVITY_KEEP_DAYS);
   const days: string[] = [];
-  for (let i = n - 1; i >= 0; i--) days.push(new Date(Date.now() - i * 86400000).toISOString().slice(0, 10));
+  for (let i = n - 1; i >= 0; i--) days.push(schoolDay(i));
+  const wanted = new Set(days);
   const byUser = new Map<string, string[]>();
   for (const a of db.activityDays) {
-    if (!days.includes(a.day)) continue;
-    byUser.set(a.userId, [...(byUser.get(a.userId) ?? []), a.day]);
+    if (!wanted.has(a.day)) continue;
+    const list = byUser.get(a.userId);
+    if (list) list.push(a.day); else byUser.set(a.userId, [a.day]);
   }
-  const classes = db.classes.filter(c => c.teacherId === teacher.id).map(c => ({
+  // Classes the teacher owns or co-teaches, the same rule as everywhere else.
+  const mine = classIdsFor(db, teacher);
+  const classes = db.classes.filter(c => mine.has(c.id)).map(c => ({
     id: c.id,
     name: c.name,
     students: db.students
