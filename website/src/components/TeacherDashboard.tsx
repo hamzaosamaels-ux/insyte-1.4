@@ -21,6 +21,8 @@ import { Library as LibraryShelf } from "./Library";
 import { OnboardingChecklist } from "./Onboarding";
 import { AttachmentPicker, AttachmentList } from "./AttachmentPicker";
 import { AddStudentsModal, NewCardButton } from "./LoginCards";
+import { TeacherAssistant } from "./TeacherAssistant";
+import { Bot } from "lucide-react";
 import { getClassColors } from "../utils/colorHelper";
 
 interface TeacherDashboardProps {
@@ -125,7 +127,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
   // Selection States
   const [activeClass, setActiveClass] = useState<ClassCommunity | null>(classes[0] || null);
-  const [activeSection, setActiveSection] = useState<"lobby" | "lessons" | "tasks" | "grade" | "events" | "announcements" | "chat" | "calendar" | "mail" | "library" | "settings">("lobby");
+  const [activeSection, setActiveSection] = useState<"lobby" | "lessons" | "tasks" | "grade" | "events" | "announcements" | "chat" | "calendar" | "mail" | "library" | "settings" | "assistant">("lobby");
   // Mobile nav drawer (hamburger opens the left rail)
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -810,6 +812,18 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
             >
               <MessageSquare className="h-4 w-4" />
               <span>{t.peerDiscuss}</span>
+            </button>
+
+            <button
+              onClick={() => { setActiveSection("assistant"); setSelectedSub(null); }}
+              className={`w-auto md:w-full shrink-0 flex items-center justify-start gap-2.5 px-3.5 md:px-4 py-2.5 md:py-3 rounded-xl text-xs font-bold transition-all ${
+                activeSection === "assistant"
+                  ? "bg-slate-100 dark:bg-[#1c1836] text-slate-900 dark:text-slate-100 border border-slate-200/80 dark:border-[#2d2553]/50 shadow-xs"
+                  : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1836]/40 hover:text-slate-800 dark:hover:text-slate-200 border border-transparent"
+              }`}
+            >
+              <Bot className="h-4 w-4" />
+              <span>{language === "ar" ? "مساعدي" : "My assistant"}</span>
             </button>
 
             <button
@@ -1946,6 +1960,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
             )}
 
             {/* LIBRARY VIEW */}
+            {activeSection === "assistant" && <TeacherAssistant appLanguage={language} />}
+
             {activeSection === "library" && (
               <LibraryShelf
                 classes={classes}

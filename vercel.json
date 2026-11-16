@@ -12,5 +12,11 @@
     "api/index.ts": {
       "maxDuration": 60
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/teacher-digest",
+      "schedule": "30 4 * * *"
+    }
+  ]
 }

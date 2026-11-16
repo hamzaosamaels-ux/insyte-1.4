@@ -85,7 +85,8 @@ const rowToProfile = (r: any) => ({
   verificationTokenExpiresAt: r.verification_token_expires_at || undefined,
   resetToken: r.reset_token || undefined,
   resetTokenExpiresAt: r.reset_token_expires_at || undefined,
-  loginTokenHash: r.login_token_hash || undefined
+  loginTokenHash: r.login_token_hash || undefined,
+  assistantLanguage: r.assistant_language || undefined
 });
 const profileToRow = (p: any) => ({
   id: p.id, name: p.name, email: p.email, role: p.role, avatar: p.avatar,
@@ -100,7 +101,8 @@ const profileToRow = (p: any) => ({
   verification_token_expires_at: p.verificationTokenExpiresAt || null,
   // Only sent when set, so a database that hasn't had the column added yet
   // keeps saving normally until the first QR-card student exists.
-  ...(p.loginTokenHash ? { login_token_hash: p.loginTokenHash } : {})
+  ...(p.loginTokenHash ? { login_token_hash: p.loginTokenHash } : {}),
+  ...(p.assistantLanguage ? { assistant_language: p.assistantLanguage } : {})
 });
 
 const rowToClass = (r: any) => ({
@@ -239,7 +241,7 @@ export const EXPECTED_COLUMNS: Record<string, string[]> = {
     "joined_classes", "streak", "last_active_date", "read_lessons",
     "password_hash", "email_verified", "verification_token",
     "verification_token_expires_at", "reset_token", "reset_token_expires_at",
-    "login_token_hash"
+    "login_token_hash", "assistant_language"
   ],
   classes: ["id", "name", "code", "description", "teacher_id", "teacher_name", "student_ids", "color"],
   lessons: ["id", "class_id", "title", "content", "published_at", "video_url", "ppt_url", "web_url", "web_url_title", "reward_xp", "attachments"],
